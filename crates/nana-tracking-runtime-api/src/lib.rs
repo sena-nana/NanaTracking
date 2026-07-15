@@ -158,23 +158,78 @@ impl TrackingModelInput<'_> {
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum ModelTrackingState {
-    #[default]
     Observed,
     Fused,
     Predicted,
     Occluded,
     OutOfFrame,
     TrackingLost,
+    #[default]
+    Unsupported,
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct ModelScalar {
-    pub value: f32,
+impl ModelTrackingState {
+    #[must_use]
+    pub const fn is_unsupported(self) -> bool {
+        matches!(self, Self::Unsupported)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ModelTracked<T> {
+    pub value: Option<T>,
     pub confidence: f32,
     pub state: ModelTrackingState,
     pub sample_capture_timestamp_ns: u64,
     pub prediction_horizon_ns: u64,
 }
+
+impl<T> ModelTracked<T> {
+    #[must_use]
+    pub const fn unsupported() -> Self {
+        Self {
+            value: None,
+            confidence: 0.0,
+            state: ModelTrackingState::Unsupported,
+            sample_capture_timestamp_ns: 0,
+            prediction_horizon_ns: 0,
+        }
+    }
+
+    #[must_use]
+    pub const fn observed(value: T, confidence: f32, capture_timestamp_ns: u64) -> Self {
+        Self {
+            value: Some(value),
+            confidence,
+            state: ModelTrackingState::Observed,
+            sample_capture_timestamp_ns: capture_timestamp_ns,
+            prediction_horizon_ns: 0,
+        }
+    }
+
+    #[must_use]
+    pub const fn unavailable(
+        confidence: f32,
+        state: ModelTrackingState,
+        capture_timestamp_ns: u64,
+    ) -> Self {
+        Self {
+            value: None,
+            confidence,
+            state,
+            sample_capture_timestamp_ns: capture_timestamp_ns,
+            prediction_horizon_ns: 0,
+        }
+    }
+}
+
+impl<T> Default for ModelTracked<T> {
+    fn default() -> Self {
+        Self::unsupported()
+    }
+}
+
+pub type ModelScalar = ModelTracked<f32>;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct ModelVector3 {
@@ -199,16 +254,41 @@ pub struct ModelPose {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct ModelGeometry {
-    pub head_camera_pose: Option<ModelPose>,
-    pub torso_camera_pose: Option<ModelPose>,
-    pub upper_body_joint_positions: [Option<ModelVector3>; UPPER_BODY_JOINT_COUNT],
-    pub upper_body_joint_rotations: [Option<ModelQuaternion>; UPPER_BODY_JOINT_COUNT],
+    pub head_camera_pose: ModelTracked<ModelPose>,
+    pub torso_camera_pose: ModelTracked<ModelPose>,
+    pub eye_origins_head: [ModelTracked<ModelVector3>; 2],
+    pub eye_directions_head: [ModelTracked<ModelVector3>; 2],
+    pub look_at_camera: ModelTracked<ModelVector3>,
+    pub face_geometry_state: ModelTrackingState,
+    pub upper_body_joint_positions: [ModelTracked<ModelVector3>; UPPER_BODY_JOINT_COUNT],
+    pub upper_body_joint_rotations: [ModelTracked<ModelQuaternion>; UPPER_BODY_JOINT_COUNT],
+    pub upper_arm_directions: [ModelTracked<ModelVector3>; 2],
+    pub forearm_directions: [ModelTracked<ModelVector3>; 2],
+    pub upper_arm_twists: [ModelScalar; 2],
+    pub forearm_twists: [ModelScalar; 2],
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct ModelRegionQuality {
+    pub confidence: f32,
+    pub state: ModelTrackingState,
+}
+
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ModelQuality {
+    pub overall_confidence: f32,
+    pub face: ModelRegionQuality,
+    pub eyes: ModelRegionQuality,
+    pub torso: ModelRegionQuality,
+    pub arm: [ModelRegionQuality; 2],
+    pub auricle: [ModelRegionQuality; 2],
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct TrackingModelOutput {
     pub signals: [Option<ModelScalar>; MAX_STABLE_SIGNALS],
     pub geometry: ModelGeometry,
+    pub quality: ModelQuality,
     pub produced_timestamp_ns: u64,
     pub provider: ActiveProvider,
     pub preprocess_ns: u64,
@@ -222,6 +302,7 @@ impl TrackingModelOutput {
         Self {
             signals: [None; MAX_STABLE_SIGNALS],
             geometry: ModelGeometry::default(),
+            quality: ModelQuality::default(),
             produced_timestamp_ns: 0,
             provider,
             preprocess_ns: 0,
@@ -233,6 +314,7 @@ impl TrackingModelOutput {
     pub fn clear(&mut self) {
         self.signals.fill(None);
         self.geometry = ModelGeometry::default();
+        self.quality = ModelQuality::default();
         self.produced_timestamp_ns = 0;
         self.preprocess_ns = 0;
         self.inference_ns = 0;

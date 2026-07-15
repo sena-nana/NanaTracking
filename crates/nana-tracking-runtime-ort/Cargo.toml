@@ -1,0 +1,20 @@
+[package]
+name = "nana-tracking-runtime-ort"
+version = "0.1.0"
+description = "ONNX Runtime baseline backend for NanaTracking model packages"
+repository = "https://github.com/sena-nana/NanaTracking"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+nana-tracking-runtime-api = { path = "../nana-tracking-runtime-api" }
+ndarray = "0.16.1"
+ndarray-npy = { version = "0.9.1", default-features = false, features = ["npz"] }
+ort = { version = "=2.0.0-rc.9", default-features = false, features = ["load-dynamic", "ndarray"] }
+# `ort` rc.9 declared a semver range for its prerelease sys crate; pin both halves so Cargo cannot
+# combine an rc.9 wrapper with a newer incompatible generated C API.
+ort-sys = { version = "=2.0.0-rc.9", default-features = false, features = ["load-dynamic"] }
+
+[lints]
+workspace = true

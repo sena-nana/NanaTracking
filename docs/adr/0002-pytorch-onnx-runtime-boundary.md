@@ -17,6 +17,14 @@ capture/generation state, actual provider identity, stage timing, model metadata
 backend-neutral errors. Backend crates alone own sessions, devices, streams, command queues,
 bindings, engine caches, and small-result readback.
 
+`nana-tracking-runtime-ort` is the first real backend implementation. It verifies the portable
+package before loading, supports the FaceBasic CPU baseline, reuses one fixed NCHW preprocessing
+buffer, compares every named output against the package NPZ vector, and copies only plain values
+into caller-owned output storage. The application supplies and initializes its packaged ONNX
+Runtime dynamic library; the backend never discovers a Python environment or downloads a runtime
+at application startup. The runtime API represents value, confidence, state, capture timestamp,
+and prediction horizon independently, so unavailable observations never require a fabricated zero.
+
 Portable packages use the versioned `nana-model-package/2.0.0` contract and contain a
 digest-verified `model.onnx`, schema and normalization contracts,
 runtime metadata, calibration and adapter contracts, and fixed vectors. Export rejects custom ONNX
@@ -53,3 +61,7 @@ interfaces backend-specific.
 
 Real TensorRT, DirectML, Core ML, Metal, and optional Burn acceptance remains device-specific.
 CPU or synthetic evidence cannot certify those paths.
+
+The checked-in macOS CPU measurement is
+`artifacts/benchmarks/issue11-rust-ort-face-basic-macos-m4-smoke.json`. It is synthetic fixed-input
+smoke evidence for the Rust adapter and is not tracking-quality or target-device acceptance.

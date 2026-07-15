@@ -24,8 +24,9 @@ fn borrowed_rgb_contract_rejects_truncation_without_backend_types() {
 fn output_storage_is_fixed_and_reusable() {
     let mut output = TrackingModelOutput::preallocated(ActiveProvider::OnnxRuntimeCpu);
     assert_eq!(output.signals.len(), MAX_STABLE_SIGNALS);
-    output.signals[0] = Some(ModelScalar::default());
-    output.geometry.upper_body_joint_positions[0] = Some(ModelVector3::default());
+    output.signals[0] = Some(ModelScalar::observed(0.5, 0.9, 100));
+    output.geometry.upper_body_joint_positions[0] =
+        nana_tracking_runtime_api::ModelTracked::observed(ModelVector3::default(), 0.8, 100);
     output.clear();
     assert!(output.signals.iter().all(Option::is_none));
     assert!(
@@ -33,7 +34,11 @@ fn output_storage_is_fixed_and_reusable() {
             .geometry
             .upper_body_joint_positions
             .iter()
-            .all(Option::is_none)
+            .all(|joint| joint.state == ModelTrackingState::Unsupported && joint.value.is_none())
     );
-    assert_eq!(ModelScalar::default().state, ModelTrackingState::Observed);
+    assert_eq!(
+        ModelScalar::default().state,
+        ModelTrackingState::Unsupported
+    );
+    assert_eq!(ModelScalar::default().value, None);
 }

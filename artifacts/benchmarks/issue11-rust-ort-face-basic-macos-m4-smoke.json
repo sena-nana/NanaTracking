@@ -1,0 +1,57 @@
+{
+  "backend": {
+    "crate": "ort 2.0.0-rc.9",
+    "onnx_runtime": "1.27.0",
+    "precision": "fp32",
+    "provider": "OnnxRuntimeCpu"
+  },
+  "fixed_vector": {
+    "absolute_tolerance": 1e-05,
+    "outputs_checked": 5,
+    "passed": true,
+    "relative_tolerance": 0.0001
+  },
+  "git": {
+    "base_commit": "13a5ae97944675883ba6a06ddbf00adf27668ad1",
+    "working_tree_dirty_during_measurement": true
+  },
+  "hardware": {
+    "cpu": "Apple M4",
+    "os": "macOS 26.5.2 (25F84)",
+    "rustc": "1.97.0"
+  },
+  "input": {
+    "color": "RGB",
+    "layout": "NCHW",
+    "shape": [1, 3, 64, 64],
+    "source": "constant uint8 RGB smoke frame"
+  },
+  "measurement": {
+    "iterations": 2000,
+    "preprocess_ns": {
+      "p50": 4542,
+      "p95": 5167,
+      "p99": 5791
+    },
+    "readback_ns": {
+      "p50": 625,
+      "p95": 750,
+      "p99": 833
+    },
+    "session_inference_ns": {
+      "p50": 119334,
+      "p95": 132916,
+      "p99": 143833
+    },
+    "warmup_iterations": 100
+  },
+  "model": {
+    "family": "nana-face-basic",
+    "model_digest": "8f5a9dd44f4f19b6cdb8d12acf5c4f6f7f2a1ca47fb3490fef3ad38da0fec542",
+    "source_checkpoint_digest": "4208931a2875c6492e78ac1ec450e8d7ece5cf760e1acc070371188d135b9dd8",
+    "version": "0.1.0-smoke"
+  },
+  "note": "Synthetic fixed-input smoke only; not real tracking quality or target-device acceptance.",
+  "schema_version": "rust-ort-face-basic-smoke-benchmark/1.0.0",
+  "smoke_only": true
+}

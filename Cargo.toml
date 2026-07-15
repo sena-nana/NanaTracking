@@ -3,6 +3,7 @@ members = [
     "crates/nana-tracking-fusion",
     "crates/nana-tracking-protocol",
     "crates/nana-tracking-runtime-api",
+    "crates/nana-tracking-runtime-ort",
     "crates/nana-tracking-semantics",
     "crates/ntp-conformance",
 ]
