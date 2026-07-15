@@ -218,6 +218,8 @@ _WIRE_STATE = {
 class _BodySample:
     prediction: FullSetPrediction
     capture_timestamp_ns: int
+    sequence: int
+    stream_key: tuple[tuple[int, ...], int]
 
 
 class FullSetProducer:
@@ -274,12 +276,16 @@ class FullSetProducer:
         sequence: int,
     ) -> dict[str, object]:
         result = self._validated_face_result(face_event, capture_timestamp_ns, sequence)
+        stream_key = self._stream_key(result)
+        latest = self._latest
+        stream_changed = latest is not None and latest.stream_key != stream_key
+        cadence_due = latest is not None and (
+            sequence < latest.sequence or sequence - latest.sequence >= self.body_inference_interval
+        )
         preprocess_ns = 0
         inference_ns = 0
         if body_visible and (
-            self._needs_refresh
-            or self._latest is None
-            or sequence % self.body_inference_interval == 0
+            self._needs_refresh or latest is None or stream_changed or cadence_due
         ):
             preprocess_started = time.perf_counter_ns()
             prepare_rgb_roi(
@@ -290,7 +296,9 @@ class FullSetProducer:
             )
             preprocess_ns = time.perf_counter_ns() - preprocess_started
             inference_started = time.perf_counter_ns()
-            self._latest = _BodySample(self.backend.infer(self._input), capture_timestamp_ns)
+            self._latest = _BodySample(
+                self.backend.infer(self._input), capture_timestamp_ns, sequence, stream_key
+            )
             inference_ns = time.perf_counter_ns() - inference_started
             self._needs_refresh = False
         elif not body_visible:
@@ -299,8 +307,11 @@ class FullSetProducer:
         sample = self._latest if body_visible else None
         if sample is None:
             self._write_unavailable(result, "OutOfFrame", capture_timestamp_ns)
-        elif capture_timestamp_ns - sample.capture_timestamp_ns > self.maximum_body_age_ns:
+        elif not (
+            0 <= capture_timestamp_ns - sample.capture_timestamp_ns <= self.maximum_body_age_ns
+        ):
             self._write_unavailable(result, "TrackingLost", sample.capture_timestamp_ns)
+            self._needs_refresh = True
         else:
             self._write_prediction(result, sample, capture_timestamp_ns)
         result["produced_timestamp_ns"] = max(int(self._clock()), capture_timestamp_ns)
@@ -310,6 +321,21 @@ class FullSetProducer:
             "readback": time.perf_counter_ns() - readback_started,
         }
         return {"kind": "result", "value": result}
+
+    @staticmethod
+    def _stream_key(result: dict[str, object]) -> tuple[tuple[int, ...], int]:
+        session_id = result.get("session_id")
+        generation = result.get("generation")
+        session_values = cast(list[object], session_id) if isinstance(session_id, list) else []
+        if (
+            not isinstance(session_id, list)
+            or len(session_values) != 16
+            or not all(isinstance(value, int) and 0 <= value <= 255 for value in session_values)
+            or not isinstance(generation, int)
+            or generation < 0
+        ):
+            raise ValueError("Spatial result has an invalid stream identity")
+        return tuple(cast(int, value) for value in session_values), generation
 
     @staticmethod
     def _validated_face_result(

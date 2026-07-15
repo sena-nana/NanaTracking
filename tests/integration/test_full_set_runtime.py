@@ -91,10 +91,16 @@ def test_full_producer_preserves_observation_age_and_passes_conformance(tmp_path
         sequence=3,
     )
     assert backend.calls == 2
+    second_value = cast(dict[str, object], second["value"])
+    second_slots = cast(
+        list[dict[str, object]], cast(dict[str, object], second_value["rig"])["slots"]
+    )
+    assert second_slots[41]["state"] == "Fused"
+    assert second_slots[41]["sample_capture_timestamp_ns"] == 1_000
     third_value = cast(dict[str, object], third["value"])
     slots = cast(list[dict[str, object]], cast(dict[str, object], third_value["rig"])["slots"])
-    assert slots[41]["state"] == "Fused"
-    assert slots[41]["sample_capture_timestamp_ns"] == 1_100
+    assert slots[41]["state"] == "Observed"
+    assert slots[41]["sample_capture_timestamp_ns"] == 1_200
     np.testing.assert_allclose(
         cast(list[float], [slots[index]["value"] for index in range(47, 50)]),
         [0.1, 0.1, 0.2],
@@ -162,3 +168,74 @@ def test_body_reappearance_forces_a_fresh_observation() -> None:
             sequence=sequence,
         )
     assert backend.calls == 2
+
+
+def test_body_cadence_is_relative_and_stream_reconfigure_invalidates_cache() -> None:
+    frame = np.zeros((96, 96, 3), dtype=np.uint8)
+    session_id = UUID("12345678-1234-5678-1234-567812345678")
+    face = FaceSpatialProducer(DeterministicSpatialBackend(), session_id=session_id)
+    backend = DeterministicFullBackend()
+    full = FullSetProducer(backend, body_inference_interval=2)
+    for sequence in (5, 6, 7):
+        full.produce(
+            frame,
+            face_event=_face_event(face, frame, 1_000 + sequence, sequence),
+            body_roi=None,
+            body_visible=True,
+            capture_timestamp_ns=1_000 + sequence,
+            sequence=sequence,
+        )
+    assert backend.calls == 2
+
+    reconfigured = FaceSpatialProducer(
+        DeterministicSpatialBackend(), session_id=session_id, generation=1
+    )
+    full.produce(
+        frame,
+        face_event=_face_event(reconfigured, frame, 1_008, 8),
+        body_roi=None,
+        body_visible=True,
+        capture_timestamp_ns=1_008,
+        sequence=8,
+    )
+    assert backend.calls == 3
+
+
+def test_stale_body_sample_requests_refresh_instead_of_remaining_lost() -> None:
+    frame = np.zeros((96, 96, 3), dtype=np.uint8)
+    face = FaceSpatialProducer(DeterministicSpatialBackend())
+    backend = DeterministicFullBackend()
+    full = FullSetProducer(
+        backend,
+        body_inference_interval=100,
+        maximum_body_age_ns=50,
+    )
+    first = full.produce(
+        frame,
+        face_event=_face_event(face, frame, 1_000, 1),
+        body_roi=None,
+        body_visible=True,
+        capture_timestamp_ns=1_000,
+        sequence=1,
+    )
+    stale = full.produce(
+        frame,
+        face_event=_face_event(face, frame, 1_100, 2),
+        body_roi=None,
+        body_visible=True,
+        capture_timestamp_ns=1_100,
+        sequence=2,
+    )
+    refreshed = full.produce(
+        frame,
+        face_event=_face_event(face, frame, 1_101, 3),
+        body_roi=None,
+        body_visible=True,
+        capture_timestamp_ns=1_101,
+        sequence=3,
+    )
+    assert backend.calls == 2
+    for event, expected in ((first, "Observed"), (stale, "TrackingLost"), (refreshed, "Observed")):
+        value = cast(dict[str, object], event["value"])
+        slots = cast(list[dict[str, object]], cast(dict[str, object], value["rig"])["slots"])
+        assert slots[41]["state"] == expected

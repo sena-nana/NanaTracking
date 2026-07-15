@@ -39,7 +39,10 @@ captures remain outside Git.
 `FullSetProducer` fuses a current complete Spatial result with a lower-rate body observation. It
 keeps the body's original capture timestamp when reused and changes current observed samples to
 `Fused`; it never rewrites an old sample as a new observation. A configurable maximum age changes
-stale body results to `TrackingLost`. Leaving the frame produces `OutOfFrame`, and re-entry forces
+stale body results to `TrackingLost` and forces a refresh on the next visible frame. Cadence is
+measured relative to the last body observation rather than absolute sequence divisibility, so a
+non-zero starting sequence cannot cause back-to-back inference. Session or generation changes
+invalidate the cached body sample. Leaving the frame produces `OutOfFrame`, and re-entry forces
 fresh inference even if the normal body interval has not elapsed.
 
 The skeleton is authoritative. Upper-arm and forearm directions are recomputed from the emitted
