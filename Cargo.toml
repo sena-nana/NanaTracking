@@ -1,5 +1,9 @@
 [workspace]
-members = ["crates/nana-tracking-protocol", "crates/nana-tracking-semantics"]
+members = [
+    "crates/nana-tracking-protocol",
+    "crates/nana-tracking-semantics",
+    "crates/ntp-conformance",
+]
 resolver = "3"
 
 [workspace.package]

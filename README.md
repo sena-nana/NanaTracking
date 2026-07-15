@@ -26,6 +26,7 @@ uv run --extra cpu nana-tracking data validate examples/manifests/synthetic-v1.j
 uv run --extra cpu nana-tracking train --config configs/smoke.yaml
 uv run --extra cpu nana-tracking smoke --work-dir runs/smoke
 uv run --extra cpu nana-tracking benchmark-python
+cargo run -p ntp-conformance -- stream.ntp --output json
 ```
 
 The interpreter benchmark runs `InterpreterPoolExecutor` inside an isolated broker process.
@@ -57,8 +58,13 @@ profiles.
 - [NTP v1 freeze review checklist](docs/protocol/ntp-v1-freeze-checklist.md)
 - [NTP v1 canonical codec and Rust/C contract](docs/protocol/ntp-v1-codec.md)
 - [NTP v1 semantic derivation and rig binding reference](docs/semantics/ntp-v1-reference.md)
+- [NTP v1 conformance and compatibility matrix](docs/conformance/ntp-v1-compatibility-matrix.md)
 - [ADR 0001: Vendor parameters are adapters, not NTP](docs/adr/0001-vendor-parameters-are-adapters.md)
 
 The framework-neutral Rust implementations live in `crates/nana-tracking-protocol` and
 `crates/nana-tracking-semantics`. Protocol codec/capability code and deterministic semantic/model
 binding code remain independent from the Python/PyTorch training workspace.
+
+`crates/ntp-conformance` derives certification from complete capability sets and validates binary
+or diagnostic JSONL descriptor/result streams. Its checked-in vectors are synthetic contract-only
+smoke evidence; they do not claim tracking-model quality or production latency.

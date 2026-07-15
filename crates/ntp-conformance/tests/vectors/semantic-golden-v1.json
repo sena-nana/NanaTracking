@@ -1,0 +1,136 @@
+{
+  "schema": "ntp-golden/1.0.0",
+  "scope": "synthetic contract-only smoke vectors; not model-quality or production-readiness evidence",
+  "revisions": {
+    "protocol": "1.0",
+    "schema": 1,
+    "signal_registry": "1.0.0",
+    "normalization": "1.0.0",
+    "calibration": "1.0.0",
+    "features": "1.0.0",
+    "semantics": "1.0.0"
+  },
+  "vectors": [
+    {
+      "name": "neutral_face",
+      "signals": [],
+      "expected_semantics": {
+        "eye_blink_left": 0.0,
+        "eye_wide_right": 0.0,
+        "jaw_left": 0.0,
+        "jaw_right": 0.0,
+        "mouth_pucker": 0.0,
+        "mouth_funnel": 0.0
+      },
+      "expected_controls": {}
+    },
+    {
+      "name": "left_independent_blink",
+      "signals": [[7, -0.8]],
+      "expected_semantics": {"eye_blink_left": 0.8, "eye_wide_left": 0.0},
+      "expected_controls": {"eyeBlinkLeft": 0.8, "eyeBlinkRight": 0.0}
+    },
+    {
+      "name": "right_independent_blink",
+      "signals": [[8, -0.7]],
+      "expected_semantics": {"eye_blink_right": 0.7, "eye_wide_right": 0.0},
+      "expected_controls": {"eyeBlinkLeft": 0.0, "eyeBlinkRight": 0.7}
+    },
+    {
+      "name": "left_independent_wide",
+      "signals": [[7, 0.6]],
+      "expected_semantics": {"eye_blink_left": 0.0, "eye_wide_left": 0.6},
+      "expected_controls": {"eyeWideLeft": 0.6}
+    },
+    {
+      "name": "right_independent_wide",
+      "signals": [[8, 0.5]],
+      "expected_semantics": {"eye_blink_right": 0.0, "eye_wide_right": 0.5},
+      "expected_controls": {"eyeWideRight": 0.5}
+    },
+    {
+      "name": "asymmetric_brows",
+      "signals": [[1, 0.4], [2, -0.2], [3, 0.6], [4, -0.3]],
+      "expected_semantics": {},
+      "expected_controls": {
+        "browDownRight": 0.2,
+        "browInnerUp": 0.2,
+        "browOuterUpLeft": 0.6,
+        "browOuterUpRight": 0.0
+      }
+    },
+    {
+      "name": "smile_and_frown",
+      "signals": [[20, 0.7], [21, -0.5]],
+      "expected_semantics": {"mouth_smile_left": 0.7, "mouth_frown_right": 0.5},
+      "expected_controls": {"mouthSmileLeft": 0.7, "mouthFrownRight": 0.5}
+    },
+    {
+      "name": "pucker_dominant",
+      "signals": [[28, 0.8], [29, 0.8], [30, 0.1]],
+      "expected_semantics": {"mouth_pucker": 0.648, "mouth_funnel": 0.016},
+      "expected_controls": {"mouthPucker": 0.648, "mouthFunnel": 0.016}
+    },
+    {
+      "name": "funnel_dominant",
+      "signals": [[28, 0.1], [29, 0.8], [30, 0.9]],
+      "expected_semantics": {"mouth_pucker": 0.044, "mouth_funnel": 0.648},
+      "expected_controls": {"mouthPucker": 0.044, "mouthFunnel": 0.648}
+    },
+    {
+      "name": "jaw_left",
+      "signals": [[18, -0.7]],
+      "expected_semantics": {"jaw_left": 0.7, "jaw_right": 0.0},
+      "expected_controls": {"jawLeft": 0.7, "jawRight": 0.0}
+    },
+    {
+      "name": "jaw_right",
+      "signals": [[18, 0.65]],
+      "expected_semantics": {"jaw_left": 0.0, "jaw_right": 0.65},
+      "expected_controls": {"jawLeft": 0.0, "jawRight": 0.65}
+    },
+    {
+      "name": "continuous_binocular_gaze",
+      "signals": [[37, 0.3], [38, 0.2], [39, 0.4], [40, -0.1]],
+      "expected_semantics": {},
+      "expected_controls": {
+        "eyeLookInLeft": 0.3,
+        "eyeLookOutRight": 0.4,
+        "eyeLookUpLeft": 0.2,
+        "eyeLookDownRight": 0.1
+      }
+    },
+    {
+      "name": "torso_turn_head_counter_rotation",
+      "signals": [[45, 0.4], [46, 0.5], [51, -0.4], [52, -0.5]],
+      "expected_semantics": {"body_lean_forward": 0.4, "body_twist_right": 0.5},
+      "expected_controls": {}
+    },
+    {
+      "name": "arm_side_front_raise_and_elbow_bend",
+      "signals": [[67, 0.6], [68, 0.8], [70, 0.5]],
+      "expected_semantics": {
+        "arm_raise_left": 0.8,
+        "arm_forward_weight_left": 0.42857143,
+        "arm_side_weight_left": 0.5714286,
+        "arm_backward_weight_left": 0.0,
+        "arm_bend_left": 0.5,
+        "arm_extension_left": 0.5
+      },
+      "expected_controls": {}
+    },
+    {
+      "name": "auricle_raise_retract_flatten",
+      "signals": [[57, 0.4], [59, -0.6], [61, 0.7]],
+      "expected_semantics": {
+        "auricle_raise_left": 0.4,
+        "auricle_pull_back_left": 0.6,
+        "auricle_pull_forward_left": 0.0,
+        "auricle_flatten_left": 0.7,
+        "auricle_flare_left": 0.0
+      },
+      "expected_controls": {}
+    }
+  ]
+}
+

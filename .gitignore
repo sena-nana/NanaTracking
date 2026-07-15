@@ -10,7 +10,7 @@ coverage.xml
 htmlcov/
 build/
 dist/
-/target/
+target/
 *.egg-info/
 
 # Local datasets, caches, experiments, checkpoints, and model packages.

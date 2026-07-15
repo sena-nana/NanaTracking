@@ -218,6 +218,13 @@ pub struct SignalMetadata {
 }
 
 impl SignalMetadata {
+    /// Calibrated neutral for every NTP v1 scalar type. A producer represents unavailable state
+    /// through state/value fields and must never substitute this number for missing data.
+    #[must_use]
+    pub const fn neutral_value(self) -> f32 {
+        0.0
+    }
+
     #[must_use]
     pub fn get(id: SignalId) -> Option<Self> {
         let slot = id.stable_slot()?;

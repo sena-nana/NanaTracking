@@ -62,6 +62,8 @@ fn registry_has_fixed_unique_contiguous_slots_and_normative_types() {
     for (slot, signal) in metadata.iter().enumerate() {
         assert_eq!(signal.id.stable_slot(), Some(slot));
         assert_eq!(SignalId::from_stable_slot(slot), Some(signal.id));
+        assert!(signal.neutral_value().is_finite());
+        assert!(signal.scalar_type.contains(signal.neutral_value()));
     }
     assert_eq!(metadata[0].stable_name, "brow.left.inner_vertical");
     assert_eq!(metadata[87].stable_name, "wrist.right.twist");
