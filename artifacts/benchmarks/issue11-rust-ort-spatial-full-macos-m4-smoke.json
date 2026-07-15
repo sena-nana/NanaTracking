@@ -1,0 +1,66 @@
+{
+  "backend": {
+    "crate": "ort 2.0.0-rc.9",
+    "intra_threads": 1,
+    "onnx_runtime": "1.27.0",
+    "precision": "fp32",
+    "provider": "OnnxRuntimeCpu"
+  },
+  "fixed_vector": {
+    "absolute_tolerance": 1e-05,
+    "full_outputs_checked": 9,
+    "passed": true,
+    "relative_tolerance": 0.0001,
+    "spatial_outputs_checked": 9
+  },
+  "fused_output": {
+    "framework_neutral_signals_present": 76,
+    "full_model_is_extension_only": true,
+    "same_capture_spatial_required": true
+  },
+  "git": {
+    "base_commit": "45bb091e6831be9a0f10a5ea26a47ba3ab182a97",
+    "working_tree_dirty_during_measurement": true
+  },
+  "hardware": {
+    "cpu": "Apple M4",
+    "os": "macOS 26.5.2 (25F84)",
+    "rustc": "1.97.0"
+  },
+  "measurement": {
+    "full_extension": {
+      "input_shape": [1, 3, 96, 96],
+      "preprocess_ns": {"p50": 10875, "p95": 10959, "p99": 11167},
+      "readback_and_fusion_ns": {"p50": 1125, "p95": 1208, "p99": 1375},
+      "session_inference_ns": {"p50": 221458, "p95": 234333, "p99": 261250},
+      "stage_total_ns": {"p50": 233457, "p95": 246126, "p99": 275500}
+    },
+    "iterations": 2000,
+    "source": "constant uint8 RGB synthetic smoke frames",
+    "spatial": {
+      "input_shape": [1, 3, 64, 64],
+      "preprocess_ns": {"p50": 4583, "p95": 4625, "p99": 4709},
+      "readback_ns": {"p50": 917, "p95": 1000, "p99": 1125},
+      "session_inference_ns": {"p50": 128292, "p95": 138042, "p99": 147875},
+      "stage_total_ns": {"p50": 133750, "p95": 143541, "p99": 154167}
+    },
+    "warmup_iterations": 100
+  },
+  "models": {
+    "full": {
+      "family": "nana-full-set",
+      "model_digest": "726b1ecdceb5edd6b78d0c64a3b896d177243bdf305fa3ef9fa0bf0e60a90777",
+      "source_checkpoint_digest": "fcecd849bca83a2481af5a6130fc5584e7313054de658c7334b1192aa0d10d25",
+      "version": "0.1.0-smoke"
+    },
+    "spatial": {
+      "family": "nana-face-spatial",
+      "model_digest": "b22b229e284ee22a33e1e5167c0ffc6a49478ab6629ea572c71afddb93f3d82e",
+      "source_checkpoint_digest": "d851b024e85bf67c673fe12e880fa6c523918768ff5e42edc2cf071b77aeb7a7",
+      "version": "0.1.0-smoke"
+    }
+  },
+  "note": "Synthetic fixed-input smoke only; not real tracking quality, detector/capture latency, or target-device acceptance.",
+  "schema_version": "rust-ort-spatial-full-smoke-benchmark/1.0.0",
+  "smoke_only": true
+}
