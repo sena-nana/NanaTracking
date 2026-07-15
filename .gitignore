@@ -1,0 +1,26 @@
+.DS_Store
+.venv/
+.pytest_cache/
+.ruff_cache/
+.pyright/
+__pycache__/
+*.py[cod]
+.coverage
+coverage.xml
+htmlcov/
+build/
+dist/
+*.egg-info/
+
+# Local datasets, caches, experiments, checkpoints, and model packages.
+/data/
+/cache/
+/runs/
+/artifacts/
+/checkpoints/
+/model-packages/
+*.pt
+*.pth
+*.onnx
+*.onnx.data
+*.zst

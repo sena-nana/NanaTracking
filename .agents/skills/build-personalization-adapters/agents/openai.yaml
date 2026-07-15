@@ -1,0 +1,4 @@
+interface:
+  display_name: "Build Personalization Adapters"
+  short_description: "Build safe versioned calibration and residual adapters"
+  default_prompt: "Use $build-personalization-adapters to implement a personalization workflow."

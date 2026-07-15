@@ -1,0 +1,4 @@
+interface:
+  display_name: "Align NTP Contracts"
+  short_description: "Keep training labels and artifacts aligned with NTP revisions"
+  default_prompt: "Use $align-ntp-contracts to review an NTP-facing training contract."

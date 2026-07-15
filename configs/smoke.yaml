@@ -1,0 +1,34 @@
+data:
+  dataset: synthetic
+  samples: 8
+  batch_size: 4
+  executor: inline
+  workers: 0
+  buffersize: 2
+model:
+  name: smoke
+  input_channels: 3
+  input_height: 8
+  input_width: 8
+  hidden_dims: 16
+  rig_dims: 4
+  pose_dims: 3
+training:
+  seed: 7
+  max_steps: 2
+  learning_rate: 0.01
+  device: cpu
+  amp: false
+evaluation:
+  atol: 0.00001
+  rtol: 0.0001
+export:
+  opset: 18
+  model_family: nana-smoke
+  model_version: 0.0.0-smoke
+reproducibility:
+  output_dir: runs
+  data_revision: synthetic-v1
+  ntp_schema_revision: smoke-ntp-v0
+  signal_registry_revision: smoke-signals-v0
+  feature_revision: smoke-features-v1

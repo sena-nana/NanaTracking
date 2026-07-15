@@ -1,0 +1,4 @@
+interface:
+  display_name: "Evaluate Tracking Models"
+  short_description: "Measure tracking quality, latency, confidence, and failures"
+  default_prompt: "Use $evaluate-tracking-models to evaluate a NanaTracking model."

@@ -1,0 +1,103 @@
+[project]
+name = "nana-tracking"
+version = "0.1.0"
+description = "Reproducible PyTorch training and ONNX export framework for NanaTracking"
+readme = "README.md"
+requires-python = ">=3.14,<3.15"
+dependencies = [
+  "numpy>=2.4,<3",
+  "onnx>=1.20,<2",
+  "onnxruntime>=1.24,<2",
+  "onnxscript>=0.6,<0.7",
+  "pydantic>=2.12,<3",
+  "pyyaml>=6.0.3,<7",
+  "rich>=14.3,<15",
+  "typer>=0.21,<0.22",
+]
+
+[project.optional-dependencies]
+cpu = [
+  "torch>=2.11,<2.12",
+  "torchvision>=0.26,<0.27",
+]
+cu130 = [
+  "torch>=2.11,<2.12",
+  "torchvision>=0.26,<0.27",
+]
+tracking = ["tensorboard>=2.20,<3"]
+
+[project.scripts]
+nana-tracking = "nana_tracking.cli:main"
+
+[dependency-groups]
+quality = [
+  "pre-commit>=4.5,<5",
+  "pyright>=1.1.408,<2",
+  "ruff>=0.15,<0.16",
+]
+test = [
+  "pytest>=9.0,<10",
+  "pytest-cov>=7.0,<8",
+]
+dev = [
+  { include-group = "quality" },
+  { include-group = "test" },
+]
+
+[tool.uv]
+conflicts = [[{ extra = "cpu" }, { extra = "cu130" }]]
+default-groups = ["dev"]
+
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu130", extra = "cu130" },
+]
+torchvision = [
+  { index = "pytorch-cpu", extra = "cpu" },
+  { index = "pytorch-cu130", extra = "cu130" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+
+[build-system]
+requires = ["uv_build>=0.11.28,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.ruff]
+target-version = "py314"
+line-length = 100
+extend-exclude = ["runs", "artifacts", "data"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.pyright]
+pythonVersion = "3.14"
+typeCheckingMode = "strict"
+include = ["src", "tests"]
+exclude = ["runs", "artifacts", "data"]
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownVariableType = false
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+testpaths = ["tests"]
+markers = ["integration: end-to-end tests that train and export a model"]
+
+[tool.coverage.run]
+branch = true
+source = ["nana_tracking"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

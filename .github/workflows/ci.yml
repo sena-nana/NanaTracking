@@ -1,0 +1,43 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - run: uv sync --locked --extra cpu --all-groups
+      - run: uv lock --check
+      - run: uv run --extra cpu ruff check .
+      - run: uv run --extra cpu ruff format --check .
+      - run: uv run --extra cpu pyright
+      - run: uv run --extra cpu pytest --cov=nana_tracking --cov-report=xml
+      - run: uv build
+
+  cross-platform-smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: "0.11.28"
+          enable-cache: true
+      - run: uv sync --locked --extra cpu --group test
+      - run: uv run --extra cpu nana-tracking doctor
+      - run: uv run --extra cpu nana-tracking smoke --work-dir runs/ci-smoke

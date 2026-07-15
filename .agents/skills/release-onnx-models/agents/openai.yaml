@@ -1,0 +1,4 @@
+interface:
+  display_name: "Release ONNX Models"
+  short_description: "Export, verify, and package portable NanaTracking models"
+  default_prompt: "Use $release-onnx-models to prepare a verified ONNX model package."

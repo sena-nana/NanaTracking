@@ -1,0 +1,4 @@
+interface:
+  display_name: "Manage Training Data"
+  short_description: "Validate manifests, splits, provenance, and dataset quality"
+  default_prompt: "Use $manage-training-data to design or validate NanaTracking training data."

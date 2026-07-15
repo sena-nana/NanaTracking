@@ -1,0 +1,4 @@
+interface:
+  display_name: "Train PyTorch Models"
+  short_description: "Run reproducible NanaTracking model training workflows"
+  default_prompt: "Use $train-pytorch-models to implement or review a training change."

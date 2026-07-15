@@ -1,0 +1,24 @@
+{
+  "data_revision": "synthetic-v1",
+  "digest": "0000000000000000000000000000000000000000000000000000000000000000",
+  "ntp_schema_revision": "smoke-ntp-v0",
+  "schema_version": "1",
+  "signal_registry_revision": "smoke-signals-v0",
+  "splits": {
+    "test": {
+      "devices": ["synthetic"],
+      "identities": ["synthetic-test"],
+      "sessions": ["test-0"]
+    },
+    "train": {
+      "devices": ["synthetic"],
+      "identities": ["synthetic-train"],
+      "sessions": ["train-0"]
+    },
+    "validation": {
+      "devices": ["synthetic"],
+      "identities": ["synthetic-validation"],
+      "sessions": ["validation-0"]
+    }
+  }
+}
