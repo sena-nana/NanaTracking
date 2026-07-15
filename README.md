@@ -50,3 +50,9 @@ Real datasets, checkpoints, caches, run directories, and exported models are ign
 Commit only reviewed schemas, manifests, revisions, digests, and deliberately small fixtures.
 The ONNX model package remains separate from PyTorch checkpoints and from user personalization
 profiles.
+
+## Protocol specifications
+
+- [NTP v1 Signal Registry](docs/protocol/ntp-v1-signal-registry.md)
+- [NTP v1 freeze review checklist](docs/protocol/ntp-v1-freeze-checklist.md)
+- [ADR 0001: Vendor parameters are adapters, not NTP](docs/adr/0001-vendor-parameters-are-adapters.md)
