@@ -408,6 +408,23 @@ impl SemanticDeriver {
         self.auricle_motion = [None; 2];
     }
 
+    /// Creates a caller-owned semantic frame whose fixed value storage can be reused across
+    /// derivations with [`Self::derive_into`].
+    #[must_use]
+    pub fn new_frame_buffer(&self) -> SemanticFrame {
+        SemanticFrame {
+            revisions: ContractRevisions::NTP_V1,
+            semantics_revision: SEMANTICS_REVISION,
+            session_id: SessionId([0; 16]),
+            generation: 0,
+            sequence: 0,
+            capture_timestamp_ns: 0,
+            evaluation_timestamp_ns: 0,
+            config: self.config,
+            values: vec![None; SEMANTIC_VALUE_COUNT].into_boxed_slice(),
+        }
+    }
+
     /// Derives a frame using source capture timestamps. `now_ns` is used only for explicit age.
     ///
     /// # Errors
@@ -419,6 +436,25 @@ impl SemanticDeriver {
         result: &NanaTrackingResult,
         now_ns: u64,
     ) -> Result<SemanticFrame, SemanticError> {
+        let mut frame = self.new_frame_buffer();
+        self.derive_into(result, now_ns, &mut frame)?;
+        Ok(frame)
+    }
+
+    /// Derives into a caller-owned frame without allocating after the frame buffer is created.
+    /// The output is identical to [`Self::derive`] and may be passed directly to a binding
+    /// evaluator.
+    ///
+    /// # Errors
+    ///
+    /// Returns a contract error for invalid NTP input or an ordering error if capture time moves
+    /// backwards inside a session generation.
+    pub fn derive_into(
+        &mut self,
+        result: &NanaTrackingResult,
+        now_ns: u64,
+        frame: &mut SemanticFrame,
+    ) -> Result<(), SemanticError> {
         result.validate().map_err(SemanticError::InvalidContract)?;
         if self.session_id != Some(result.session_id) || self.generation != Some(result.generation)
         {
@@ -465,23 +501,20 @@ impl SemanticDeriver {
             inputs[slot] = resolved;
         }
 
-        let mut values = vec![None; SEMANTIC_VALUE_COUNT].into_boxed_slice();
-        Self::derive_face(&inputs, now_ns, &mut values);
-        self.derive_body(result, &inputs, now_ns, &mut values);
-        self.derive_auricles(&inputs, now_ns, &mut values);
+        frame.values.fill(None);
+        Self::derive_face(&inputs, now_ns, &mut frame.values);
+        self.derive_body(result, &inputs, now_ns, &mut frame.values);
+        self.derive_auricles(&inputs, now_ns, &mut frame.values);
         self.last_capture_timestamp_ns = Some(result.capture_timestamp_ns);
-
-        Ok(SemanticFrame {
-            revisions: ContractRevisions::NTP_V1,
-            semantics_revision: SEMANTICS_REVISION,
-            session_id: result.session_id,
-            generation: result.generation,
-            sequence: result.sequence,
-            capture_timestamp_ns: result.capture_timestamp_ns,
-            evaluation_timestamp_ns: now_ns,
-            config: self.config,
-            values,
-        })
+        frame.revisions = ContractRevisions::NTP_V1;
+        frame.semantics_revision = SEMANTICS_REVISION;
+        frame.session_id = result.session_id;
+        frame.generation = result.generation;
+        frame.sequence = result.sequence;
+        frame.capture_timestamp_ns = result.capture_timestamp_ns;
+        frame.evaluation_timestamp_ns = now_ns;
+        frame.config = self.config;
+        Ok(())
     }
 
     fn state_scale(&self, state: SignalState) -> f32 {

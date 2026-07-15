@@ -155,6 +155,31 @@ fn fixed_golden_vector_is_backend_independent() {
 }
 
 #[test]
+fn buffered_semantic_derivation_reuses_storage_without_changing_results() {
+    let mut input = frame(0, 1, 100);
+    set(&mut input, 7, -0.8, 1.0);
+    let mut expected_deriver = SemanticDeriver::default();
+    let mut buffered_deriver = SemanticDeriver::default();
+    let mut buffered = buffered_deriver.new_frame_buffer();
+
+    let expected = expected_deriver.derive(&input, 110).unwrap();
+    buffered_deriver
+        .derive_into(&input, 110, &mut buffered)
+        .unwrap();
+    assert_eq!(buffered, expected);
+
+    input.sequence = 2;
+    input.capture_timestamp_ns = 200;
+    input.produced_timestamp_ns = 210;
+    set(&mut input, 7, -0.25, 0.8);
+    let expected = expected_deriver.derive(&input, 230).unwrap();
+    buffered_deriver
+        .derive_into(&input, 230, &mut buffered)
+        .unwrap();
+    assert_eq!(buffered, expected);
+}
+
+#[test]
 fn capture_time_history_degrades_confidence_and_resets_by_generation() {
     let mut deriver = SemanticDeriver::default();
     let mut observed = frame(1, 1, 100);
