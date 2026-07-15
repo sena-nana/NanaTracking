@@ -7,6 +7,9 @@ from nana_tracking.runtime.face_basic import (
     FaceRoiTracker,
     LatestFrameRuntime,
     OrtFaceBasicBackend,
+    RuntimeCapabilities,
+    RuntimeMode,
+    RuntimeTelemetry,
 )
 from nana_tracking.runtime.face_spatial import (
     FaceSpatialPrediction,
@@ -18,8 +21,15 @@ from nana_tracking.runtime.full_set import (
     FullSetProducer,
     OrtFullSetBackend,
 )
+from nana_tracking.runtime.temporal import (
+    CausalTemporalRefiner,
+    TemporalConfig,
+    TemporalSample,
+    TemporalState,
+)
 
 __all__ = [
+    "CausalTemporalRefiner",
     "FaceBasicPrediction",
     "FaceBasicProducer",
     "FaceBox",
@@ -32,4 +42,10 @@ __all__ = [
     "OrtFaceBasicBackend",
     "OrtFaceSpatialBackend",
     "OrtFullSetBackend",
+    "RuntimeCapabilities",
+    "RuntimeMode",
+    "RuntimeTelemetry",
+    "TemporalConfig",
+    "TemporalSample",
+    "TemporalState",
 ]

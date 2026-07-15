@@ -114,6 +114,7 @@ def create_model_package(
     is_spatial = config.model.name == "face_spatial"
     is_full = config.model.name == "full_set"
     if is_basic:
+        guaranteed_profile = "Basic"
         schema_version = "face-basic-1"
         output_roles = {
             "rig": "ntp-basic-36",
@@ -126,6 +127,7 @@ def create_model_package(
         supported_structures = ["head_geometry"]
         geometry_topology_revision = None
     elif is_spatial:
+        guaranteed_profile = "Spatial"
         schema_version = "face-spatial-1"
         output_roles = {
             "rig": "ntp-spatial-41",
@@ -147,6 +149,7 @@ def create_model_package(
         ]
         geometry_topology_revision = config.reproducibility.geometry_topology_revision
     elif is_full:
+        guaranteed_profile = "Partial"
         schema_version = "full-set-extension-1"
         output_roles = {
             "rig": "ntp-full-signals-42-through-76",
@@ -163,6 +166,7 @@ def create_model_package(
         supported_structures = ["body_skeleton"]
         geometry_topology_revision = None
     else:
+        guaranteed_profile = "Partial"
         schema_version = "smoke-1"
         output_roles = {
             "rig": "smoke-rig",
@@ -226,8 +230,22 @@ def create_model_package(
         model_digest=sha256_file(onnx_path),
         smoke_only=config.export.smoke_only,
         precision_support=["fp32"],
+        guaranteed_profile=guaranteed_profile,
         supported_signals=supported_signals,
         supported_structures=supported_structures,
+        supported_features=[],
+        temporal_state="external-causal-refiner/1.0.0-compatible",
+        allowed_backends=["onnxruntime"],
+        runtime_modes={
+            "Performance": {
+                "precision": "fp32",
+                "scheduling": "latest-frame-only",
+            },
+            "Quality": {
+                "precision": "fp32",
+                "scheduling": "latest-frame-only-with-causal-refiner",
+            },
+        },
         geometry_topology_revision=geometry_topology_revision,
     )
     _write_json(output_dir / "runtime-metadata.json", metadata.model_dump(mode="json"))

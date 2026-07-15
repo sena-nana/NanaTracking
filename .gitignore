@@ -26,6 +26,7 @@ target/
 !/artifacts/benchmarks/issue8-face-spatial-macos-m4-smoke.json
 !/artifacts/benchmarks/issue8-face-spatial-comparison-macos-m4-smoke.json
 !/artifacts/benchmarks/issue9-full-set-macos-m4-smoke.json
+!/artifacts/benchmarks/issue10-temporal-macos-m4-smoke.json
 /checkpoints/
 /model-packages/
 *.pt

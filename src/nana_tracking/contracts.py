@@ -72,9 +72,14 @@ class ModelPackageMetadata(ContractModel):
     input_color: str = "RGB"
     input_range: tuple[float, float] = (0.0, 1.0)
     precision_support: list[str] = Field(default_factory=lambda: ["fp32"])
+    guaranteed_profile: str = "Partial"
     supported_signals: list[int] = Field(default_factory=list)
     supported_structures: list[str] = Field(default_factory=list)
+    supported_features: list[str] = Field(default_factory=list)
     temporal_state: str = "single-frame"
+    allowed_backends: list[str] = Field(default_factory=lambda: ["onnxruntime"])
+    runtime_modes: dict[str, dict[str, str]] = Field(default_factory=dict)
+    adapter_schema_version: str = "1"
     geometry_topology_revision: str | None = None
 
 

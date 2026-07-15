@@ -1,0 +1,29 @@
+{
+  "capture_dt_ms": {
+    "maximum": 21.999548,
+    "mean": 17.1070672524,
+    "minimum": 12.001648
+  },
+  "fast_peak_retention": 1.0,
+  "frames": 5000,
+  "hardware": {
+    "machine": "arm64",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "processor": "arm"
+  },
+  "note": "Synthetic irregular-dt smoke only; not real tracking quality acceptance.",
+  "processing_ms": {
+    "mean": 0.0030054113999999996,
+    "p50": 0.002958,
+    "p95": 0.003209,
+    "p99": 0.004208
+  },
+  "schema_version": "causal-temporal-smoke-benchmark/1.0.0",
+  "seed": 31,
+  "smoke_only": true,
+  "static_jitter": {
+    "raw_std": 0.02464374178129219,
+    "reduction_percent": 33.28330465664238,
+    "refined_std": 0.016441490125428445
+  }
+}

@@ -3,8 +3,10 @@
 import json
 import threading
 import time
-from collections.abc import Callable
+from collections import deque
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import Protocol, cast
 from uuid import UUID, uuid4
@@ -15,6 +17,7 @@ import onnxruntime as ort
 from nana_tracking.contracts import ModelPackageMetadata
 from nana_tracking.export import verify_model_package
 from nana_tracking.personalization import LevelACalibration
+from nana_tracking.runtime.temporal import CausalTemporalRefiner, TemporalSample, TemporalState
 
 _UNSIGNED_SLOTS = {8, 9, 12, 13, 14, 15, 16, 27, 29, 32, 33, 34, 35}
 
@@ -58,6 +61,53 @@ class NtpFrameProducer(Protocol):
         capture_timestamp_ns: int,
         sequence: int,
     ) -> dict[str, object]: ...
+
+
+class NumericalAdapter(Protocol):
+    def apply(self, base_values: tuple[float, ...]) -> tuple[float, ...]: ...
+
+
+class RuntimeMode(StrEnum):
+    PERFORMANCE = "Performance"
+    QUALITY = "Quality"
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeCapabilities:
+    mode: RuntimeMode
+    guaranteed_profile: str
+    latest_frame_only: bool
+    temporal_refiner: bool
+    stage_telemetry: bool
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeTelemetry:
+    samples: int
+    submitted_frames: int
+    dropped_frames: int
+    mailbox_wait_ms: dict[str, float]
+    preprocess_ms: dict[str, float]
+    inference_ms: dict[str, float]
+    readback_ms: dict[str, float]
+    producer_total_ms: dict[str, float]
+    result_age_ms: dict[str, float]
+
+
+def _latency_summary(values: Sequence[int]) -> dict[str, float]:
+    if not values:
+        return {"p50": 0.0, "p95": 0.0, "p99": 0.0, "mean": 0.0}
+    ordered = sorted(values)
+
+    def percentile(value: float) -> float:
+        return ordered[min(round((len(ordered) - 1) * value), len(ordered) - 1)] / 1_000_000.0
+
+    return {
+        "p50": percentile(0.5),
+        "p95": percentile(0.95),
+        "p99": percentile(0.99),
+        "mean": sum(values) / len(values) / 1_000_000.0,
+    }
 
 
 class FaceDetector(Protocol):
@@ -267,16 +317,25 @@ class FaceBasicProducer:
         backend: FaceBasicBackend,
         *,
         calibration: LevelACalibration | None = None,
+        level_b_adapter: NumericalAdapter | None = None,
         session_id: UUID | None = None,
         generation: int = 0,
+        temporal_refiner: CausalTemporalRefiner | None = None,
+        camera_id: str = "default-camera",
         clock: Callable[[], int] = time.monotonic_ns,
     ) -> None:
         self.backend = backend
         self.calibration = calibration
+        self.level_b_adapter = level_b_adapter
         self.session_id = session_id or uuid4()
         self.generation = generation
+        if temporal_refiner is not None and temporal_refiner.signal_ids != tuple(range(1, 37)):
+            raise ValueError("FaceBasic temporal refiner must cover Signal IDs 1..36")
+        self.temporal_refiner = temporal_refiner
+        self.camera_id = camera_id
         self._clock = clock
         self._input = np.empty((1, 3, backend.input_height, backend.input_width), dtype=np.float32)
+        self.last_stage_timings_ns: dict[str, int] = {}
 
     @property
     def descriptor_event(self) -> dict[str, object]:
@@ -309,31 +368,84 @@ class FaceBasicProducer:
         capture_timestamp_ns: int,
         sequence: int,
     ) -> dict[str, object]:
+        preprocess_started = time.perf_counter_ns()
         self._prepare(frame, roi)
+        preprocess_ns = time.perf_counter_ns() - preprocess_started
+        inference_started = time.perf_counter_ns()
         prediction = self.backend.infer(self._input)
+        inference_ns = time.perf_counter_ns() - inference_started
+        readback_started = time.perf_counter_ns()
         values = np.asarray(prediction.rig, dtype=np.float32)
         if values.shape != (36,) or len(prediction.confidence) != 36:
             raise ValueError("backend must return exactly 36 values and confidences")
         if self.calibration is not None:
             values = self.calibration.apply(values)
+        if self.level_b_adapter is not None:
+            values = np.asarray(
+                self.level_b_adapter.apply(tuple(float(value) for value in values)),
+                dtype=np.float32,
+            )
+            if values.shape != (36,) or not np.isfinite(values).all():
+                raise ValueError("Level B adapter must return 36 finite Basic values")
         for slot in range(36):
             values[slot] = np.clip(values[slot], 0.0 if slot in _UNSIGNED_SLOTS else -1.0, 1.0)
 
-        state = ("Observed", "Occluded", "OutOfFrame")[prediction.visibility]
-        carries_value = state == "Observed"
+        observation_state = ("Observed", "Occluded", "OutOfFrame")[prediction.visibility]
+        temporal: tuple[TemporalSample, ...] | None = None
+        if self.temporal_refiner is not None:
+            calibration_revision = (
+                self.calibration.calibration_revision
+                if self.calibration is not None
+                else "uncalibrated"
+            )
+            adapter_digest = getattr(
+                getattr(self.level_b_adapter, "metadata", None),
+                "adapter_digest",
+                "no-adapter",
+            )
+            temporal = self.temporal_refiner.process(
+                [
+                    TemporalSample(
+                        float(values[slot]) if observation_state == "Observed" else None,
+                        float(np.clip(prediction.confidence[slot], 0.0, 1.0)),
+                        TemporalState(observation_state),
+                        capture_timestamp_ns,
+                    )
+                    for slot in range(36)
+                ],
+                capture_timestamp_ns=capture_timestamp_ns,
+                session_id=self.session_id.bytes,
+                generation=self.generation,
+                camera_id=self.camera_id,
+                calibration_revision=f"{calibration_revision}:{adapter_digest}",
+            )
         slots: list[dict[str, object]] = []
         for slot in range(88):
             if slot >= 36:
                 slots.append(unsupported_tracked())
                 continue
-            confidence = float(np.clip(prediction.confidence[slot], 0.0, 1.0))
+            refined = temporal[slot] if temporal is not None else None
+            state = refined.state.value if refined is not None else observation_state
+            confidence = (
+                refined.confidence
+                if refined is not None
+                else float(np.clip(prediction.confidence[slot], 0.0, 1.0))
+            )
             slots.append(
                 {
-                    "value": float(values[slot]) if carries_value else None,
+                    "value": refined.value
+                    if refined is not None
+                    else float(values[slot])
+                    if observation_state == "Observed"
+                    else None,
                     "confidence": confidence,
                     "state": state,
-                    "sample_capture_timestamp_ns": capture_timestamp_ns,
-                    "prediction_horizon_ns": 0,
+                    "sample_capture_timestamp_ns": refined.sample_capture_timestamp_ns
+                    if refined is not None
+                    else capture_timestamp_ns,
+                    "prediction_horizon_ns": refined.prediction_horizon_ns
+                    if refined is not None
+                    else 0,
                 }
             )
 
@@ -348,7 +460,12 @@ class FaceBasicProducer:
             quaternion = quaternion / norm
         if quaternion[3] < 0.0:
             quaternion = -quaternion
-        overall = float(np.mean(prediction.confidence))
+        overall = float(
+            np.mean([sample.confidence for sample in temporal])
+            if temporal is not None
+            else np.mean(prediction.confidence)
+        )
+        carries_value = observation_state == "Observed"
         head_pose = {
             "value": (
                 {
@@ -370,7 +487,7 @@ class FaceBasicProducer:
                 else None
             ),
             "confidence": overall,
-            "state": state,
+            "state": observation_state,
             "sample_capture_timestamp_ns": capture_timestamp_ns,
             "prediction_horizon_ns": 0,
         }
@@ -401,13 +518,24 @@ class FaceBasicProducer:
             "skeleton": empty_skeleton(),
             "quality": {
                 "overall_confidence": overall,
-                "face": region(overall, state),
-                "eyes": region(overall, state),
+                "face": region(
+                    overall,
+                    temporal[0].state.value if temporal is not None else observation_state,
+                ),
+                "eyes": region(
+                    overall,
+                    temporal[6].state.value if temporal is not None else observation_state,
+                ),
                 "torso": region(),
                 "arm": {"left": region(), "right": region()},
                 "auricle": {"left": region(), "right": region()},
                 "stabilization_revision": {"major": 1, "minor": 0, "patch": 0},
             },
+        }
+        self.last_stage_timings_ns = {
+            "preprocess": preprocess_ns,
+            "inference": inference_ns,
+            "readback": time.perf_counter_ns() - readback_started,
         }
         return {"kind": "result", "value": result}
 
@@ -418,6 +546,7 @@ class _Submission:
     roi: FaceBox | None
     capture_timestamp_ns: int
     sequence: int
+    submitted_timestamp_ns: int
 
 
 class LatestFrameRuntime:
@@ -428,9 +557,29 @@ class LatestFrameRuntime:
         producer: NtpFrameProducer,
         *,
         roi_tracker: FaceRoiTracker | None = None,
+        mode: RuntimeMode = RuntimeMode.PERFORMANCE,
+        telemetry_window: int = 2048,
     ) -> None:
+        if telemetry_window < 1:
+            raise ValueError("telemetry window must be positive")
         self._producer = producer
         self._roi_tracker = roi_tracker
+        self.mode = mode
+        has_temporal = getattr(producer, "temporal_refiner", None) is not None
+        if mode == RuntimeMode.QUALITY and not has_temporal:
+            raise ValueError("Quality mode requires an active causal temporal refiner")
+        descriptor = getattr(producer, "descriptor_event", {})
+        guaranteed_profile = "Partial"
+        if isinstance(descriptor, dict) and isinstance(descriptor.get("value"), dict):
+            descriptor_value = cast(dict[str, object], descriptor["value"])
+            guaranteed_profile = cast(str, descriptor_value.get("guaranteed_profile", "Partial"))
+        self.capabilities = RuntimeCapabilities(
+            mode=mode,
+            guaranteed_profile=guaranteed_profile,
+            latest_frame_only=True,
+            temporal_refiner=has_temporal,
+            stage_telemetry=True,
+        )
         self._condition = threading.Condition()
         self._pending: _Submission | None = None
         self._latest: dict[str, object] | None = None
@@ -438,6 +587,12 @@ class LatestFrameRuntime:
         self._error: BaseException | None = None
         self._sequence = 0
         self.dropped_frames = 0
+        self._mailbox_wait_ns: deque[int] = deque(maxlen=telemetry_window)
+        self._preprocess_ns: deque[int] = deque(maxlen=telemetry_window)
+        self._inference_ns: deque[int] = deque(maxlen=telemetry_window)
+        self._readback_ns: deque[int] = deque(maxlen=telemetry_window)
+        self._producer_total_ns: deque[int] = deque(maxlen=telemetry_window)
+        self._result_age_ns: deque[int] = deque(maxlen=telemetry_window)
         self._worker = threading.Thread(target=self._run, name="face-basic-latest", daemon=True)
         self._worker.start()
 
@@ -455,7 +610,9 @@ class LatestFrameRuntime:
             self._sequence += 1
             if self._pending is not None:
                 self.dropped_frames += 1
-            self._pending = _Submission(frame, roi, capture_timestamp_ns, self._sequence)
+            self._pending = _Submission(
+                frame, roi, capture_timestamp_ns, self._sequence, time.monotonic_ns()
+            )
             self._condition.notify()
             return self._sequence
 
@@ -489,6 +646,20 @@ class LatestFrameRuntime:
             raise RuntimeError("FaceBasic runtime worker did not stop")
         self._raise_if_error()
 
+    def telemetry_snapshot(self) -> RuntimeTelemetry:
+        with self._condition:
+            return RuntimeTelemetry(
+                samples=len(self._producer_total_ns),
+                submitted_frames=self._sequence,
+                dropped_frames=self.dropped_frames,
+                mailbox_wait_ms=_latency_summary(self._mailbox_wait_ns),
+                preprocess_ms=_latency_summary(self._preprocess_ns),
+                inference_ms=_latency_summary(self._inference_ns),
+                readback_ms=_latency_summary(self._readback_ns),
+                producer_total_ms=_latency_summary(self._producer_total_ns),
+                result_age_ms=_latency_summary(self._result_age_ns),
+            )
+
     def _run(self) -> None:
         try:
             while True:
@@ -500,6 +671,8 @@ class LatestFrameRuntime:
                     submission = self._pending
                     self._pending = None
                 assert submission is not None
+                producer_started = time.monotonic_ns()
+                self._mailbox_wait_ns.append(producer_started - submission.submitted_timestamp_ns)
                 roi = submission.roi
                 if roi is None and self._roi_tracker is not None:
                     roi = self._roi_tracker.update(submission.frame, submission.sequence)
@@ -509,6 +682,15 @@ class LatestFrameRuntime:
                     capture_timestamp_ns=submission.capture_timestamp_ns,
                     sequence=submission.sequence,
                 )
+                completed = time.monotonic_ns()
+                self._producer_total_ns.append(completed - producer_started)
+                self._result_age_ns.append(completed - submission.capture_timestamp_ns)
+                stage_timings = getattr(self._producer, "last_stage_timings_ns", {})
+                if isinstance(stage_timings, dict):
+                    typed_timings = cast(dict[str, int], stage_timings)
+                    self._preprocess_ns.append(typed_timings.get("preprocess", 0))
+                    self._inference_ns.append(typed_timings.get("inference", 0))
+                    self._readback_ns.append(typed_timings.get("readback", 0))
                 with self._condition:
                     self._latest = result
                     self._condition.notify_all()

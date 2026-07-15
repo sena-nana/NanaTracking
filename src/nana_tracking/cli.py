@@ -20,6 +20,8 @@ from nana_tracking.evaluation import (
     benchmark_face_basic_package,
     benchmark_face_spatial_package,
     benchmark_full_set_package,
+    benchmark_temporal_refiner,
+    fit_confidence_calibration,
     render_failure_report,
     validate_face_basic_acceptance,
 )
@@ -28,7 +30,11 @@ from nana_tracking.evaluation import (
 )
 from nana_tracking.evaluation.standard import BenchmarkReport, EvaluationStandard
 from nana_tracking.export import create_model_package, verify_model_package
-from nana_tracking.personalization import fit_level_a_calibration
+from nana_tracking.personalization import (
+    fit_level_a_calibration,
+    train_level_b_adapter,
+    verify_level_b_adapter,
+)
 from nana_tracking.training import train as train_model
 
 app = typer.Typer(no_args_is_help=True, help="NanaTracking training and ONNX tooling.")
@@ -217,7 +223,75 @@ def calibrate_level_a_command(
             calibration_revision=contract.calibration_revision,
         )
     profile.save(output)
-    _print_json({"output": output, "user_slot": user_slot, "signal_count": 36})
+    _print_json({"output": output, "user_slot": user_slot, "signal_count": len(profile.signals)})
+
+
+@app.command("fit-confidence-calibration")
+def fit_confidence_calibration_command(
+    evidence: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    package: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+) -> None:
+    """Fit held-out per-signal monotonic confidence calibration."""
+
+    verify_model_package(package)
+    metadata = ModelPackageMetadata.model_validate_json(
+        (package / "runtime-metadata.json").read_text(encoding="utf-8")
+    )
+    with np.load(evidence) as values:
+        calibration = fit_confidence_calibration(
+            values["predicted"],
+            values["correct"],
+            signal_ids=metadata.supported_signals,
+            model_family=metadata.model_family,
+            model_version=metadata.model_version,
+            signal_registry_revision=metadata.signal_registry_revision,
+        )
+    calibration.save(output)
+    _print_json({"output": output, "signal_count": len(calibration.curves)})
+
+
+@app.command("train-level-b-adapter")
+def train_level_b_adapter_command(
+    capture: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    package: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+    user_slot: Annotated[str, typer.Option()],
+    output: Annotated[Path, typer.Option("--output", file_okay=False)],
+    steps: Annotated[int, typer.Option(min=1)] = 200,
+) -> None:
+    """Train and verify a bounded offline residual adapter without touching the base encoder."""
+
+    verify_model_package(package)
+    metadata = ModelPackageMetadata.model_validate_json(
+        (package / "runtime-metadata.json").read_text(encoding="utf-8")
+    )
+    with np.load(capture) as values:
+        adapter = train_level_b_adapter(
+            values["base_values"],
+            values["target_values"],
+            values["confidence"],
+            output,
+            user_slot=user_slot,
+            base_model_family=metadata.model_family,
+            base_model_version=metadata.model_version,
+            base_model_digest=metadata.model_digest,
+            feature_revision=metadata.feature_revision,
+            signal_registry_revision=metadata.signal_registry_revision,
+            normalization_revision=metadata.normalization_revision,
+            calibration_revision=metadata.calibration_revision,
+            signal_ids=metadata.supported_signals,
+            steps=steps,
+            smoke_only=metadata.smoke_only,
+        )
+    parity = verify_level_b_adapter(
+        output,
+        user_slot=user_slot,
+        base_model_family=metadata.model_family,
+        base_model_version=metadata.model_version,
+        base_model_digest=metadata.model_digest,
+        feature_revision=metadata.feature_revision,
+    )
+    _print_json({"output": output, "metadata": adapter, "parity": parity})
 
 
 @app.command("benchmark-face-basic")
@@ -284,6 +358,17 @@ def benchmark_full_set_command(
         tensorrt_fp16=tensorrt_fp16,
     )
     _print_json(report)
+
+
+@app.command("benchmark-temporal")
+def benchmark_temporal_command(
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+    frames: Annotated[int, typer.Option(min=100)] = 2_000,
+    seed: Annotated[int, typer.Option(min=0)] = 31,
+) -> None:
+    """Benchmark causal refinement jitter, peak retention, and overhead."""
+
+    _print_json(benchmark_temporal_refiner(output, frames=frames, seed=seed))
 
 
 @app.command("smoke")

@@ -192,6 +192,7 @@ class FaceSpatialProducer:
         self.generation = generation
         self._clock = clock
         self._input = np.empty((1, 3, backend.input_height, backend.input_width), dtype=np.float32)
+        self.last_stage_timings_ns: dict[str, int] = {}
 
     @property
     def descriptor_event(self) -> dict[str, object]:
@@ -221,8 +222,13 @@ class FaceSpatialProducer:
         capture_timestamp_ns: int,
         sequence: int,
     ) -> dict[str, object]:
+        preprocess_started = time.perf_counter_ns()
         prepare_rgb_roi(frame, roi, self._input)
+        preprocess_ns = time.perf_counter_ns() - preprocess_started
+        inference_started = time.perf_counter_ns()
         prediction = self.backend.infer(self._input)
+        inference_ns = time.perf_counter_ns() - inference_started
+        readback_started = time.perf_counter_ns()
         values = np.asarray(prediction.rig, dtype=np.float32)
         confidence = np.asarray(prediction.confidence, dtype=np.float32)
         if values.shape != (41,) or confidence.shape != (41,):
@@ -381,5 +387,10 @@ class FaceSpatialProducer:
                 "auricle": {"left": region(), "right": region()},
                 "stabilization_revision": {"major": 1, "minor": 0, "patch": 0},
             },
+        }
+        self.last_stage_timings_ns = {
+            "preprocess": preprocess_ns,
+            "inference": inference_ns,
+            "readback": time.perf_counter_ns() - readback_started,
         }
         return {"kind": "result", "value": result}

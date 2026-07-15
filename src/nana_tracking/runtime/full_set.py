@@ -240,6 +240,7 @@ class FullSetProducer:
         self._input = np.empty((1, 3, backend.input_height, backend.input_width), dtype=np.float32)
         self._latest: _BodySample | None = None
         self._needs_refresh = True
+        self.last_stage_timings_ns: dict[str, int] = {}
 
     @property
     def descriptor_event(self) -> dict[str, object]:
@@ -272,16 +273,23 @@ class FullSetProducer:
         sequence: int,
     ) -> dict[str, object]:
         result = self._validated_face_result(face_event, capture_timestamp_ns, sequence)
+        preprocess_ns = 0
+        inference_ns = 0
         if body_visible and (
             self._needs_refresh
             or self._latest is None
             or sequence % self.body_inference_interval == 0
         ):
+            preprocess_started = time.perf_counter_ns()
             prepare_rgb_roi(frame, body_roi, self._input)
+            preprocess_ns = time.perf_counter_ns() - preprocess_started
+            inference_started = time.perf_counter_ns()
             self._latest = _BodySample(self.backend.infer(self._input), capture_timestamp_ns)
+            inference_ns = time.perf_counter_ns() - inference_started
             self._needs_refresh = False
         elif not body_visible:
             self._needs_refresh = True
+        readback_started = time.perf_counter_ns()
         sample = self._latest if body_visible else None
         if sample is None:
             self._write_unavailable(result, "OutOfFrame", capture_timestamp_ns)
@@ -290,6 +298,11 @@ class FullSetProducer:
         else:
             self._write_prediction(result, sample, capture_timestamp_ns)
         result["produced_timestamp_ns"] = max(int(self._clock()), capture_timestamp_ns)
+        self.last_stage_timings_ns = {
+            "preprocess": preprocess_ns,
+            "inference": inference_ns,
+            "readback": time.perf_counter_ns() - readback_started,
+        }
         return {"kind": "result", "value": result}
 
     @staticmethod
