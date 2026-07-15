@@ -1,0 +1,17 @@
+[package]
+name = "nana-tracking-fusion"
+version = "0.1.0"
+description = "Frame-aligned, framework-neutral NTP producer fusion"
+repository = "https://github.com/sena-nana/NanaTracking"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+nana-tracking-protocol = { path = "../nana-tracking-protocol" }
+
+[dev-dependencies]
+ntp-conformance = { path = "../ntp-conformance" }
+
+[lints]
+workspace = true

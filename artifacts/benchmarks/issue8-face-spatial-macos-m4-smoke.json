@@ -1,0 +1,56 @@
+{
+  "calibration_revision": "ntp-calibration/1.0.0",
+  "capture_to_result_ms": {
+    "mean": 0.5267476315,
+    "p50": 0.43133299999999997,
+    "p95": 0.940583,
+    "p99": 1.058
+  },
+  "feature_revision": "ntp-features/1.0.0",
+  "geometry_topology_revision": "ntp-face-canonical/1.0.0-smoke",
+  "hardware": {
+    "machine": "arm64",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "processor": "arm"
+  },
+  "model_digest": "64e4cb9ab4f0a062c5f5d1894e5435946c671a33c61e3cceb6e648a597f9c23e",
+  "normalization_revision": "ntp-normalization/1.0.0",
+  "ntp_schema_revision": "ntp/1.0",
+  "resources": {
+    "cpu_core_equivalents": 4.977009505512595,
+    "note": "NVIDIA telemetry unavailable; GPU and VRAM are not inferred.",
+    "nvidia_smi_snapshot": null,
+    "process_peak_rss_native_units": 345800704
+  },
+  "result_age_at_consume_ms": {
+    "mean": 0.5394555835,
+    "p50": 0.4413125,
+    "p95": 0.962583,
+    "p99": 1.082917
+  },
+  "runtime": {
+    "active_providers": [
+      "CPUExecutionProvider"
+    ],
+    "input_shape": [
+      1,
+      3,
+      64,
+      64
+    ],
+    "iterations": 2000,
+    "onnxruntime_version": "1.27.0",
+    "precision_support": [
+      "fp32"
+    ],
+    "requested_providers": [
+      "CPUExecutionProvider"
+    ],
+    "tensorrt_fp16": false,
+    "warmup": 100
+  },
+  "schema_version": "face-spatial-runtime-benchmark/1.0.0",
+  "signal_registry_revision": "ntp-signals/1.0.0",
+  "smoke_only": true,
+  "source_checkpoint_digest": "d851b024e85bf67c673fe12e880fa6c523918768ff5e42edc2cf071b77aeb7a7"
+}

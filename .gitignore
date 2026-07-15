@@ -18,6 +18,13 @@ target/
 /cache/
 /runs/
 /artifacts/
+!/artifacts/
+/artifacts/*
+!/artifacts/benchmarks/
+/artifacts/benchmarks/*
+!/artifacts/benchmarks/issue8-face-basic-macos-m4-smoke.json
+!/artifacts/benchmarks/issue8-face-spatial-macos-m4-smoke.json
+!/artifacts/benchmarks/issue8-face-spatial-comparison-macos-m4-smoke.json
 /checkpoints/
 /model-packages/
 *.pt

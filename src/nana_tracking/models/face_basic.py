@@ -47,6 +47,24 @@ class DepthwiseBlock(nn.Module):
         return self.block(image)
 
 
+def create_face_encoder(config: ModelConfig) -> nn.Sequential:
+    """Create the single shared image encoder used by both face profiles."""
+
+    widths = (24, 40, 64, config.hidden_dims)
+    return nn.Sequential(
+        nn.Conv2d(config.input_channels, widths[0], 3, stride=2, padding=1, bias=False),
+        nn.BatchNorm2d(widths[0]),
+        nn.SiLU(inplace=True),
+        DepthwiseBlock(widths[0], widths[1], 2),
+        DepthwiseBlock(widths[1], widths[2], 2),
+        DepthwiseBlock(widths[2], widths[3], 2),
+        DepthwiseBlock(widths[3], widths[3], 2),
+        nn.AdaptiveAvgPool2d((1, 1)),
+        nn.Flatten(),
+        nn.Dropout(config.dropout),
+    )
+
+
 class FaceBasicModel(nn.Module):
     """Lightweight shared encoder with explicit orthogonal multi-task heads."""
 
@@ -54,19 +72,7 @@ class FaceBasicModel(nn.Module):
 
     def __init__(self, config: ModelConfig) -> None:
         super().__init__()
-        widths = (24, 40, 64, config.hidden_dims)
-        self.encoder = nn.Sequential(
-            nn.Conv2d(config.input_channels, widths[0], 3, stride=2, padding=1, bias=False),
-            nn.BatchNorm2d(widths[0]),
-            nn.SiLU(inplace=True),
-            DepthwiseBlock(widths[0], widths[1], 2),
-            DepthwiseBlock(widths[1], widths[2], 2),
-            DepthwiseBlock(widths[2], widths[3], 2),
-            DepthwiseBlock(widths[3], widths[3], 2),
-            nn.AdaptiveAvgPool2d((1, 1)),
-            nn.Flatten(),
-            nn.Dropout(config.dropout),
-        )
+        self.encoder = create_face_encoder(config)
         self.rig_head = nn.Linear(config.hidden_dims, 36)
         self.pose_head = nn.Linear(config.hidden_dims, 7)
         with torch.no_grad():

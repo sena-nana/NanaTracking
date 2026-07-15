@@ -75,6 +75,7 @@ class ModelPackageMetadata(ContractModel):
     supported_signals: list[int] = Field(default_factory=list)
     supported_structures: list[str] = Field(default_factory=list)
     temporal_state: str = "single-frame"
+    geometry_topology_revision: str | None = None
 
 
 class AdapterContract(ContractModel):

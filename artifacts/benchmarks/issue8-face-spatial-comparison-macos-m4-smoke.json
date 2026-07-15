@@ -1,0 +1,29 @@
+{
+  "schema_version": "face-spatial-comparison/1.0.0",
+  "smoke_only": true,
+  "scope": "synthetic fixed-ROI runtime overhead only; not tracking quality, iOS, CUDA, or production evidence",
+  "execution": {
+    "mode": "sequential",
+    "warmup": 100,
+    "iterations": 2000,
+    "provider": "CPUExecutionProvider",
+    "hardware": "Apple M4 Mac mini, 10 CPU cores, 16 GB",
+    "python": "3.14.3",
+    "onnxruntime": "1.27.0"
+  },
+  "basic_report": "issue8-face-basic-macos-m4-smoke.json",
+  "spatial_report": "issue8-face-spatial-macos-m4-smoke.json",
+  "capture_to_result_overhead_percent": {
+    "mean": 22.574355087081834,
+    "p50": 24.30345821325648,
+    "p95": 23.059321002756626,
+    "p99": 21.591725326820853
+  },
+  "spatial_capture_to_result_ms": {
+    "mean": 0.5267476315,
+    "p50": 0.43133299999999997,
+    "p95": 0.940583,
+    "p99": 1.058
+  },
+  "conclusion": "All Spatial heads share one encoder invocation. The measured additional head and producer work increased capture-to-result mean by 22.57 percent while keeping smoke p99 at 1.058 ms on this host."
+}

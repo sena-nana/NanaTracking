@@ -1,0 +1,44 @@
+data:
+  dataset: synthetic
+  samples: 8
+  batch_size: 4
+  executor: inline
+  workers: 0
+  buffersize: 2
+  require_complete_basic: true
+  require_complete_spatial: true
+model:
+  name: face_spatial
+  input_channels: 3
+  input_height: 64
+  input_width: 64
+  hidden_dims: 32
+  rig_dims: 41
+  pose_dims: 7
+  landmark_count: 16
+  identity_classes: 2
+  identity_dims: 8
+  dropout: 0.0
+training:
+  seed: 23
+  max_steps: 1
+  learning_rate: 0.001
+  device: cpu
+  amp: false
+evaluation:
+  atol: 0.00001
+  rtol: 0.0001
+export:
+  opset: 18
+  model_family: nana-face-spatial
+  model_version: 0.1.0-smoke
+  smoke_only: true
+reproducibility:
+  output_dir: runs/face-spatial-smoke
+  data_revision: synthetic-face-spatial-v0
+  ntp_schema_revision: ntp/1.0
+  signal_registry_revision: ntp-signals/1.0.0
+  normalization_revision: ntp-normalization/1.0.0
+  calibration_revision: ntp-calibration/1.0.0
+  feature_revision: ntp-features/1.0.0
+  geometry_topology_revision: ntp-face-canonical/1.0.0-smoke

@@ -14,7 +14,12 @@ import onnxruntime as ort
 
 from nana_tracking.contracts import ModelPackageMetadata
 from nana_tracking.export import verify_model_package
-from nana_tracking.runtime import FaceBasicProducer, OrtFaceBasicBackend
+from nana_tracking.runtime import (
+    FaceBasicProducer,
+    FaceSpatialProducer,
+    OrtFaceBasicBackend,
+    OrtFaceSpatialBackend,
+)
 
 
 def _percentile(values: list[float], quantile: float) -> float:
@@ -61,7 +66,7 @@ def _nvidia_telemetry() -> dict[str, object] | None:
     }
 
 
-def benchmark_face_basic_package(
+def benchmark_face_package(
     package_dir: Path,
     output: Path,
     *,
@@ -80,12 +85,24 @@ def benchmark_face_basic_package(
     unavailable = set(providers).difference(available)
     if unavailable:
         raise RuntimeError(f"requested ONNX Runtime providers are unavailable: {unavailable}")
-    backend = OrtFaceBasicBackend(
-        package_dir,
-        providers=providers,
-        tensorrt_fp16=tensorrt_fp16,
-    )
-    producer = FaceBasicProducer(backend)
+    if metadata.supported_signals == list(range(1, 37)):
+        backend = OrtFaceBasicBackend(
+            package_dir,
+            providers=providers,
+            tensorrt_fp16=tensorrt_fp16,
+        )
+        producer = FaceBasicProducer(backend)
+        profile_name = "face-basic"
+    elif metadata.supported_signals == list(range(1, 42)):
+        backend = OrtFaceSpatialBackend(
+            package_dir,
+            providers=providers,
+            tensorrt_fp16=tensorrt_fp16,
+        )
+        producer = FaceSpatialProducer(backend)
+        profile_name = "face-spatial"
+    else:
+        raise ValueError("benchmark requires a complete Basic or Spatial face package")
     with np.load(package_dir / "test-vectors" / "input.npz") as vectors:
         image = vectors["image"]
     frame = np.rint(np.transpose(image[0], (1, 2, 0)) * 255.0).astype(np.uint8)
@@ -121,7 +138,7 @@ def benchmark_face_basic_package(
     cpu_seconds = (time.process_time_ns() - cpu_start) / 1_000_000_000.0
     gpu = _nvidia_telemetry()
     report: dict[str, object] = {
-        "schema_version": "face-basic-runtime-benchmark/1.0.0",
+        "schema_version": f"{profile_name}-runtime-benchmark/1.0.0",
         "smoke_only": metadata.smoke_only,
         "model_digest": metadata.model_digest,
         "source_checkpoint_digest": metadata.source_checkpoint_digest,
@@ -130,6 +147,7 @@ def benchmark_face_basic_package(
         "normalization_revision": metadata.normalization_revision,
         "calibration_revision": metadata.calibration_revision,
         "feature_revision": metadata.feature_revision,
+        "geometry_topology_revision": metadata.geometry_topology_revision,
         "hardware": {
             "platform": platform.platform(),
             "machine": platform.machine(),
@@ -170,4 +188,48 @@ def benchmark_face_basic_package(
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return report
+
+
+def benchmark_face_basic_package(
+    package_dir: Path,
+    output: Path,
+    *,
+    providers: list[str],
+    warmup: int = 20,
+    iterations: int = 200,
+    tensorrt_fp16: bool = False,
+) -> dict[str, object]:
+    report = benchmark_face_package(
+        package_dir,
+        output,
+        providers=providers,
+        warmup=warmup,
+        iterations=iterations,
+        tensorrt_fp16=tensorrt_fp16,
+    )
+    if report["schema_version"] != "face-basic-runtime-benchmark/1.0.0":
+        raise ValueError("package is not FaceBasic")
+    return report
+
+
+def benchmark_face_spatial_package(
+    package_dir: Path,
+    output: Path,
+    *,
+    providers: list[str],
+    warmup: int = 20,
+    iterations: int = 200,
+    tensorrt_fp16: bool = False,
+) -> dict[str, object]:
+    report = benchmark_face_package(
+        package_dir,
+        output,
+        providers=providers,
+        warmup=warmup,
+        iterations=iterations,
+        tensorrt_fp16=tensorrt_fp16,
+    )
+    if report["schema_version"] != "face-spatial-runtime-benchmark/1.0.0":
+        raise ValueError("package is not FaceSpatial")
     return report

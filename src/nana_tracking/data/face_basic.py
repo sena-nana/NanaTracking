@@ -104,8 +104,14 @@ class FaceBasicDataset(Dataset[FaceBasicSample]):
         for labels in materialized.records:
             if labels.identity_id not in identities:
                 continue
-            complete = all(label.state == "available" for label in labels.labels[:36])
-            if config.data.require_complete_basic and not complete:
+            signal_count = 41 if config.model.name == "face_spatial" else 36
+            complete = all(label.state == "available" for label in labels.labels[:signal_count])
+            require_complete = (
+                config.data.require_complete_spatial
+                if config.model.name == "face_spatial"
+                else config.data.require_complete_basic
+            )
+            if require_complete and not complete:
                 continue
             self._records.append((raw_records[labels.record_id], labels))
         if not self._records:
@@ -128,9 +134,10 @@ class FaceBasicDataset(Dataset[FaceBasicSample]):
             antialias=True,
         )
 
-        basic = materialized.labels[:36]
-        rig = torch.tensor([label.value or 0.0 for label in basic])
-        rig_confidence = torch.tensor([label.confidence for label in basic])
+        signal_count = 41 if self._config.model.name == "face_spatial" else 36
+        profile_labels = materialized.labels[:signal_count]
+        rig = torch.tensor([label.value or 0.0 for label in profile_labels])
+        rig_confidence = torch.tensor([label.confidence for label in profile_labels])
         pose_names = [
             "head.pose.position.x",
             "head.pose.position.y",
@@ -146,10 +153,14 @@ class FaceBasicDataset(Dataset[FaceBasicSample]):
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
             self._max_teacher_skew_ns,
         )
+        landmark_axes = ("x", "y", "z") if self._config.model.name == "face_spatial" else ("x", "y")
+        landmark_prefix = (
+            "face.canonical" if self._config.model.name == "face_spatial" else "face.landmark"
+        )
         landmark_names = [
-            f"face.landmark.{point}.{axis}"
+            f"{landmark_prefix}.{point}.{axis}"
             for point in range(self._config.model.landmark_count)
-            for axis in ("x", "y")
+            for axis in landmark_axes
         ]
         landmarks, landmark_confidence = _auxiliary_vector(
             record,
@@ -157,8 +168,11 @@ class FaceBasicDataset(Dataset[FaceBasicSample]):
             [0.0] * len(landmark_names),
             self._max_teacher_skew_ns,
         )
-        landmarks = landmarks.reshape(self._config.model.landmark_count, 2)
-        landmark_confidence = landmark_confidence.reshape(self._config.model.landmark_count, 2)
+        coordinate_count = len(landmark_axes)
+        landmarks = landmarks.reshape(self._config.model.landmark_count, coordinate_count)
+        landmark_confidence = landmark_confidence.reshape(
+            self._config.model.landmark_count, coordinate_count
+        )
         if "out_of_frame" in record.conditions.occlusions:
             visibility = 2
         elif record.conditions.occlusions:
@@ -166,10 +180,13 @@ class FaceBasicDataset(Dataset[FaceBasicSample]):
         else:
             visibility = 0
         confidence_target = rig_confidence.clone()
+        geometry_target = (
+            "face_geometry" if self._config.model.name == "face_spatial" else "landmarks"
+        )
         targets = {
             "rig": rig,
             "pose": pose,
-            "landmarks": landmarks,
+            geometry_target: landmarks,
             "visibility": torch.tensor(visibility, dtype=torch.long),
             "identity": torch.tensor(self._identity_indices[record.identity_id], dtype=torch.long),
             "confidence": confidence_target,
@@ -177,11 +194,67 @@ class FaceBasicDataset(Dataset[FaceBasicSample]):
         weights = {
             "rig": rig_confidence,
             "pose": pose_confidence,
-            "landmarks": landmark_confidence,
+            geometry_target: landmark_confidence,
             "visibility": torch.ones(1),
             "identity": torch.ones(1),
             "confidence": torch.ones_like(confidence_target),
         }
+        if self._config.model.name == "face_spatial":
+            eye_origin_names = [
+                f"face.eye.{side}.origin.{axis}"
+                for side in ("left", "right")
+                for axis in ("x", "y", "z")
+            ]
+            eye_direction_names = [
+                f"face.eye.{side}.direction.{axis}"
+                for side in ("left", "right")
+                for axis in ("x", "y", "z")
+            ]
+            eye_origins, eye_origin_confidence = _auxiliary_vector(
+                record,
+                eye_origin_names,
+                [-0.15, 0.05, 0.0, 0.15, 0.05, 0.0],
+                self._max_teacher_skew_ns,
+            )
+            eye_directions, eye_direction_confidence = _auxiliary_vector(
+                record,
+                eye_direction_names,
+                [0.0, 0.0, 1.0, 0.0, 0.0, 1.0],
+                self._max_teacher_skew_ns,
+            )
+            look_at, look_at_confidence = _auxiliary_vector(
+                record,
+                [f"face.look_at_head.{axis}" for axis in ("x", "y", "z")],
+                [0.0, 0.0, 1.0],
+                self._max_teacher_skew_ns,
+            )
+            tongue_observation = _best_observation(
+                record, "tongue.visible", self._max_teacher_skew_ns
+            )
+            tongue_visible = (
+                0
+                if tongue_observation is None or float(tongue_observation.value or 0.0) < 0.5
+                else 1
+            )
+            tongue_confidence = (
+                0.0 if tongue_observation is None else tongue_observation.confidence
+            )
+            targets.update(
+                {
+                    "eye_origins": eye_origins.reshape(2, 3),
+                    "eye_directions": eye_directions.reshape(2, 3),
+                    "look_at_head": look_at,
+                    "tongue_visibility": torch.tensor(tongue_visible, dtype=torch.long),
+                }
+            )
+            weights.update(
+                {
+                    "eye_origins": eye_origin_confidence.reshape(2, 3),
+                    "eye_directions": eye_direction_confidence.reshape(2, 3),
+                    "look_at_head": look_at_confidence,
+                    "tongue_visibility": torch.tensor([tongue_confidence]),
+                }
+            )
         return FaceBasicSample(image, targets, weights, record.record_id)
 
 

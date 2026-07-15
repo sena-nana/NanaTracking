@@ -11,7 +11,7 @@ from torch import Tensor, nn
 from nana_tracking.config import ExperimentConfig, save_config
 from nana_tracking.contracts import CheckpointMetadata
 from nana_tracking.data.loaders import create_loader
-from nana_tracking.models import create_model, mirror_basic_rig, output_names
+from nana_tracking.models import create_model, mirror_basic_rig, mirror_spatial_rig, output_names
 from nana_tracking.reproducibility import (
     choose_device,
     git_state,
@@ -53,20 +53,23 @@ def _losses(
         }
     raw = nn.functional.smooth_l1_loss(outputs["rig"], targets["rig"], reduction="none")
     pose = nn.functional.smooth_l1_loss(outputs["pose"], targets["pose"], reduction="none")
-    landmarks = nn.functional.smooth_l1_loss(
-        outputs["landmarks"], targets["landmarks"], reduction="none"
+    geometry_names = (
+        ("landmarks",)
+        if config.model.name == "face_basic"
+        else ("eye_origins", "eye_directions", "look_at_head", "face_geometry")
     )
     mirrored_outputs = dict(
         zip(output_names(config.model), model(torch.flip(images, dims=(-1,))), strict=True)
     )
     mirror_consistency = nn.functional.smooth_l1_loss(
-        mirrored_outputs["rig"], mirror_basic_rig(outputs["rig"])
+        mirrored_outputs["rig"],
+        mirror_basic_rig(outputs["rig"])
+        if config.model.name == "face_basic"
+        else mirror_spatial_rig(outputs["rig"]),
     )
-    return {
+    losses = {
         "rig": _weighted_mean(raw, label_confidence["rig"]) * config.training.rig_loss_weight,
         "pose": _weighted_mean(pose, label_confidence["pose"]) * config.training.pose_loss_weight,
-        "landmarks": _weighted_mean(landmarks, label_confidence["landmarks"])
-        * config.training.landmark_loss_weight,
         "visibility": nn.functional.cross_entropy(outputs["visibility"], targets["visibility"])
         * config.training.visibility_loss_weight,
         "identity_adversary": nn.functional.cross_entropy(outputs["identity"], targets["identity"])
@@ -77,6 +80,25 @@ def _losses(
         * config.training.confidence_loss_weight,
         "mirror_consistency": mirror_consistency * config.training.mirror_consistency_weight,
     }
+    for name in geometry_names:
+        error = nn.functional.smooth_l1_loss(outputs[name], targets[name], reduction="none")
+        weight = (
+            config.training.face_geometry_loss_weight
+            if name == "face_geometry"
+            else config.training.eye_geometry_loss_weight
+            if name in {"eye_origins", "eye_directions", "look_at_head"}
+            else config.training.landmark_loss_weight
+        )
+        losses[name] = _weighted_mean(error, label_confidence[name]) * weight
+    if config.model.name == "face_spatial":
+        tongue_error = nn.functional.cross_entropy(
+            outputs["tongue_visibility"], targets["tongue_visibility"], reduction="none"
+        )
+        losses["tongue_visibility"] = (
+            _weighted_mean(tongue_error, label_confidence["tongue_visibility"].squeeze(-1))
+            * config.training.tongue_visibility_loss_weight
+        )
+    return losses
 
 
 def train(

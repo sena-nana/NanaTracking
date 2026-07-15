@@ -49,6 +49,17 @@ class FaceBasicBackend(Protocol):
     def infer(self, image: np.ndarray) -> FaceBasicPrediction: ...
 
 
+class NtpFrameProducer(Protocol):
+    def produce(
+        self,
+        frame: np.ndarray,
+        *,
+        roi: FaceBox | None,
+        capture_timestamp_ns: int,
+        sequence: int,
+    ) -> dict[str, object]: ...
+
+
 class FaceDetector(Protocol):
     def detect(self, frame: np.ndarray) -> list[tuple[FaceBox, float]]: ...
 
@@ -197,7 +208,7 @@ class OrtFaceBasicBackend:
         )
 
 
-def _unsupported_tracked() -> dict[str, object]:
+def unsupported_tracked() -> dict[str, object]:
     return {
         "value": None,
         "confidence": 0.0,
@@ -207,25 +218,45 @@ def _unsupported_tracked() -> dict[str, object]:
     }
 
 
-def _unsupported_side_map() -> dict[str, object]:
-    return {"left": _unsupported_tracked(), "right": _unsupported_tracked()}
+def unsupported_side_map() -> dict[str, object]:
+    return {"left": unsupported_tracked(), "right": unsupported_tracked()}
 
 
-def _empty_skeleton() -> dict[str, object]:
+def empty_skeleton() -> dict[str, object]:
     return {
-        "torso_camera_pose": _unsupported_tracked(),
-        "shoulder": _unsupported_side_map(),
-        "elbow": _unsupported_side_map(),
-        "wrist": _unsupported_side_map(),
-        "upper_arm_direction_torso": _unsupported_side_map(),
-        "forearm_direction_torso": _unsupported_side_map(),
-        "upper_arm_twist": _unsupported_side_map(),
-        "forearm_twist": _unsupported_side_map(),
+        "torso_camera_pose": unsupported_tracked(),
+        "shoulder": unsupported_side_map(),
+        "elbow": unsupported_side_map(),
+        "wrist": unsupported_side_map(),
+        "upper_arm_direction_torso": unsupported_side_map(),
+        "forearm_direction_torso": unsupported_side_map(),
+        "upper_arm_twist": unsupported_side_map(),
+        "forearm_twist": unsupported_side_map(),
     }
 
 
-def _region(confidence: float = 0.0, state: str = "Unsupported") -> dict[str, object]:
+def region(confidence: float = 0.0, state: str = "Unsupported") -> dict[str, object]:
     return {"confidence": confidence, "state": state}
+
+
+def prepare_rgb_roi(
+    frame: np.ndarray,
+    roi: FaceBox | None,
+    output: np.ndarray,
+) -> None:
+    """Resize one uint8 RGB ROI into a preallocated NCHW float32 tensor."""
+
+    if frame.ndim != 3 or frame.shape[2] != 3 or frame.dtype != np.uint8:
+        raise ValueError("frames must be uint8 HWC RGB arrays")
+    if output.ndim != 4 or output.shape[0:2] != (1, 3) or output.dtype != np.float32:
+        raise ValueError("output must be a preallocated [1, 3, height, width] float32 array")
+    height, width, _ = frame.shape
+    box = (roi or FaceBox(0, 0, width, height)).clamp(width, height)
+    ys = np.linspace(box.top, box.bottom - 1, output.shape[2]).astype(np.intp)
+    xs = np.linspace(box.left, box.right - 1, output.shape[3]).astype(np.intp)
+    for output_y, source_y in enumerate(ys):
+        row = frame[source_y, xs, :]
+        np.multiply(row.T, 1.0 / 255.0, out=output[0, :, output_y, :])
 
 
 class FaceBasicProducer:
@@ -268,15 +299,7 @@ class FaceBasicProducer:
         }
 
     def _prepare(self, frame: np.ndarray, roi: FaceBox | None) -> None:
-        if frame.ndim != 3 or frame.shape[2] != 3 or frame.dtype != np.uint8:
-            raise ValueError("frames must be uint8 HWC RGB arrays")
-        height, width, _ = frame.shape
-        box = (roi or FaceBox(0, 0, width, height)).clamp(width, height)
-        ys = np.linspace(box.top, box.bottom - 1, self.backend.input_height).astype(np.intp)
-        xs = np.linspace(box.left, box.right - 1, self.backend.input_width).astype(np.intp)
-        for output_y, source_y in enumerate(ys):
-            row = frame[source_y, xs, :]
-            np.multiply(row.T, 1.0 / 255.0, out=self._input[0, :, output_y, :])
+        prepare_rgb_roi(frame, roi, self._input)
 
     def produce(
         self,
@@ -301,7 +324,7 @@ class FaceBasicProducer:
         slots: list[dict[str, object]] = []
         for slot in range(88):
             if slot >= 36:
-                slots.append(_unsupported_tracked())
+                slots.append(unsupported_tracked())
                 continue
             confidence = float(np.clip(prediction.confidence[slot], 0.0, 1.0))
             slots.append(
@@ -363,26 +386,26 @@ class FaceBasicProducer:
                 "head_camera_pose": head_pose,
                 "eyes": {
                     "left": {
-                        "origin_head": _unsupported_tracked(),
-                        "direction_head": _unsupported_tracked(),
+                        "origin_head": unsupported_tracked(),
+                        "direction_head": unsupported_tracked(),
                     },
                     "right": {
-                        "origin_head": _unsupported_tracked(),
-                        "direction_head": _unsupported_tracked(),
+                        "origin_head": unsupported_tracked(),
+                        "direction_head": unsupported_tracked(),
                     },
                 },
-                "look_at_camera": _unsupported_tracked(),
+                "look_at_camera": unsupported_tracked(),
                 "face_geometry_state": "Unsupported",
                 "face_landmarks": [],
             },
-            "skeleton": _empty_skeleton(),
+            "skeleton": empty_skeleton(),
             "quality": {
                 "overall_confidence": overall,
-                "face": _region(overall, state),
-                "eyes": _region(overall, state),
-                "torso": _region(),
-                "arm": {"left": _region(), "right": _region()},
-                "auricle": {"left": _region(), "right": _region()},
+                "face": region(overall, state),
+                "eyes": region(overall, state),
+                "torso": region(),
+                "arm": {"left": region(), "right": region()},
+                "auricle": {"left": region(), "right": region()},
                 "stabilization_revision": {"major": 1, "minor": 0, "patch": 0},
             },
         }
@@ -402,7 +425,7 @@ class LatestFrameRuntime:
 
     def __init__(
         self,
-        producer: FaceBasicProducer,
+        producer: NtpFrameProducer,
         *,
         roi_tracker: FaceRoiTracker | None = None,
     ) -> None:

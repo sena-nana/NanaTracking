@@ -22,7 +22,7 @@ def _sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _build_manifest(tmp_path: Path) -> Path:
+def _build_manifest(tmp_path: Path, *, spatial: bool = False) -> Path:
     catalog_path = Path("configs/data/ntp-v1-label-catalog.json").resolve()
     catalog = LabelCatalog.load(catalog_path)
     examples = CaptureRecord.load_jsonl(Path("examples/records/synthetic-capture-v1.jsonl"))
@@ -55,6 +55,77 @@ def _build_manifest(tmp_path: Path) -> Path:
         )
         for signal in catalog.signals[:36]
     }
+    gaze = {
+        signal.stable_name: LabelObservation(
+            value=0.0,
+            confidence=0.92,
+            state="observed",
+            evidence="geometry",
+            method="head-local-eye-ray/1.0.0",
+        )
+        for signal in catalog.signals[36:40]
+    }
+    spatial_geometry = {
+        **{
+            f"face.eye.{side}.origin.{axis}": LabelObservation(
+                value=value,
+                confidence=0.94,
+                state="observed",
+                evidence="geometry",
+                method="head-local-eye-ray/1.0.0",
+            )
+            for side, x in (("left", -0.15), ("right", 0.15))
+            for axis, value in (("x", x), ("y", 0.05), ("z", 0.0))
+        },
+        **{
+            f"face.eye.{side}.direction.{axis}": LabelObservation(
+                value=value,
+                confidence=0.94,
+                state="observed",
+                evidence="geometry",
+                method="head-local-eye-ray/1.0.0",
+            )
+            for side in ("left", "right")
+            for axis, value in (("x", 0.0), ("y", 0.0), ("z", 1.0))
+        },
+        **{
+            f"face.look_at_head.{axis}": LabelObservation(
+                value=value,
+                confidence=0.94,
+                state="observed",
+                evidence="geometry",
+                method="head-local-eye-ray/1.0.0",
+            )
+            for axis, value in (("x", 0.0), ("y", 0.0), ("z", 1.0))
+        },
+    }
+    canonical_geometry = {
+        f"face.canonical.{point}.{axis}": LabelObservation(
+            value=0.0,
+            confidence=0.85,
+            state="observed",
+            evidence="geometry",
+            method="ntp-face-canonical/1.0.0-smoke",
+        )
+        for point in range(16)
+        for axis in ("x", "y", "z")
+    }
+    tongue = {
+        catalog.signals[40].stable_name: LabelObservation(
+            value=0.2,
+            confidence=0.88,
+            state="observed",
+            evidence="teacher_label",
+            method="reviewed-tongue-visible/1.0.0",
+        ),
+        "tongue.visible": LabelObservation(
+            value=1.0,
+            confidence=0.88,
+            state="observed",
+            evidence="teacher_label",
+            method="reviewed-tongue-visible/1.0.0",
+        ),
+    }
     for index, example in enumerate(examples):
         image_path = tmp_path / f"frame-{index}.png"
         image = torch.full((3, 64, 64), index * 32, dtype=torch.uint8)
@@ -70,13 +141,22 @@ def _build_manifest(tmp_path: Path) -> Path:
         teacher = TeacherFrame(
             source_id="synthetic-truedepth",
             capture_timestamp_ns=example.capture_timestamp_ns,
-            labels={**basic, **pose},
+            labels={**basic, **pose, **gaze, **spatial_geometry} if spatial else {**basic, **pose},
         )
+        teachers = [teacher]
+        if spatial:
+            teachers.append(
+                TeacherFrame(
+                    source_id="synthetic-rgb-detail",
+                    capture_timestamp_ns=example.capture_timestamp_ns,
+                    labels={**tongue, **canonical_geometry},
+                )
+            )
         records.append(
             example.model_copy(
                 update={
                     "rgb": rgb,
-                    "teachers": [teacher],
+                    "teachers": teachers,
                     "depth": [],
                     "conditions": CaptureConditions(lighting="normal"),
                 }
@@ -89,7 +169,9 @@ def _build_manifest(tmp_path: Path) -> Path:
     )
 
     payload = json.loads(Path("examples/manifests/synthetic-v1.json").read_text(encoding="utf-8"))
-    payload["data_revision"] = "synthetic-face-basic-loader-v1"
+    payload["data_revision"] = (
+        "synthetic-face-spatial-loader-v1" if spatial else "synthetic-face-basic-loader-v1"
+    )
     payload["digest"] = "0" * 64
     payload["label_catalog"] = {"path": str(catalog_path), "sha256": _sha256(catalog_path)}
     payload["record_files"] = [
@@ -122,3 +204,25 @@ def test_manifest_loader_preserves_complete_basic_pose_and_identity_split(
     assert batch.targets["identity"].item() == 0
     assert torch.all(batch.label_confidence["rig"] == 0.9)
     assert torch.all(batch.label_confidence["pose"] == 0.95)
+
+
+def test_manifest_loader_requires_complete_spatial_and_preserves_geometry_truth(
+    tmp_path: Path,
+) -> None:
+    manifest = _build_manifest(tmp_path, spatial=True)
+    config = load_config(Path("configs/face-spatial-smoke.yaml"))
+    config = config.model_copy(
+        update={
+            "data": config.data.model_copy(
+                update={"dataset": "manifest", "manifest": manifest, "batch_size": 1}
+            )
+        }
+    )
+    batch = next(iter(create_loader(config, split="train", shuffle=False)))
+    assert batch.targets["rig"].shape == (1, 41)
+    assert batch.targets["eye_origins"].shape == (1, 2, 3)
+    assert batch.targets["eye_directions"].shape == (1, 2, 3)
+    assert batch.targets["face_geometry"].shape == (1, 16, 3)
+    assert batch.targets["tongue_visibility"].item() == 1
+    assert torch.all(batch.label_confidence["rig"] > 0.0)
+    assert torch.all(batch.label_confidence["face_geometry"] == 0.85)

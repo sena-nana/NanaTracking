@@ -22,6 +22,7 @@ class DataConfig(StrictModel):
     workers: int = Field(default=0, ge=0)
     buffersize: PositiveInt = 2
     require_complete_basic: bool = True
+    require_complete_spatial: bool = True
 
     @model_validator(mode="after")
     def validate_executor(self) -> DataConfig:
@@ -35,7 +36,7 @@ class DataConfig(StrictModel):
 
 
 class ModelConfig(StrictModel):
-    name: Literal["smoke", "face_basic"] = "smoke"
+    name: Literal["smoke", "face_basic", "face_spatial"] = "smoke"
     input_channels: PositiveInt = 3
     input_height: PositiveInt = 8
     input_width: PositiveInt = 8
@@ -48,14 +49,18 @@ class ModelConfig(StrictModel):
     dropout: float = Field(default=0.1, ge=0.0, lt=1.0)
 
     @model_validator(mode="after")
-    def validate_face_basic_contract(self) -> ModelConfig:
-        if self.name == "face_basic":
-            if self.rig_dims != 36:
-                raise ValueError("face_basic requires the complete 36-signal BasicSet")
+    def validate_face_contract(self) -> ModelConfig:
+        if self.name in {"face_basic", "face_spatial"}:
+            required_rig_dims = 36 if self.name == "face_basic" else 41
+            if self.rig_dims != required_rig_dims:
+                profile = "BasicSet" if self.name == "face_basic" else "SpatialSet"
+                raise ValueError(
+                    f"{self.name} requires the complete {required_rig_dims}-signal {profile}"
+                )
             if self.pose_dims != 7:
-                raise ValueError("face_basic pose is xyz plus an xyzw quaternion (7 values)")
+                raise ValueError("face pose is xyz plus an xyzw quaternion (7 values)")
             if min(self.input_height, self.input_width) < 64:
-                raise ValueError("face_basic ROI inputs must be at least 64x64")
+                raise ValueError("face ROI inputs must be at least 64x64")
         return self
 
 
@@ -72,6 +77,9 @@ class TrainingConfig(StrictModel):
     confidence_loss_weight: float = Field(default=0.2, ge=0)
     identity_adversary_weight: float = Field(default=0.05, ge=0)
     mirror_consistency_weight: float = Field(default=0.1, ge=0)
+    eye_geometry_loss_weight: float = Field(default=0.25, ge=0)
+    face_geometry_loss_weight: float = Field(default=0.25, ge=0)
+    tongue_visibility_loss_weight: float = Field(default=0.1, ge=0)
 
 
 class EvaluationConfig(StrictModel):
@@ -94,6 +102,7 @@ class ReproducibilityConfig(StrictModel):
     normalization_revision: str = "ntp-normalization/1.0.0"
     calibration_revision: str = "ntp-calibration/1.0.0"
     feature_revision: str = Field(min_length=1)
+    geometry_topology_revision: str = "ntp-face-canonical/1.0.0"
 
 
 class ExperimentConfig(StrictModel):

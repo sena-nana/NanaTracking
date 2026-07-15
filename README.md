@@ -30,6 +30,7 @@ uv run --extra cpu nana-tracking evaluation validate-standard \
 uv run --extra cpu nana-tracking train --config configs/smoke.yaml
 uv run --extra cpu nana-tracking smoke --work-dir runs/smoke
 uv run --extra cpu nana-tracking train --config configs/face-basic-smoke.yaml
+uv run --extra cpu nana-tracking train --config configs/face-spatial-smoke.yaml
 uv run --extra cpu nana-tracking benchmark-python
 cargo run -p ntp-conformance -- stream.ntp --output json
 ```
@@ -69,6 +70,8 @@ profiles.
 - [NTP v1 canonical codec and Rust/C contract](docs/protocol/ntp-v1-codec.md)
 - [NTP v1 semantic derivation and rig binding reference](docs/semantics/ntp-v1-reference.md)
 - [NTP v1 conformance and compatibility matrix](docs/conformance/ntp-v1-compatibility-matrix.md)
+- [FaceSpatial v1 model and producer](docs/model/face-spatial-v1.md)
+- [Spatial same-capture fusion contract](docs/contracts/spatial-fusion-v1.md)
 - [ADR 0001: Vendor parameters are adapters, not NTP](docs/adr/0001-vendor-parameters-are-adapters.md)
 
 ## Training data and evaluation

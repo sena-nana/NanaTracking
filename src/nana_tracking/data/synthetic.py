@@ -54,21 +54,45 @@ class SyntheticTrackingDataset(Dataset[SyntheticSample]):
             "pose": torch.ones_like(pose),
             "confidence": torch.ones_like(confidence),
         }
-        if model.name == "face_basic":
+        if model.name in {"face_basic", "face_spatial"}:
             targets.update(
                 {
-                    "landmarks": torch.zeros(model.landmark_count, 2),
                     "visibility": torch.tensor(0, dtype=torch.long),
                     "identity": torch.tensor(index % model.identity_classes, dtype=torch.long),
                 }
             )
             label_confidence.update(
                 {
-                    "landmarks": torch.ones(model.landmark_count, 2),
                     "visibility": torch.ones(1),
                     "identity": torch.ones(1),
                 }
             )
+            if model.name == "face_basic":
+                targets["landmarks"] = torch.zeros(model.landmark_count, 2)
+                label_confidence["landmarks"] = torch.ones(model.landmark_count, 2)
+            else:
+                targets.update(
+                    {
+                        "eye_origins": torch.tensor(
+                            [[-0.15, 0.05, 0.0], [0.15, 0.05, 0.0]], dtype=torch.float32
+                        ),
+                        "eye_directions": torch.tensor(
+                            [[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]], dtype=torch.float32
+                        ),
+                        "look_at_head": torch.tensor([0.0, 0.0, 1.0]),
+                        "face_geometry": torch.zeros(model.landmark_count, 3),
+                        "tongue_visibility": torch.tensor(1, dtype=torch.long),
+                    }
+                )
+                label_confidence.update(
+                    {
+                        "eye_origins": torch.ones(2, 3),
+                        "eye_directions": torch.ones(2, 3),
+                        "look_at_head": torch.ones(3),
+                        "face_geometry": torch.ones(model.landmark_count, 3),
+                        "tongue_visibility": torch.ones(1),
+                    }
+                )
         return SyntheticSample(
             image,
             targets,

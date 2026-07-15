@@ -110,27 +110,58 @@ def create_model_package(
         **dict(zip(names, eager_values, strict=True)),
     )
     _write_json(vector_dir / "parity.json", parity)
+    is_basic = config.model.name == "face_basic"
+    is_spatial = config.model.name == "face_spatial"
+    if is_basic:
+        schema_version = "face-basic-1"
+        output_roles = {
+            "rig": "ntp-basic-36",
+            "pose": "ntp-head-camera-pose",
+            "landmarks": "auxiliary-training-diagnostic",
+            "visibility": "runtime-state-classification",
+            "confidence": "per-signal-confidence",
+        }
+        supported_signals = list(range(1, 37))
+        supported_structures = ["head_geometry"]
+        geometry_topology_revision = None
+    elif is_spatial:
+        schema_version = "face-spatial-1"
+        output_roles = {
+            "rig": "ntp-spatial-41",
+            "pose": "ntp-head-camera-pose",
+            "eye_origins": "ntp-head-relative-eye-origins",
+            "eye_directions": "ntp-continuous-eye-directions",
+            "look_at_head": "head-relative-look-at-before-pose-transform",
+            "face_geometry": config.reproducibility.geometry_topology_revision,
+            "visibility": "runtime-state-classification",
+            "tongue_visibility": "tongue-observation-state-classification",
+            "confidence": "per-signal-confidence",
+        }
+        supported_signals = list(range(1, 42))
+        supported_structures = [
+            "head_geometry",
+            "eye_geometry",
+            "look_at_point",
+            "face_geometry",
+        ]
+        geometry_topology_revision = config.reproducibility.geometry_topology_revision
+    else:
+        schema_version = "smoke-1"
+        output_roles = {
+            "rig": "smoke-rig",
+            "pose": "smoke-pose",
+            "confidence": "smoke-confidence",
+        }
+        supported_signals = []
+        supported_structures = []
+        geometry_topology_revision = None
     _write_json(
         output_dir / "schema.json",
         {
-            "schema_version": "face-basic-1" if config.model.name == "face_basic" else "smoke-1",
+            "schema_version": schema_version,
             "input": {"name": "image", "shape": list(shape), "dtype": "float32"},
             "outputs": list(names),
-            "output_roles": (
-                {
-                    "rig": "ntp-basic-36",
-                    "pose": "ntp-head-camera-pose",
-                    "landmarks": "auxiliary-training-diagnostic",
-                    "visibility": "runtime-state-classification",
-                    "confidence": "per-signal-confidence",
-                }
-                if config.model.name == "face_basic"
-                else {
-                    "rig": "smoke-rig",
-                    "pose": "smoke-pose",
-                    "confidence": "smoke-confidence",
-                }
-            ),
+            "output_roles": output_roles,
             "smoke_only": config.export.smoke_only,
         },
     )
@@ -178,8 +209,9 @@ def create_model_package(
         model_digest=sha256_file(onnx_path),
         smoke_only=config.export.smoke_only,
         precision_support=["fp32"],
-        supported_signals=list(range(1, 37)) if config.model.name == "face_basic" else [],
-        supported_structures=["head_geometry"] if config.model.name == "face_basic" else [],
+        supported_signals=supported_signals,
+        supported_structures=supported_structures,
+        geometry_topology_revision=geometry_topology_revision,
     )
     _write_json(output_dir / "runtime-metadata.json", metadata.model_dump(mode="json"))
     return parity

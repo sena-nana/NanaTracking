@@ -24,7 +24,9 @@ def evaluate(
     model.eval()
     loader = create_loader(config, split="validation", shuffle=False, seed_offset=10_000)
     names = output_names(config.model)
-    comparable = [name for name in names if name not in {"visibility", "identity"}]
+    comparable = [
+        name for name in names if name not in {"visibility", "tongue_visibility", "identity"}
+    ]
     errors: dict[str, list[torch.Tensor]] = {name: [] for name in comparable}
 
     with torch.inference_mode():
