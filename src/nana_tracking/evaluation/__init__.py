@@ -7,6 +7,7 @@ from nana_tracking.evaluation.runtime import (
     benchmark_face_basic_package,
     benchmark_face_package,
     benchmark_face_spatial_package,
+    benchmark_full_set_package,
 )
 from nana_tracking.evaluation.standard import EvaluationStandard
 
@@ -16,6 +17,7 @@ __all__ = [
     "benchmark_face_basic_package",
     "benchmark_face_package",
     "benchmark_face_spatial_package",
+    "benchmark_full_set_package",
     "evaluate",
     "render_failure_report",
     "validate_face_basic_acceptance",

@@ -112,6 +112,7 @@ def create_model_package(
     _write_json(vector_dir / "parity.json", parity)
     is_basic = config.model.name == "face_basic"
     is_spatial = config.model.name == "face_spatial"
+    is_full = config.model.name == "full_set"
     if is_basic:
         schema_version = "face-basic-1"
         output_roles = {
@@ -145,6 +146,22 @@ def create_model_package(
             "face_geometry",
         ]
         geometry_topology_revision = config.reproducibility.geometry_topology_revision
+    elif is_full:
+        schema_version = "full-set-extension-1"
+        output_roles = {
+            "rig": "ntp-full-signals-42-through-76",
+            "torso_pose": "ntp-camera-relative-torso-pose",
+            "joint_positions": "ntp-torso-local-shoulder-elbow-wrist",
+            "joint_rotations": "ntp-torso-local-shoulder-elbow-wrist-xyzw",
+            "limb_directions": "ntp-torso-local-upper-arm-and-forearm-directions",
+            "limb_twists": "ntp-upper-arm-and-forearm-twist",
+            "bone_lengths": "normalized-upper-arm-and-forearm-lengths",
+            "visibility": "internal-region-state-classification",
+            "confidence": "per-full-signal-confidence",
+        }
+        supported_signals = list(range(42, 77))
+        supported_structures = ["body_skeleton"]
+        geometry_topology_revision = None
     else:
         schema_version = "smoke-1"
         output_roles = {

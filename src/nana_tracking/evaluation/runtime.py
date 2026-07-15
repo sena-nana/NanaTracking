@@ -19,6 +19,7 @@ from nana_tracking.runtime import (
     FaceSpatialProducer,
     OrtFaceBasicBackend,
     OrtFaceSpatialBackend,
+    OrtFullSetBackend,
 )
 
 
@@ -232,4 +233,82 @@ def benchmark_face_spatial_package(
     )
     if report["schema_version"] != "face-spatial-runtime-benchmark/1.0.0":
         raise ValueError("package is not FaceSpatial")
+    return report
+
+
+def benchmark_full_set_package(
+    package_dir: Path,
+    output: Path,
+    *,
+    providers: list[str],
+    warmup: int = 20,
+    iterations: int = 200,
+    tensorrt_fp16: bool = False,
+) -> dict[str, object]:
+    """Benchmark the low-cadence upper-body ONNX package on explicit hardware."""
+
+    verify_model_package(package_dir)
+    metadata = ModelPackageMetadata.model_validate_json(
+        (package_dir / "runtime-metadata.json").read_text(encoding="utf-8")
+    )
+    backend = OrtFullSetBackend(package_dir, providers=providers, tensorrt_fp16=tensorrt_fp16)
+    with np.load(package_dir / "test-vectors" / "input.npz") as vectors:
+        image = vectors["image"]
+    for _ in range(warmup):
+        backend.infer(image)
+    latencies: list[float] = []
+    wall_start = time.perf_counter_ns()
+    cpu_start = time.process_time_ns()
+    for _ in range(iterations):
+        started = time.perf_counter_ns()
+        backend.infer(image)
+        latencies.append((time.perf_counter_ns() - started) / 1_000_000.0)
+    wall_seconds = (time.perf_counter_ns() - wall_start) / 1_000_000_000.0
+    cpu_seconds = (time.process_time_ns() - cpu_start) / 1_000_000_000.0
+    gpu = _nvidia_telemetry()
+    report: dict[str, object] = {
+        "schema_version": "full-set-upper-body-runtime-benchmark/1.0.0",
+        "smoke_only": metadata.smoke_only,
+        "model_digest": metadata.model_digest,
+        "source_checkpoint_digest": metadata.source_checkpoint_digest,
+        "ntp_schema_revision": metadata.ntp_schema_revision,
+        "signal_registry_revision": metadata.signal_registry_revision,
+        "normalization_revision": metadata.normalization_revision,
+        "calibration_revision": metadata.calibration_revision,
+        "feature_revision": metadata.feature_revision,
+        "hardware": {
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+            "processor": platform.processor() or "unknown",
+        },
+        "runtime": {
+            "onnxruntime_version": ort.__version__,
+            "requested_providers": providers,
+            "active_providers": backend.active_providers,
+            "precision_support": metadata.precision_support,
+            "tensorrt_fp16": tensorrt_fp16,
+            "input_shape": metadata.input_shape,
+            "iterations": iterations,
+            "warmup": warmup,
+            "scheduling": "latest-frame-only; intended lower cadence than face inference",
+        },
+        "upper_body_inference_ms": {
+            "p50": statistics.median(latencies),
+            "p95": _percentile(latencies, 0.95),
+            "p99": _percentile(latencies, 0.99),
+            "mean": statistics.fmean(latencies),
+        },
+        "resources": {
+            "cpu_core_equivalents": cpu_seconds / max(wall_seconds, 1e-9),
+            "process_peak_rss_native_units": _peak_rss_native_units(),
+            "nvidia_smi_snapshot": gpu,
+            "note": (
+                "NVIDIA values are an end-of-run snapshot, not inferred from CPU results."
+                if gpu is not None
+                else "NVIDIA telemetry unavailable; GPU and VRAM are not inferred."
+            ),
+        },
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     return report

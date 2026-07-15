@@ -19,6 +19,7 @@ from nana_tracking.evaluation import (
     FailureSample,
     benchmark_face_basic_package,
     benchmark_face_spatial_package,
+    benchmark_full_set_package,
     render_failure_report,
     validate_face_basic_acceptance,
 )
@@ -253,6 +254,28 @@ def benchmark_face_spatial_command(
     """Benchmark a FaceSpatial package on explicitly selected target providers."""
 
     report = benchmark_face_spatial_package(
+        package,
+        output,
+        providers=[provider.strip() for provider in providers.split(",") if provider.strip()],
+        warmup=warmup,
+        iterations=iterations,
+        tensorrt_fp16=tensorrt_fp16,
+    )
+    _print_json(report)
+
+
+@app.command("benchmark-full-set")
+def benchmark_full_set_command(
+    package: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+    providers: Annotated[str, typer.Option()] = "CPUExecutionProvider",
+    warmup: Annotated[int, typer.Option(min=1)] = 20,
+    iterations: Annotated[int, typer.Option(min=1)] = 200,
+    tensorrt_fp16: Annotated[bool, typer.Option()] = False,
+) -> None:
+    """Benchmark the low-cadence FullSet upper-body package."""
+
+    report = benchmark_full_set_package(
         package,
         output,
         providers=[provider.strip() for provider in providers.split(",") if provider.strip()],

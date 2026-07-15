@@ -54,7 +54,7 @@ class SyntheticTrackingDataset(Dataset[SyntheticSample]):
             "pose": torch.ones_like(pose),
             "confidence": torch.ones_like(confidence),
         }
-        if model.name in {"face_basic", "face_spatial"}:
+        if model.name in {"face_basic", "face_spatial", "full_set"}:
             targets.update(
                 {
                     "visibility": torch.tensor(0, dtype=torch.long),
@@ -70,7 +70,7 @@ class SyntheticTrackingDataset(Dataset[SyntheticSample]):
             if model.name == "face_basic":
                 targets["landmarks"] = torch.zeros(model.landmark_count, 2)
                 label_confidence["landmarks"] = torch.ones(model.landmark_count, 2)
-            else:
+            elif model.name == "face_spatial":
                 targets.update(
                     {
                         "eye_origins": torch.tensor(
@@ -91,6 +91,33 @@ class SyntheticTrackingDataset(Dataset[SyntheticSample]):
                         "look_at_head": torch.ones(3),
                         "face_geometry": torch.ones(model.landmark_count, 3),
                         "tongue_visibility": torch.ones(1),
+                    }
+                )
+            else:
+                identity_quaternions = torch.zeros(2, 3, 4)
+                identity_quaternions[..., 3] = 1.0
+                targets.update(
+                    {
+                        "torso_pose": torch.tensor([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]),
+                        "joint_positions": torch.zeros(2, 3, 3),
+                        "joint_rotations": identity_quaternions,
+                        "limb_directions": torch.tensor(
+                            [[[0.0, 1.0, 0.0]] * 2] * 2, dtype=torch.float32
+                        ),
+                        "limb_twists": torch.zeros(2, 2),
+                        "bone_lengths": torch.full((2, 2), 0.5),
+                        "visibility": torch.zeros(5, dtype=torch.long),
+                    }
+                )
+                label_confidence.update(
+                    {
+                        "torso_pose": torch.ones(7),
+                        "joint_positions": torch.ones(2, 3, 3),
+                        "joint_rotations": torch.ones(2, 3, 4),
+                        "limb_directions": torch.ones(2, 2, 3),
+                        "limb_twists": torch.ones(2, 2),
+                        "bone_lengths": torch.ones(2, 2),
+                        "visibility": torch.ones(5),
                     }
                 )
         return SyntheticSample(

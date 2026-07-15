@@ -72,6 +72,12 @@ The catalog also covers optional IDs 77-88. A new source method must publish its
 normalization, calibration, observability, and license decision before it can replace or extend a
 strategy.
 
+The manifest-backed model loaders apply profile-specific admission gates. `FaceBasicDataset`
+loads Basic or Spatial truth and masked face geometry. `FullSetDataset` loads the Full-only 42-76
+block plus synchronized torso-local shoulder/elbow/wrist geometry, limb directions and twists, and
+normalized bone lengths. `require_complete_full` rejects incomplete Full scalar truth; auxiliary
+geometry remains confidence-masked rather than filled with training targets.
+
 ## TrueDepth and RGB synchronization
 
 - The RGB capture clock is authoritative. Teacher timestamps use the same monotonic clock domain

@@ -11,7 +11,13 @@ from torch import Tensor, nn
 from nana_tracking.config import ExperimentConfig, save_config
 from nana_tracking.contracts import CheckpointMetadata
 from nana_tracking.data.loaders import create_loader
-from nana_tracking.models import create_model, mirror_basic_rig, mirror_spatial_rig, output_names
+from nana_tracking.models import (
+    create_model,
+    mirror_basic_rig,
+    mirror_full_rig,
+    mirror_spatial_rig,
+    output_names,
+)
 from nana_tracking.reproducibility import (
     choose_device,
     git_state,
@@ -52,12 +58,20 @@ def _losses(
             ),
         }
     raw = nn.functional.smooth_l1_loss(outputs["rig"], targets["rig"], reduction="none")
-    pose = nn.functional.smooth_l1_loss(outputs["pose"], targets["pose"], reduction="none")
-    geometry_names = (
-        ("landmarks",)
-        if config.model.name == "face_basic"
-        else ("eye_origins", "eye_directions", "look_at_head", "face_geometry")
-    )
+    pose_name = "torso_pose" if config.model.name == "full_set" else "pose"
+    pose = nn.functional.smooth_l1_loss(outputs[pose_name], targets[pose_name], reduction="none")
+    if config.model.name == "face_basic":
+        geometry_names = ("landmarks",)
+    elif config.model.name == "face_spatial":
+        geometry_names = ("eye_origins", "eye_directions", "look_at_head", "face_geometry")
+    else:
+        geometry_names = (
+            "joint_positions",
+            "joint_rotations",
+            "limb_directions",
+            "limb_twists",
+            "bone_lengths",
+        )
     mirrored_outputs = dict(
         zip(output_names(config.model), model(torch.flip(images, dims=(-1,))), strict=True)
     )
@@ -65,12 +79,21 @@ def _losses(
         mirrored_outputs["rig"],
         mirror_basic_rig(outputs["rig"])
         if config.model.name == "face_basic"
-        else mirror_spatial_rig(outputs["rig"]),
+        else mirror_spatial_rig(outputs["rig"])
+        if config.model.name == "face_spatial"
+        else mirror_full_rig(outputs["rig"]),
     )
     losses = {
         "rig": _weighted_mean(raw, label_confidence["rig"]) * config.training.rig_loss_weight,
-        "pose": _weighted_mean(pose, label_confidence["pose"]) * config.training.pose_loss_weight,
-        "visibility": nn.functional.cross_entropy(outputs["visibility"], targets["visibility"])
+        "pose": _weighted_mean(pose, label_confidence[pose_name])
+        * config.training.pose_loss_weight,
+        "visibility": (
+            nn.functional.cross_entropy(
+                outputs["visibility"].flatten(0, 1), targets["visibility"].flatten()
+            )
+            if config.model.name == "full_set"
+            else nn.functional.cross_entropy(outputs["visibility"], targets["visibility"])
+        )
         * config.training.visibility_loss_weight,
         "identity_adversary": nn.functional.cross_entropy(outputs["identity"], targets["identity"])
         * config.training.identity_adversary_weight,

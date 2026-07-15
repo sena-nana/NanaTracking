@@ -13,6 +13,11 @@ from nana_tracking.runtime.face_spatial import (
     FaceSpatialProducer,
     OrtFaceSpatialBackend,
 )
+from nana_tracking.runtime.full_set import (
+    FullSetPrediction,
+    FullSetProducer,
+    OrtFullSetBackend,
+)
 
 __all__ = [
     "FaceBasicPrediction",
@@ -21,7 +26,10 @@ __all__ = [
     "FaceRoiTracker",
     "FaceSpatialPrediction",
     "FaceSpatialProducer",
+    "FullSetPrediction",
+    "FullSetProducer",
     "LatestFrameRuntime",
     "OrtFaceBasicBackend",
     "OrtFaceSpatialBackend",
+    "OrtFullSetBackend",
 ]

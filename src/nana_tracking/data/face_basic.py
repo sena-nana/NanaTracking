@@ -30,7 +30,7 @@ class FaceBasicSample:
     sample_id: str
 
 
-def _resolve_image_uri(manifest_path: Path, uri: str) -> Path:
+def resolve_image_uri(manifest_path: Path, uri: str) -> Path:
     parsed = urlparse(uri)
     if parsed.scheme not in {"", "file"}:
         raise ValueError(f"FaceBasic loader supports local or file:// RGB URIs, got {uri!r}")
@@ -55,7 +55,7 @@ def _best_observation(
     return max(candidates, key=lambda item: item.confidence, default=None)
 
 
-def _auxiliary_vector(
+def auxiliary_vector(
     record: CaptureRecord,
     names: list[str],
     defaults: list[float],
@@ -122,7 +122,7 @@ class FaceBasicDataset(Dataset[FaceBasicSample]):
 
     def __getitem__(self, index: int) -> FaceBasicSample:
         record, materialized = self._records[index]
-        image_path = _resolve_image_uri(self._manifest_path, record.rgb.uri)
+        image_path = resolve_image_uri(self._manifest_path, record.rgb.uri)
         image = decode_image(str(image_path), mode=ImageReadMode.RGB).to(torch.float32) / 255.0
         if image.shape[1:] != (record.rgb.height, record.rgb.width):
             raise ValueError(
@@ -147,7 +147,7 @@ class FaceBasicDataset(Dataset[FaceBasicSample]):
             "head.pose.orientation.z",
             "head.pose.orientation.w",
         ]
-        pose, pose_confidence = _auxiliary_vector(
+        pose, pose_confidence = auxiliary_vector(
             record,
             pose_names,
             [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
@@ -162,7 +162,7 @@ class FaceBasicDataset(Dataset[FaceBasicSample]):
             for point in range(self._config.model.landmark_count)
             for axis in landmark_axes
         ]
-        landmarks, landmark_confidence = _auxiliary_vector(
+        landmarks, landmark_confidence = auxiliary_vector(
             record,
             landmark_names,
             [0.0] * len(landmark_names),
@@ -210,19 +210,19 @@ class FaceBasicDataset(Dataset[FaceBasicSample]):
                 for side in ("left", "right")
                 for axis in ("x", "y", "z")
             ]
-            eye_origins, eye_origin_confidence = _auxiliary_vector(
+            eye_origins, eye_origin_confidence = auxiliary_vector(
                 record,
                 eye_origin_names,
                 [-0.15, 0.05, 0.0, 0.15, 0.05, 0.0],
                 self._max_teacher_skew_ns,
             )
-            eye_directions, eye_direction_confidence = _auxiliary_vector(
+            eye_directions, eye_direction_confidence = auxiliary_vector(
                 record,
                 eye_direction_names,
                 [0.0, 0.0, 1.0, 0.0, 0.0, 1.0],
                 self._max_teacher_skew_ns,
             )
-            look_at, look_at_confidence = _auxiliary_vector(
+            look_at, look_at_confidence = auxiliary_vector(
                 record,
                 [f"face.look_at_head.{axis}" for axis in ("x", "y", "z")],
                 [0.0, 0.0, 1.0],
@@ -236,9 +236,7 @@ class FaceBasicDataset(Dataset[FaceBasicSample]):
                 if tongue_observation is None or float(tongue_observation.value or 0.0) < 0.5
                 else 1
             )
-            tongue_confidence = (
-                0.0 if tongue_observation is None else tongue_observation.confidence
-            )
+            tongue_confidence = 0.0 if tongue_observation is None else tongue_observation.confidence
             targets.update(
                 {
                     "eye_origins": eye_origins.reshape(2, 3),

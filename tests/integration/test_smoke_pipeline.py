@@ -7,6 +7,7 @@ from nana_tracking.evaluation import evaluate
 from nana_tracking.evaluation.runtime import (
     benchmark_face_basic_package,
     benchmark_face_spatial_package,
+    benchmark_full_set_package,
 )
 from nana_tracking.export import create_model_package, verify_model_package
 from nana_tracking.training import train
@@ -111,3 +112,50 @@ def test_face_spatial_train_evaluate_export_verify(tmp_path: Path) -> None:
     )
     assert benchmark["schema_version"] == "face-spatial-runtime-benchmark/1.0.0"
     assert benchmark["geometry_topology_revision"] == "ntp-face-canonical/1.0.0-smoke"
+
+
+@pytest.mark.integration
+def test_full_set_train_evaluate_export_verify(tmp_path: Path) -> None:
+    config = load_config(Path("configs/full-set-smoke.yaml"))
+    config = config.model_copy(
+        update={
+            "reproducibility": config.reproducibility.model_copy(update={"output_dir": tmp_path}),
+            "training": config.training.model_copy(update={"max_steps": 1}),
+        }
+    )
+    result = train(config)
+    metrics = evaluate(config, result.checkpoint)
+    assert set(metrics) == {
+        "rig",
+        "torso_pose",
+        "joint_positions",
+        "joint_rotations",
+        "limb_directions",
+        "limb_twists",
+        "bone_lengths",
+        "confidence",
+    }
+    package = tmp_path / "full-set-package"
+    parity = create_model_package(config, result.checkpoint, package)
+    verified = verify_model_package(package)
+    assert set(parity) == {
+        "rig",
+        "torso_pose",
+        "joint_positions",
+        "joint_rotations",
+        "limb_directions",
+        "limb_twists",
+        "bone_lengths",
+        "visibility",
+        "confidence",
+    }
+    assert verified["rig"]["max_abs"] <= config.evaluation.atol
+    benchmark = benchmark_full_set_package(
+        package,
+        tmp_path / "full-set-runtime-benchmark.json",
+        providers=["CPUExecutionProvider"],
+        warmup=1,
+        iterations=2,
+    )
+    assert benchmark["schema_version"] == "full-set-upper-body-runtime-benchmark/1.0.0"
+    assert benchmark["smoke_only"] is True

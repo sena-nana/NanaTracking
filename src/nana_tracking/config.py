@@ -23,6 +23,7 @@ class DataConfig(StrictModel):
     buffersize: PositiveInt = 2
     require_complete_basic: bool = True
     require_complete_spatial: bool = True
+    require_complete_full: bool = True
 
     @model_validator(mode="after")
     def validate_executor(self) -> DataConfig:
@@ -36,7 +37,7 @@ class DataConfig(StrictModel):
 
 
 class ModelConfig(StrictModel):
-    name: Literal["smoke", "face_basic", "face_spatial"] = "smoke"
+    name: Literal["smoke", "face_basic", "face_spatial", "full_set"] = "smoke"
     input_channels: PositiveInt = 3
     input_height: PositiveInt = 8
     input_width: PositiveInt = 8
@@ -50,17 +51,21 @@ class ModelConfig(StrictModel):
 
     @model_validator(mode="after")
     def validate_face_contract(self) -> ModelConfig:
-        if self.name in {"face_basic", "face_spatial"}:
-            required_rig_dims = 36 if self.name == "face_basic" else 41
+        if self.name in {"face_basic", "face_spatial", "full_set"}:
+            required_rig_dims = {"face_basic": 36, "face_spatial": 41, "full_set": 35}[self.name]
             if self.rig_dims != required_rig_dims:
-                profile = "BasicSet" if self.name == "face_basic" else "SpatialSet"
+                profile = {
+                    "face_basic": "BasicSet",
+                    "face_spatial": "SpatialSet",
+                    "full_set": "FullSet extension",
+                }[self.name]
                 raise ValueError(
                     f"{self.name} requires the complete {required_rig_dims}-signal {profile}"
                 )
             if self.pose_dims != 7:
                 raise ValueError("face pose is xyz plus an xyzw quaternion (7 values)")
             if min(self.input_height, self.input_width) < 64:
-                raise ValueError("face ROI inputs must be at least 64x64")
+                raise ValueError("tracking ROI inputs must be at least 64x64")
         return self
 
 
