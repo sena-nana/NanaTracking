@@ -1,0 +1,23 @@
+{
+  "schema_version": "ict-light-to-ntp/1.0.0",
+  "mapping_revision": "ict-light-to-ntp-basic/1.0.0-pending",
+  "source": "ICT Face Model Light 53-expression blendshape space",
+  "source_coefficient_count": 53,
+  "target_signal_ids": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36],
+  "matrix_shape": [36, 53],
+  "normalization_revision": "ntp-normalization/1.0.0",
+  "status": "blocked-license-and-source-order-audit",
+  "coefficient_order_digest": null,
+  "mapping_matrix_digest": null,
+  "constraints": [
+    "preserve left-right isolation and mirror pairs",
+    "derive orthogonal NTP signals rather than copying vendor coefficients",
+    "fit neutral offsets separately from expression spans",
+    "validate isolated actions and reviewed combinations before release"
+  ],
+  "prohibited_until_review": [
+    "synthetic generation",
+    "training-label materialization",
+    "production or quality claims"
+  ]
+}

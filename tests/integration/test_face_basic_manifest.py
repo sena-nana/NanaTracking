@@ -24,6 +24,7 @@ def _sha256(path: Path) -> str:
 
 def _build_manifest(tmp_path: Path, *, spatial: bool = False) -> Path:
     catalog_path = Path("configs/data/ntp-v1-label-catalog.json").resolve()
+    license_registry_path = Path("configs/data/license-registry.json").resolve()
     catalog = LabelCatalog.load(catalog_path)
     examples = CaptureRecord.load_jsonl(Path("examples/records/synthetic-capture-v1.jsonl"))
     records: list[CaptureRecord] = []
@@ -174,6 +175,10 @@ def _build_manifest(tmp_path: Path, *, spatial: bool = False) -> Path:
     )
     payload["digest"] = "0" * 64
     payload["label_catalog"] = {"path": str(catalog_path), "sha256": _sha256(catalog_path)}
+    payload["license_registry"] = {
+        "path": str(license_registry_path),
+        "sha256": _sha256(license_registry_path),
+    }
     payload["record_files"] = [
         {"path": str(record_path), "sha256": _sha256(record_path), "record_count": 3}
     ]

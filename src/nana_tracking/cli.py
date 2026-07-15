@@ -14,8 +14,20 @@ from nana_tracking.data.executors import benchmark_backends
 from nana_tracking.data.labeling import LabelCatalog, materialize_dataset, write_materialized_labels
 from nana_tracking.data.manifest import DatasetManifest
 from nana_tracking.data.schema import CaptureRecord
+from nana_tracking.data.strategy import (
+    ActorSplitManifest,
+    CaptureSplitPlan,
+    ExpressionCacheManifest,
+    ExpressionCacheRecord,
+    LicenseRegistry,
+    PipelineStage,
+    load_clip_index,
+    split_captures,
+    split_clips_by_actor,
+)
 from nana_tracking.doctor import doctor_report
 from nana_tracking.evaluation import (
+    ExpressionAblationConfig,
     FailureSample,
     benchmark_face_basic_package,
     benchmark_face_spatial_package,
@@ -23,6 +35,7 @@ from nana_tracking.evaluation import (
     benchmark_temporal_refiner,
     fit_confidence_calibration,
     render_failure_report,
+    run_expression_ablation_smoke,
     validate_face_basic_acceptance,
 )
 from nana_tracking.evaluation import (
@@ -84,7 +97,17 @@ def materialize_labels_command(
 @data_app.command("schema")
 def data_schema_command(
     kind: Annotated[
-        Literal["manifest", "capture-record", "label-catalog"], typer.Argument()
+        Literal[
+            "manifest",
+            "capture-record",
+            "label-catalog",
+            "license-registry",
+            "actor-splits",
+            "capture-splits",
+            "expression-cache",
+            "expression-record",
+        ],
+        typer.Argument(),
     ] = "manifest",
 ) -> None:
     """Print the authoritative JSON schema for a versioned data contract."""
@@ -93,8 +116,89 @@ def data_schema_command(
         "manifest": DatasetManifest,
         "capture-record": CaptureRecord,
         "label-catalog": LabelCatalog,
+        "license-registry": LicenseRegistry,
+        "actor-splits": ActorSplitManifest,
+        "capture-splits": CaptureSplitPlan,
+        "expression-cache": ExpressionCacheManifest,
+        "expression-record": ExpressionCacheRecord,
     }
     _print_json(models[kind].model_json_schema())
+
+
+@data_app.command("validate-licenses")
+def validate_licenses_command(
+    registry: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    stage: Annotated[PipelineStage, typer.Option()],
+    records: Annotated[str, typer.Option(help="Comma-separated license record IDs")],
+    production: Annotated[bool, typer.Option()] = True,
+) -> None:
+    """Fail closed unless every requested source is admitted for the pipeline stage."""
+
+    loaded = LicenseRegistry.load(registry)
+    loaded.verify_local_license_texts(registry)
+    admitted = loaded.admit(
+        (record.strip() for record in records.split(",") if record.strip()),
+        stage=stage,
+        production=production,
+    )
+    _print_json(
+        {
+            "registry_revision": loaded.revision,
+            "stage": stage,
+            "production": production,
+            "admitted_records": [record.record_id for record in admitted],
+        }
+    )
+
+
+@data_app.command("split-actors")
+def split_actors_command(
+    index: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+    seed: Annotated[int, typer.Option(min=0)] = 17,
+    validation_actors: Annotated[int, typer.Option(min=1)] = 1,
+    test_actors: Annotated[int, typer.Option(min=1)] = 1,
+) -> None:
+    """Build deterministic actor-isolated CREMA-D train/validation/test splits."""
+
+    manifest = split_clips_by_actor(
+        load_clip_index(index),
+        seed=seed,
+        validation_actors=validation_actors,
+        test_actors=test_actors,
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    _print_json({"output": output, "splits": manifest.splits})
+
+
+@data_app.command("split-captures")
+def split_captures_command(
+    records: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+    held_out_test_devices: Annotated[str, typer.Option()],
+    seed: Annotated[int, typer.Option(min=0)] = 17,
+    validation_identities: Annotated[int, typer.Option(min=1)] = 1,
+) -> None:
+    """Split F captures by identity with explicit device-held-out test identities."""
+
+    plan = split_captures(
+        CaptureRecord.load_jsonl(records),
+        seed=seed,
+        held_out_test_devices={
+            device.strip() for device in held_out_test_devices.split(",") if device.strip()
+        },
+        validation_identities=validation_identities,
+    )
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(
+        json.dumps(plan.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    _print_json({"output": output, "splits": plan.splits})
 
 
 @evaluation_app.command("validate-standard")
@@ -369,6 +473,16 @@ def benchmark_temporal_command(
     """Benchmark causal refinement jitter, peak retention, and overhead."""
 
     _print_json(benchmark_temporal_refiner(output, frames=frames, seed=seed))
+
+
+@app.command("benchmark-expression-ablation")
+def benchmark_expression_ablation_command(
+    config: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+) -> None:
+    """Run the complete synthetic smoke-only frozen-F to expression ablation suite."""
+
+    _print_json(run_expression_ablation_smoke(ExpressionAblationConfig.load(config), output))
 
 
 @app.command("smoke")

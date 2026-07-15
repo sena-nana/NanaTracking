@@ -1,0 +1,3 @@
+NanaTracking repository-generated synthetic smoke fixtures contain no third-party data or assets.
+They may be used only for contract, pipeline, and test execution and never as production-quality
+training or evaluation evidence.

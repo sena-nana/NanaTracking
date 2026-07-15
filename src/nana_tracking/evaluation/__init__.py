@@ -7,6 +7,11 @@ from nana_tracking.evaluation.confidence import (
     fit_confidence_calibration,
 )
 from nana_tracking.evaluation.evaluator import evaluate
+from nana_tracking.evaluation.expression import (
+    ExpressionAblationConfig,
+    ParameterExpressionModel,
+    run_expression_ablation_smoke,
+)
 from nana_tracking.evaluation.failures import FailureSample, render_failure_report
 from nana_tracking.evaluation.runtime import (
     benchmark_face_basic_package,
@@ -21,7 +26,9 @@ __all__ = [
     "ConfidenceCalibration",
     "ConfidenceCurve",
     "EvaluationStandard",
+    "ExpressionAblationConfig",
     "FailureSample",
+    "ParameterExpressionModel",
     "benchmark_face_basic_package",
     "benchmark_face_package",
     "benchmark_face_spatial_package",
@@ -30,5 +37,6 @@ __all__ = [
     "evaluate",
     "fit_confidence_calibration",
     "render_failure_report",
+    "run_expression_ablation_smoke",
     "validate_face_basic_acceptance",
 ]

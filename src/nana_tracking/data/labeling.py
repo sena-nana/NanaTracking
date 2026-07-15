@@ -280,6 +280,15 @@ def _validate_record_contract(
         if split_name is None:
             raise ValueError(f"record identity is not assigned to a split: {record.identity_id}")
         split = manifest.splits[split_name]
+        if not manifest.smoke_only and (
+            not record.environment_id
+            or not record.action_script_id
+            or not record.consent_record_id
+            or record.human_review_status != "approved"
+        ):
+            raise ValueError(
+                f"production record {record.record_id!r} lacks capture authorization metadata"
+            )
         if split.sessions and record.session_id not in split.sessions:
             raise ValueError(f"session {record.session_id!r} is not declared in {split_name!r}")
         if split.devices and record.device_id not in split.devices:

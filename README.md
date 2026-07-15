@@ -25,6 +25,9 @@ uv run --extra cpu nana-tracking doctor
 uv run --extra cpu nana-tracking data validate examples/manifests/synthetic-v1.json
 uv run --extra cpu nana-tracking data materialize-labels \
   examples/manifests/synthetic-v1.json --output artifacts/data/synthetic-labels.jsonl
+uv run --extra cpu nana-tracking data validate-licenses \
+  configs/data/license-registry.json --stage base-model-training \
+  --records nana-synthetic-smoke --no-production
 uv run --extra cpu nana-tracking evaluation validate-standard \
   configs/evaluation/ntp-v1-standard.json
 uv run --extra cpu nana-tracking train --config configs/smoke.yaml
@@ -32,6 +35,9 @@ uv run --extra cpu nana-tracking smoke --work-dir runs/smoke
 uv run --extra cpu nana-tracking train --config configs/face-basic-smoke.yaml
 uv run --extra cpu nana-tracking train --config configs/face-spatial-smoke.yaml
 uv run --extra cpu nana-tracking benchmark-python
+uv run --extra cpu nana-tracking benchmark-expression-ablation \
+  --config configs/expression/ablation-v1.json \
+  --output artifacts/benchmarks/issue12-expression-ablation-smoke.json
 cargo run -p ntp-conformance -- stream.ntp --output json
 ```
 
@@ -74,6 +80,7 @@ profiles.
 - [Spatial same-capture fusion contract](docs/contracts/spatial-fusion-v1.md)
 - [ADR 0001: Vendor parameters are adapters, not NTP](docs/adr/0001-vendor-parameters-are-adapters.md)
 - [ADR 0002: PyTorch authority and portable runtime boundary](docs/adr/0002-pytorch-onnx-runtime-boundary.md)
+- [Commercial dataset and two-stage expression strategy](docs/training/dataset-strategy.md)
 
 ## Training data and evaluation
 

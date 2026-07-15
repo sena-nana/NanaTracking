@@ -1,0 +1,112 @@
+{
+  "actor_split": {
+    "test": [
+      0,
+      1,
+      2
+    ],
+    "train": [
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14
+    ],
+    "validation": [
+      3,
+      4,
+      5
+    ]
+  },
+  "config_sha256": "4202b160df181bdcb2ebdc012289ad6ddf21530fb42ced711fcd74c304384ad3",
+  "f_weights_trainable": false,
+  "frozen_f_source": "synthetic-frozen-f-predictions",
+  "results": {
+    "all_parameters": {
+      "balanced_accuracy": 1.0,
+      "expected_calibration_error": 6.622738308376736e-09,
+      "intensity_mae": 0.07142094522714615,
+      "macro_f1": 1.0,
+      "train_eval_ms": 42.84679202828556
+    },
+    "head_pose_only": {
+      "balanced_accuracy": 0.16666666666666666,
+      "expected_calibration_error": 0.7200389057397842,
+      "intensity_mae": 0.3509453535079956,
+      "macro_f1": 0.15177738927738924,
+      "train_eval_ms": 26.935875008348376
+    },
+    "mouth_jaw_only": {
+      "balanced_accuracy": 0.638888888888889,
+      "expected_calibration_error": 0.3171618315908644,
+      "intensity_mae": 0.2781201899051666,
+      "macro_f1": 0.6201298701298702,
+      "train_eval_ms": 28.766291972715408
+    },
+    "parameters_velocity": {
+      "balanced_accuracy": 1.0,
+      "expected_calibration_error": 1.1960665384928385e-05,
+      "intensity_mae": 0.11833003908395767,
+      "macro_f1": 1.0,
+      "train_eval_ms": 29.430583002977073
+    },
+    "parameters_velocity_acceleration": {
+      "balanced_accuracy": 0.9722222222222222,
+      "expected_calibration_error": 0.021102746327718098,
+      "intensity_mae": 0.1816408336162567,
+      "macro_f1": 0.972027972027972,
+      "train_eval_ms": 29.630458040628582
+    },
+    "rgb_upper_bound": {
+      "balanced_accuracy": 0.9166666666666666,
+      "expected_calibration_error": 0.07986581491099466,
+      "intensity_mae": 0.12204570323228836,
+      "macro_f1": 0.9111111111111111,
+      "train_eval_ms": 27.32491702772677
+    },
+    "shuffled_time": {
+      "balanced_accuracy": 0.9722222222222223,
+      "expected_calibration_error": 0.02777713206079271,
+      "intensity_mae": 0.11948137730360031,
+      "macro_f1": 0.9720279720279721,
+      "train_eval_ms": 35.25875002378598
+    },
+    "single_frame_parameters": {
+      "balanced_accuracy": 0.9444444444444445,
+      "expected_calibration_error": 0.051971370975176484,
+      "intensity_mae": 0.10421016812324524,
+      "macro_f1": 0.9410256410256411,
+      "train_eval_ms": 27.891249977983534
+    },
+    "without_head_pose": {
+      "balanced_accuracy": 0.9722222222222222,
+      "expected_calibration_error": 0.0276359584596422,
+      "intensity_mae": 0.11043651401996613,
+      "macro_f1": 0.9720279720279721,
+      "train_eval_ms": 29.47291702730581
+    },
+    "without_mouth_viseme": {
+      "balanced_accuracy": 0.9722222222222222,
+      "expected_calibration_error": 0.00011564791202545166,
+      "intensity_mae": 0.10658573359251022,
+      "macro_f1": 0.9720279720279721,
+      "train_eval_ms": 29.066874994896352
+    }
+  },
+  "runtime": {
+    "device": "cpu",
+    "machine": "arm64",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "python": "3.14.3",
+    "sample_count": 180,
+    "suite_elapsed_ms": 320.10162505321205,
+    "torch": "2.11.0"
+  },
+  "schema_version": "nana-expression-ablation-report/1.0.0",
+  "smoke_only": true,
+  "warning": "Synthetic smoke evidence does not validate CREMA-D or production expression quality."
+}

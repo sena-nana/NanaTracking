@@ -1,0 +1,13 @@
+{
+  "schema_version": "nana-expression-downstream-report/1.0.0",
+  "f_model_digest": "<sha256>",
+  "f_frozen": true,
+  "g_model_digest": "<sha256>",
+  "expression_cache_digest": "<sha256>",
+  "actor_split_digest": "<sha256>",
+  "label_source": "<observer-vote-distribution-and-intensity-source>",
+  "metrics": {"macro_f1": null, "balanced_accuracy": null, "intensity": null, "calibration": null},
+  "ablations": {},
+  "interpretation": "Downstream expression separability only; never BasicSet numeric accuracy.",
+  "smoke_only": false
+}

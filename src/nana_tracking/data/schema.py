@@ -103,6 +103,10 @@ class CaptureRecord(DataModel):
     identity_id: str = Field(min_length=1)
     session_id: str = Field(min_length=1)
     device_id: str = Field(min_length=1)
+    environment_id: str | None = None
+    action_script_id: str | None = None
+    consent_record_id: str | None = None
+    human_review_status: Literal["pending", "approved", "rejected"] | None = None
     capture_timestamp_ns: int = Field(ge=0)
     sequence: int = Field(ge=0)
     rgb: RgbFrame

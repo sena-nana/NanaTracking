@@ -1,0 +1,131 @@
+{
+  "schema_version": "nana-license-registry/1.0.0",
+  "revision": "nana-commercial-data/1.0.0",
+  "records": [
+    {
+      "record_id": "apple-arkit-truedepth-teacher",
+      "kind": "teacher-sdk",
+      "name": "Apple ARKit and TrueDepth teacher outputs",
+      "version": "terms-review-2026-07-15",
+      "source": "https://developer.apple.com/augmented-reality/arkit/",
+      "license": "Apple SDK and platform terms; independent output-use review required",
+      "license_text_sha256": null,
+      "review_status": "pending",
+      "permissions": {
+        "commercial_training_allowed": false,
+        "model_distribution_allowed": false,
+        "redistribution_allowed": false,
+        "distillation_allowed": false,
+        "pseudo_labeling_allowed": false,
+        "derivative_labels_allowed": false
+      },
+      "attribution_obligations": [],
+      "share_alike_obligations": [],
+      "personal_biometric_consent_basis": "Separate participant consent is required in addition to SDK terms.",
+      "allowed_pipeline_stages": [],
+      "prohibited_uses": ["Training, distillation, or pseudo-labeling before written terms review"],
+      "evidence": "No commercial teacher-output permission has been approved in this registry.",
+      "smoke_only": false
+    },
+    {
+      "record_id": "crema-d-odbl-dbcl",
+      "kind": "dataset",
+      "name": "CREMA-D",
+      "version": "official-repository-snapshot-2026-07-15",
+      "source": "https://github.com/CheyneyComputerScience/CREMA-D",
+      "license": "ODbL-1.0 database and DbCL-1.0 contents",
+      "license_text_sha256": null,
+      "review_status": "pending",
+      "permissions": {
+        "commercial_training_allowed": false,
+        "model_distribution_allowed": false,
+        "redistribution_allowed": false,
+        "distillation_allowed": false,
+        "pseudo_labeling_allowed": false,
+        "derivative_labels_allowed": false
+      },
+      "attribution_obligations": ["Preserve required database and contents attribution"],
+      "share_alike_obligations": ["Review ODbL produced-work and adapted-database obligations before release"],
+      "personal_biometric_consent_basis": "Original dataset consent and downstream biometric/model use require legal review.",
+      "allowed_pipeline_stages": [],
+      "prohibited_uses": ["Base-model F supervision", "Production training or release before legal approval"],
+      "evidence": "The official repository identifies ODbL/DbCL; commercial model-training and release obligations remain unapproved.",
+      "smoke_only": false
+    },
+    {
+      "record_id": "ict-face-model-light",
+      "kind": "dataset",
+      "name": "ICT Face Model Light",
+      "version": "official-page-snapshot-2026-07-15",
+      "source": "https://vgl.ict.usc.edu/Data/ICTFaceModel/",
+      "license": "No commercial Light license approved; official page directs commercial users to contact USC ICT",
+      "license_text_sha256": null,
+      "review_status": "pending",
+      "permissions": {
+        "commercial_training_allowed": false,
+        "model_distribution_allowed": false,
+        "redistribution_allowed": false,
+        "distillation_allowed": false,
+        "pseudo_labeling_allowed": false,
+        "derivative_labels_allowed": false
+      },
+      "attribution_obligations": [],
+      "share_alike_obligations": [],
+      "personal_biometric_consent_basis": "Source model provenance is described by USC ICT; downstream commercial rights remain unapproved.",
+      "allowed_pipeline_stages": [],
+      "prohibited_uses": ["Commercial synthetic generation or training before written permission"],
+      "evidence": "The official page lists Light/Full features but does not provide an approved commercial Light grant.",
+      "smoke_only": false
+    },
+    {
+      "record_id": "nana-synthetic-smoke",
+      "kind": "dataset",
+      "name": "NanaTracking generated smoke fixtures",
+      "version": "1.0.0",
+      "source": "repository-local deterministic generators",
+      "license": "licenses/nana-synthetic-smoke.txt",
+      "license_text_sha256": "0ca38608504118fd8bcef29a048420dd30d4a510929910eb7fc2470a0ec569b6",
+      "review_status": "approved",
+      "permissions": {
+        "commercial_training_allowed": true,
+        "model_distribution_allowed": true,
+        "redistribution_allowed": true,
+        "distillation_allowed": true,
+        "pseudo_labeling_allowed": true,
+        "derivative_labels_allowed": true
+      },
+      "attribution_obligations": [],
+      "share_alike_obligations": [],
+      "personal_biometric_consent_basis": "No people or biometric recordings are present.",
+      "allowed_pipeline_stages": ["base-model-training", "expression-model-training", "teacher-labeling", "synthetic-rendering", "evaluation", "model-release"],
+      "prohibited_uses": ["Production-quality, real-data, demographic, or target-device acceptance claims"],
+      "evidence": "Repository-owned generated arrays and tiny fixtures only.",
+      "smoke_only": true
+    },
+    {
+      "record_id": "self-captured-consented",
+      "kind": "first-party-capture",
+      "name": "NanaTracking consented first-party capture program",
+      "version": "template-1.0.0",
+      "source": "docs/training/capture-consent-template.md",
+      "license": "Per-participant signed commercial training consent",
+      "license_text_sha256": null,
+      "review_status": "pending",
+      "permissions": {
+        "commercial_training_allowed": false,
+        "model_distribution_allowed": false,
+        "redistribution_allowed": false,
+        "distillation_allowed": false,
+        "pseudo_labeling_allowed": false,
+        "derivative_labels_allowed": false
+      },
+      "attribution_obligations": [],
+      "share_alike_obligations": [],
+      "personal_biometric_consent_basis": "Each de-identified identity requires a signed consent record and withdrawal mapping.",
+      "allowed_pipeline_stages": [],
+      "prohibited_uses": ["Identity recognition", "Unconsented review", "Use after withdrawal or retention expiry"],
+      "evidence": "Registry entry is a deny-by-default template until reviewed consent batches are separately approved.",
+      "smoke_only": false
+    }
+  ]
+}

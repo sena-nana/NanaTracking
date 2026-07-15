@@ -9,6 +9,11 @@ SDK terms, dataset terms, model weights, code licenses, and output-use restricti
 separately; technical availability does not imply training permission. Evidence is retained outside
 the manifest when confidential, with a stable review reference in the manifest.
 
+The global machine registry is `configs/data/license-registry.json`. It records commercial training,
+model distribution, redistribution, distillation, pseudo-labeling, derived-label, consent,
+attribution/share-alike, allowed-stage, and prohibited-use decisions. Missing or pending permission
+defaults to rejection; a smoke-only record cannot authorize a production run or release.
+
 ## Privacy and retention
 
 - Collect only consented modalities and required metadata. Use random de-identified identity and

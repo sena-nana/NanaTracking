@@ -21,12 +21,20 @@ digest is the SHA-256 of the canonical, sorted complete manifest excluding only 
 Validation fails if a file, revision, license decision, split, synchronization policy, count, or
 digest drifts.
 
+The manifest also pins `nana-license-registry/1.0.0` and the exact admitted record IDs. Validation
+re-runs stage-specific license admission before materialization. Production manifests cannot omit
+the registry, and held-out test devices cannot appear in train or validation.
+
 ## Capture record
 
 Every record contains the authoritative RGB capture timestamp and sequence, RGB URI, width,
 height, exposure duration, ISO, frame duration, camera intrinsics and distortion, and
 identity/session/device groups. It also records lighting, occlusion conditions, timestamped teacher
 frames, per-label confidence and state, and optional timestamped depth observations.
+
+Production capture records additionally require environment ID, action-script revision,
+consent-record ID, and approved human-review state. Synthetic smoke fixtures may omit these fields
+but cannot satisfy a production admission check.
 
 Raw RGB, depth, private metadata, and user recordings remain outside Git. A URI may resolve only in
 the access-controlled data environment. Reviewed manifests, schemas, digests, and tiny explicitly

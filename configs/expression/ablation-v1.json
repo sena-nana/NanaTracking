@@ -1,0 +1,21 @@
+{
+  "schema_version": "nana-expression-ablation/1.0.0",
+  "seed": 29,
+  "steps": 80,
+  "learning_rate": 0.02,
+  "hidden_dims": 32,
+  "emotion_labels": ["anger", "disgust", "fear", "happy", "neutral", "sad"],
+  "ablations": [
+    {"name": "all_parameters", "parameter_subset": "all", "temporal_features": "position", "include_head_pose": true},
+    {"name": "single_frame_parameters", "parameter_subset": "all", "temporal_features": "single", "include_head_pose": true},
+    {"name": "parameters_velocity", "parameter_subset": "all", "temporal_features": "velocity", "include_head_pose": true},
+    {"name": "parameters_velocity_acceleration", "parameter_subset": "all", "temporal_features": "acceleration", "include_head_pose": true},
+    {"name": "mouth_jaw_only", "parameter_subset": "mouth-jaw", "temporal_features": "acceleration", "include_head_pose": false},
+    {"name": "without_mouth_viseme", "parameter_subset": "non-mouth", "temporal_features": "acceleration", "include_head_pose": true},
+    {"name": "head_pose_only", "parameter_subset": "none", "temporal_features": "single", "include_head_pose": true},
+    {"name": "without_head_pose", "parameter_subset": "all", "temporal_features": "acceleration", "include_head_pose": false},
+    {"name": "shuffled_time", "parameter_subset": "all", "temporal_features": "shuffled", "include_head_pose": true},
+    {"name": "rgb_upper_bound", "parameter_subset": "none", "temporal_features": "position", "include_head_pose": false, "rgb_upper_bound": true}
+  ],
+  "smoke_only": true
+}

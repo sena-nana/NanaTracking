@@ -1,0 +1,20 @@
+{
+  "schema_version": "nana-f-direct-report/1.0.0",
+  "model_digest": "<sha256>",
+  "dataset_revision": "<ict-or-first-party-held-out>",
+  "dataset_digest": "<sha256>",
+  "license_registry_revision": "<revision>",
+  "split": {"identity_isolated": true, "session_isolated": true, "held_out_devices": []},
+  "metrics": {
+    "parameter_mae_rmse_ccc": {},
+    "landmark_nme": null,
+    "head_pose_angle_error": null,
+    "asymmetry_preservation": {},
+    "event_f1": {},
+    "neutral_jitter": {},
+    "dynamic_delay_and_peak": {},
+    "confidence_calibration": {}
+  },
+  "crema_d_used": false,
+  "smoke_only": false
+}

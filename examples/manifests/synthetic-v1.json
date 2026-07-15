@@ -2,16 +2,22 @@
   "schema_version": "ntp-dataset/2.0.0",
   "capture_schema_version": "ntp-capture/1.0.0",
   "data_revision": "synthetic-v1",
-  "digest": "ebad096427351b0df2b1764b67466fe3669bf548b6d0327c5366362a12045bae",
+  "digest": "58f1f2d5449cd062e29afc04090b6de9cdd263502caeaf0ce57d85790cebca25",
   "ntp_schema_revision": "ntp/1.0",
   "signal_registry_revision": "ntp-signals/1.0.0",
   "normalization_revision": "ntp-normalization/1.0.0",
   "calibration_revision": "ntp-calibration/1.0.0",
   "feature_revision": "ntp-features/1.0.0",
+  "pipeline_stage": "base-model-training",
   "label_catalog": {
     "path": "../../configs/data/ntp-v1-label-catalog.json",
     "sha256": "3c9e29f6eb64bec72c951ec4f277c992030d4ecd6f0ee65299c5bb528cabc8d4"
   },
+  "license_registry": {
+    "path": "../../configs/data/license-registry.json",
+    "sha256": "5cbaf86c22be0fc6207957930f7f19a25fd9611492b1963cb486fd0761763005"
+  },
+  "license_record_ids": ["nana-synthetic-smoke"],
   "record_files": [
     {
       "path": "../records/synthetic-capture-v1.jsonl",
@@ -24,30 +30,30 @@
       "source_id": "synthetic-truedepth",
       "source_type": "truedepth",
       "version": "smoke-1",
-      "license_id": "synthetic-fixture"
+      "license_id": "nana-synthetic-smoke"
     },
     {
       "source_id": "synthetic-rgb-detail",
       "source_type": "offline_face",
       "version": "smoke-1",
-      "license_id": "synthetic-fixture"
+      "license_id": "nana-synthetic-smoke"
     },
     {
       "source_id": "synthetic-upper-body",
       "source_type": "multiview_pose",
       "version": "smoke-1",
-      "license_id": "synthetic-fixture"
+      "license_id": "nana-synthetic-smoke"
     },
     {
       "source_id": "synthetic-human-review",
       "source_type": "human_review",
       "version": "smoke-1",
-      "license_id": "synthetic-fixture"
+      "license_id": "nana-synthetic-smoke"
     }
   ],
   "license_reviews": [
     {
-      "license_id": "synthetic-fixture",
+      "license_id": "nana-synthetic-smoke",
       "scope": "synthetic",
       "status": "approved",
       "evidence": "Repository-generated smoke fixture; no third-party data or SDK output.",

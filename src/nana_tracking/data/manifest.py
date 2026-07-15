@@ -75,7 +75,10 @@ class DatasetManifest(ManifestModel):
     normalization_revision: str = Field(min_length=1)
     calibration_revision: str = Field(min_length=1)
     feature_revision: str = Field(min_length=1)
+    pipeline_stage: Literal["base-model-training"] = "base-model-training"
     label_catalog: FileReference
+    license_registry: FileReference | None = None
+    license_record_ids: list[str] = Field(default_factory=list)
     record_files: list[RecordFile] = Field(min_length=1)
     teacher_sources: list[TeacherSource] = Field(min_length=1)
     license_reviews: list[LicenseReview] = Field(min_length=1)
@@ -128,6 +131,24 @@ class DatasetManifest(ManifestModel):
                 raise ValueError(
                     f"teacher {source.source_id!r} is not approved for the complete training use"
                 )
+        if not self.smoke_only and (self.license_registry is None or not self.license_record_ids):
+            raise ValueError("production manifests require a license registry and admitted records")
+        if self.license_record_ids and self.license_record_ids != sorted(
+            set(self.license_record_ids)
+        ):
+            raise ValueError("license record IDs must be unique and increasing")
+        if not {source.license_id for source in self.teacher_sources}.issubset(
+            self.license_record_ids
+        ):
+            raise ValueError("every teacher license must be present in license_record_ids")
+
+        test_devices = set(self.splits["test"].devices)
+        development_devices = set(self.splits["train"].devices) | set(
+            self.splits["validation"].devices
+        )
+        overlap = sorted(test_devices & development_devices)
+        if overlap:
+            raise ValueError(f"held-out test devices leak into development splits: {overlap}")
         return self
 
     @classmethod
@@ -146,6 +167,8 @@ class DatasetManifest(ManifestModel):
 
     def verify_files(self, manifest_path: Path) -> None:
         references: list[FileReference] = [self.label_catalog, *self.record_files]
+        if self.license_registry is not None:
+            references.append(self.license_registry)
         for reference in references:
             path = self.resolve(manifest_path, reference)
             actual = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -154,6 +177,17 @@ class DatasetManifest(ManifestModel):
                     f"digest mismatch for {reference.path}: "
                     f"expected {reference.sha256}, got {actual}"
                 )
+        if self.license_registry is not None:
+            from nana_tracking.data.strategy import LicenseRegistry
+
+            registry_path = self.resolve(manifest_path, self.license_registry)
+            registry = LicenseRegistry.load(registry_path)
+            registry.verify_local_license_texts(registry_path)
+            registry.admit(
+                self.license_record_ids,
+                stage=self.pipeline_stage,
+                production=not self.smoke_only,
+            )
         actual_dataset_digest = dataset_digest(self)
         if actual_dataset_digest != self.digest:
             raise ValueError(
