@@ -1,0 +1,21 @@
+[package]
+name = "nana-tracking-protocol"
+version = "0.1.0"
+description = "Framework-neutral NanaTracking Protocol contracts and canonical codec"
+repository = "https://github.com/sena-nana/NanaTracking"
+documentation = "https://docs.rs/nana-tracking-protocol"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[features]
+default = ["std", "diagnostic-json"]
+std = ["serde/std"]
+diagnostic-json = ["std", "dep:serde_json"]
+
+[dependencies]
+serde = { version = "1.0.228", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0.149", optional = true }
+
+[lints]
+workspace = true
