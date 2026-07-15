@@ -14,8 +14,9 @@ class StrictModel(BaseModel):
 
 
 class DataConfig(StrictModel):
-    dataset: Literal["synthetic", "manifest"] = "synthetic"
+    dataset: Literal["synthetic", "manifest", "frozen_capture"] = "synthetic"
     manifest: Path | None = None
+    frozen_capture: Path | None = None
     samples: PositiveInt = 16
     batch_size: PositiveInt = 4
     executor: Literal["inline", "multiprocessing", "interpreter"] = "inline"
@@ -29,10 +30,16 @@ class DataConfig(StrictModel):
     def validate_executor(self) -> DataConfig:
         if self.executor != "inline" and self.workers < 1:
             raise ValueError("parallel executors require workers >= 1")
-        if self.dataset == "manifest" and self.manifest is None:
+        if self.dataset in {"manifest", "frozen_capture"} and self.manifest is None:
             raise ValueError("manifest datasets require data.manifest")
         if self.dataset == "synthetic" and self.manifest is not None:
             raise ValueError("synthetic datasets do not accept data.manifest")
+        if self.dataset == "synthetic" and self.frozen_capture is not None:
+            raise ValueError("synthetic datasets do not accept data.frozen_capture")
+        if self.dataset == "frozen_capture" and self.frozen_capture is None:
+            raise ValueError("frozen_capture datasets require data.frozen_capture")
+        if self.dataset != "frozen_capture" and self.frozen_capture is not None:
+            raise ValueError("data.frozen_capture requires dataset=frozen_capture")
         return self
 
 
@@ -122,7 +129,7 @@ class ExperimentConfig(StrictModel):
 
     @model_validator(mode="after")
     def validate_artifact_status(self) -> ExperimentConfig:
-        if not self.export.smoke_only and self.data.dataset != "manifest":
+        if not self.export.smoke_only and self.data.dataset == "synthetic":
             raise ValueError("non-smoke exports require a reviewed manifest dataset")
         return self
 

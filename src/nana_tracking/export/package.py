@@ -79,7 +79,7 @@ def create_model_package(
     output_dir: Path,
 ) -> dict[str, dict[str, float]]:
     if not config.export.smoke_only:
-        if config.data.dataset != "manifest" or config.data.manifest is None:
+        if config.data.dataset == "synthetic" or config.data.manifest is None:
             raise ValueError("non-smoke packages require a reviewed manifest dataset")
         if DatasetManifest.load(config.data.manifest).smoke_only:
             raise ValueError("a smoke-only manifest cannot produce a non-smoke package")

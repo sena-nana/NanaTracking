@@ -1,6 +1,7 @@
 """Command-line entrypoint for reproducible project workflows."""
 
 import json
+import time
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -10,6 +11,21 @@ from rich.console import Console
 
 from nana_tracking.config import ExperimentConfig, load_config
 from nana_tracking.contracts import ModelPackageMetadata
+from nana_tracking.data.capture import (
+    ArkitMapping,
+    CaptureChunk,
+    CaptureSessionManifest,
+    ChunkAcknowledgement,
+    FrozenCaptureDataset,
+    LocalChunkStore,
+    RawArkitFrame,
+    build_training_manifest_from_frozen,
+    convert_arkit_frames,
+    freeze_capture_dataset,
+    reconcile_chunks,
+    run_capture_pipeline_smoke,
+    write_capture_records,
+)
 from nana_tracking.data.executors import benchmark_backends
 from nana_tracking.data.labeling import LabelCatalog, materialize_dataset, write_materialized_labels
 from nana_tracking.data.manifest import DatasetManifest
@@ -25,6 +41,12 @@ from nana_tracking.data.strategy import (
     split_captures,
     split_clips_by_actor,
 )
+from nana_tracking.data.studio import (
+    CaptureStudio,
+    ControlAction,
+    StudioSessionDefinition,
+)
+from nana_tracking.data.studio_server import make_capture_studio_server
 from nana_tracking.doctor import doctor_report
 from nana_tracking.evaluation import (
     ExpressionAblationConfig,
@@ -41,6 +63,7 @@ from nana_tracking.evaluation import (
 from nana_tracking.evaluation import (
     evaluate as evaluate_model,
 )
+from nana_tracking.evaluation.capture import benchmark_capture_store
 from nana_tracking.evaluation.standard import BenchmarkReport, EvaluationStandard
 from nana_tracking.export import create_model_package, verify_model_package
 from nana_tracking.personalization import (
@@ -53,13 +76,125 @@ from nana_tracking.training import train as train_model
 app = typer.Typer(no_args_is_help=True, help="NanaTracking training and ONNX tooling.")
 data_app = typer.Typer(no_args_is_help=True, help="Dataset manifest commands.")
 evaluation_app = typer.Typer(no_args_is_help=True, help="Evaluation standard commands.")
+studio_app = typer.Typer(no_args_is_help=True, help="Capture Studio operator commands.")
 app.add_typer(data_app, name="data")
 app.add_typer(evaluation_app, name="evaluation")
+app.add_typer(studio_app, name="studio")
 console = Console()
 
 
 def _print_json(payload: object) -> None:
     console.print_json(json.dumps(payload, default=str))
+
+
+@studio_app.command("create")
+def studio_create_command(
+    root: Annotated[Path, typer.Argument(file_okay=False)],
+    session_id: Annotated[str, typer.Option()],
+    subject_id: Annotated[str, typer.Option()],
+    device_id: Annotated[str, typer.Option()],
+    device_model: Annotated[str, typer.Option()],
+    os_version: Annotated[str, typer.Option()],
+    ntp_mapping_revision: Annotated[str, typer.Option()],
+    consent_record_id: Annotated[str, typer.Option()],
+    license_records: Annotated[str, typer.Option(help="Comma-separated license record IDs")],
+) -> None:
+    """Create one durable Capture Studio session."""
+
+    studio = CaptureStudio.create(
+        root,
+        StudioSessionDefinition(
+            session_id=session_id,
+            subject_id=subject_id,
+            device_id=device_id,
+            device_model=device_model,
+            os_version=os_version,
+            ntp_mapping_revision=ntp_mapping_revision,
+            consent_record_id=consent_record_id,
+            license_record_ids=sorted(
+                {record.strip() for record in license_records.split(",") if record.strip()}
+            ),
+            created_at_ns=time.time_ns(),
+        ),
+    )
+    _print_json(studio.state().model_dump(mode="json"))
+
+
+@studio_app.command("state")
+def studio_state_command(
+    root: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+) -> None:
+    """Show the durable session, take, control, quality, and receiver state."""
+
+    _print_json(CaptureStudio(root).state().model_dump(mode="json"))
+
+
+@studio_app.command("control")
+def studio_control_command(
+    root: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+    action: Annotated[ControlAction, typer.Argument()],
+    take_id: Annotated[str | None, typer.Option()] = None,
+    action_script_id: Annotated[str | None, typer.Option()] = None,
+    retake_of: Annotated[str | None, typer.Option()] = None,
+) -> None:
+    """Issue a validated start, pause, stop, retake, or end command."""
+
+    command = CaptureStudio(root).issue_control(
+        action,
+        take_id=take_id,
+        action_script_id=action_script_id,
+        retake_of=retake_of,
+    )
+    _print_json(command.model_dump(mode="json"))
+
+
+@studio_app.command("finalize")
+def studio_finalize_command(
+    root: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+) -> None:
+    """Finalize the verified receiver chunks into a capture session manifest."""
+
+    manifest = CaptureStudio(root).finalize_receiver_session()
+    _print_json(
+        {
+            "session_id": manifest.session_id,
+            "chunk_count": len(manifest.chunks),
+            "manifest_sha256": manifest.manifest_sha256,
+            "manifest": root / "receiver" / "session.json",
+        }
+    )
+
+
+@studio_app.command("serve")
+def studio_serve_command(
+    root: Annotated[Path, typer.Argument(file_okay=False)],
+    host: Annotated[str, typer.Option()] = "127.0.0.1",
+    port: Annotated[int, typer.Option(min=0, max=65535)] = 8765,
+    token_file: Annotated[Path | None, typer.Option(exists=True, dir_okay=False)] = None,
+    tls_cert: Annotated[Path | None, typer.Option(exists=True, dir_okay=False)] = None,
+    tls_key: Annotated[Path | None, typer.Option(exists=True, dir_okay=False)] = None,
+) -> None:
+    """Serve the operator UI and authenticated iOS control/synchronization API."""
+
+    token = token_file.read_text(encoding="utf-8").strip() if token_file is not None else None
+    if token_file is not None and not token:
+        raise typer.BadParameter("token file cannot be empty")
+    server = make_capture_studio_server(
+        root,
+        host=host,
+        port=port,
+        token=token,
+        tls_cert=tls_cert,
+        tls_key=tls_key,
+    )
+    scheme = "https" if tls_cert is not None else "http"
+    console.print(f"Capture Studio listening on {scheme}://{host}:{server.server_port}")
+    try:
+        server.serve_forever(poll_interval=0.25)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        server.server_close()
 
 
 @app.command()
@@ -106,6 +241,10 @@ def data_schema_command(
             "capture-splits",
             "expression-cache",
             "expression-record",
+            "capture-session",
+            "raw-arkit-frame",
+            "arkit-mapping",
+            "frozen-capture-dataset",
         ],
         typer.Argument(),
     ] = "manifest",
@@ -121,6 +260,10 @@ def data_schema_command(
         "capture-splits": CaptureSplitPlan,
         "expression-cache": ExpressionCacheManifest,
         "expression-record": ExpressionCacheRecord,
+        "capture-session": CaptureSessionManifest,
+        "raw-arkit-frame": RawArkitFrame,
+        "arkit-mapping": ArkitMapping,
+        "frozen-capture-dataset": FrozenCaptureDataset,
     }
     _print_json(models[kind].model_json_schema())
 
@@ -201,6 +344,221 @@ def split_captures_command(
     _print_json({"output": output, "splits": plan.splits})
 
 
+@data_app.command("capture-verify")
+def capture_verify_command(
+    manifest: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+) -> None:
+    """Verify a finalized local capture session and every declared chunk digest."""
+
+    loaded = CaptureSessionManifest.load(manifest)
+    loaded.verify_files(manifest.parent)
+    _print_json(
+        {
+            "session_id": loaded.session_id,
+            "manifest_sha256": loaded.manifest_sha256,
+            "chunk_count": len(loaded.chunks),
+            "mapping_revision": loaded.ntp_mapping_revision,
+        }
+    )
+
+
+@data_app.command("capture-receive")
+def capture_receive_command(
+    receiver_root: Annotated[Path, typer.Argument(file_okay=False)],
+    descriptor: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    payload: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+) -> None:
+    """Durably receive and verify one chunk before emitting its acknowledgement."""
+
+    chunk = CaptureChunk.model_validate_json(descriptor.read_text(encoding="utf-8"))
+    persisted = LocalChunkStore(receiver_root).receive_chunk(chunk, payload.read_bytes())
+    acknowledgement = ChunkAcknowledgement(
+        chunk_id=persisted.chunk_id,
+        sha256=persisted.sha256,
+    )
+    _print_json(acknowledgement.model_dump(mode="json"))
+
+
+@data_app.command("capture-receiver-index")
+def capture_receiver_index_command(
+    receiver_root: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+) -> None:
+    """Emit the durable receiver inventory used for manifest reconciliation."""
+
+    acknowledgements = [
+        ChunkAcknowledgement(chunk_id=chunk.chunk_id, sha256=chunk.sha256)
+        for chunk in LocalChunkStore(receiver_root).chunks()
+    ]
+    _print_json([item.model_dump(mode="json") for item in acknowledgements])
+
+
+@data_app.command("capture-pending")
+def capture_pending_command(
+    sender_root: Annotated[Path, typer.Argument(exists=True, file_okay=False)],
+) -> None:
+    """List local chunks that remain durable and unacknowledged after reconnect."""
+
+    pending = LocalChunkStore(sender_root).pending_chunks()
+    _print_json([chunk.model_dump(mode="json") for chunk in pending])
+
+
+@data_app.command("capture-reconcile")
+def capture_reconcile_command(
+    manifest: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    remote_index: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+) -> None:
+    """Compare durable receiver acknowledgements with a finalized capture session."""
+
+    loaded = CaptureSessionManifest.load(manifest)
+    payload = json.loads(remote_index.read_text(encoding="utf-8"))
+    if not isinstance(payload, list):
+        raise typer.BadParameter("remote index must be a JSON array")
+    acknowledgements = [ChunkAcknowledgement.model_validate(item) for item in payload]
+    result = reconcile_chunks(loaded.chunks, acknowledgements)
+    _print_json(result.model_dump(mode="json") | {"complete": result.complete})
+    if not result.complete:
+        raise typer.Exit(code=1)
+
+
+@data_app.command("capture-convert-arkit")
+def capture_convert_arkit_command(
+    raw_frames: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    mapping: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+) -> None:
+    """Regenerate versioned NTP teacher records from immutable raw ARKit frames."""
+
+    loaded_mapping = ArkitMapping.load(mapping)
+    records = convert_arkit_frames(RawArkitFrame.load_jsonl(raw_frames), loaded_mapping)
+    write_capture_records(records, output)
+    _print_json(
+        {
+            "output": output,
+            "record_count": len(records),
+            "mapping_revision": loaded_mapping.mapping_revision,
+            "smoke_only": loaded_mapping.smoke_only,
+        }
+    )
+
+
+@data_app.command("capture-freeze")
+def capture_freeze_command(
+    session_manifests: Annotated[
+        str, typer.Option(help="Comma-separated finalized session.json paths")
+    ],
+    capture_records: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    arkit_mappings: Annotated[
+        str, typer.Option(help="Comma-separated versioned ARKit mapping paths")
+    ],
+    license_registry: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    license_records: Annotated[str, typer.Option(help="Comma-separated admitted record IDs")],
+    held_out_test_devices: Annotated[str, typer.Option()],
+    data_revision: Annotated[str, typer.Option()],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+    validation_identities: Annotated[int, typer.Option(min=1)] = 1,
+    seed: Annotated[int, typer.Option(min=0)] = 17,
+    smoke_only: Annotated[bool, typer.Option()] = False,
+) -> None:
+    """Freeze verified sessions and derived records behind license and group-split gates."""
+
+    manifests = [Path(item.strip()) for item in session_manifests.split(",") if item.strip()]
+    if not manifests or any(not path.is_file() for path in manifests):
+        raise typer.BadParameter("every session manifest path must exist")
+    frozen = freeze_capture_dataset(
+        data_revision=data_revision,
+        session_manifests=manifests,
+        capture_records=capture_records,
+        arkit_mappings=[Path(item.strip()) for item in arkit_mappings.split(",") if item.strip()],
+        license_registry=license_registry,
+        license_record_ids=[
+            record.strip() for record in license_records.split(",") if record.strip()
+        ],
+        held_out_test_devices={
+            device.strip() for device in held_out_test_devices.split(",") if device.strip()
+        },
+        validation_identities=validation_identities,
+        seed=seed,
+        smoke_only=smoke_only,
+        output=output,
+    )
+    _print_json(
+        {
+            "output": output,
+            "dataset_sha256": frozen.dataset_sha256,
+            "splits": frozen.split_plan.splits,
+            "smoke_only": frozen.smoke_only,
+        }
+    )
+
+
+@data_app.command("capture-verify-frozen")
+def capture_verify_frozen_command(
+    manifest: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+) -> None:
+    """Re-verify a frozen capture dataset before any training entrypoint consumes it."""
+
+    frozen = FrozenCaptureDataset.load(manifest)
+    frozen.verify(manifest)
+    _print_json(
+        {
+            "data_revision": frozen.data_revision,
+            "dataset_sha256": frozen.dataset_sha256,
+            "frozen": frozen.frozen,
+            "smoke_only": frozen.smoke_only,
+        }
+    )
+
+
+@data_app.command("capture-build-training-manifest")
+def capture_build_training_manifest_command(
+    frozen: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    label_catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+) -> None:
+    """Expose a verified frozen capture revision through the training DatasetManifest contract."""
+
+    manifest = build_training_manifest_from_frozen(
+        frozen,
+        label_catalog_path=label_catalog,
+        output=output,
+    )
+    _print_json(
+        {
+            "output": output,
+            "data_revision": manifest.data_revision,
+            "digest": manifest.digest,
+            "smoke_only": manifest.smoke_only,
+        }
+    )
+
+
+@data_app.command("capture-smoke")
+def capture_smoke_command(
+    work_dir: Annotated[Path, typer.Option("--work-dir", file_okay=False)] = Path(
+        "runs/capture-smoke"
+    ),
+    mapping: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "configs/data/arkit-to-ntp-v1-smoke.json"
+    ),
+    license_registry: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "configs/data/license-registry.json"
+    ),
+    label_catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
+        "configs/data/ntp-v1-label-catalog.json"
+    ),
+) -> None:
+    """Run the deterministic synthetic local capture-to-frozen-dataset closure."""
+
+    _print_json(
+        run_capture_pipeline_smoke(
+            work_dir,
+            mapping_path=mapping,
+            license_registry=license_registry,
+            label_catalog_path=label_catalog,
+        )
+    )
+
+
 @evaluation_app.command("validate-standard")
 def validate_evaluation_standard(
     standard: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
@@ -217,6 +575,23 @@ def validate_evaluation_standard(
             "fixed_sequence_count": len(sequences.sequences),
             "report_schema_version": report.schema_version,
         }
+    )
+
+
+@evaluation_app.command("benchmark-capture-store")
+def benchmark_capture_store_command(
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+    chunks: Annotated[int, typer.Option(min=8)] = 256,
+    payload_bytes: Annotated[int, typer.Option(min=1024)] = 64 * 1024,
+) -> None:
+    """Measure durable local recording, verified streaming receive, ACK, and restart indexing."""
+
+    _print_json(
+        benchmark_capture_store(
+            output,
+            chunk_count=chunks,
+            payload_bytes=payload_bytes,
+        )
     )
 
 

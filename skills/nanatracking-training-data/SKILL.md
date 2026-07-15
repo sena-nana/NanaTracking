@@ -63,14 +63,18 @@ error, jitter, latency, peak, or semantic regressions.
 1. Version the schema/mapping; never mutate published semantics in place.
 2. Describe migration and cache/checkpoint invalidation.
 3. Preserve old fixed vectors and add functional validation for the new behavior.
-4. For synthetic sampling, cover isolated actions, reviewed combinations, asymmetry,
+4. For capture mappings, pin the mapping file and teacher license in the frozen dataset, regenerate
+   derived records without mutating raw chunks, and build the training manifest only from the
+   verified frozen revision.
+5. For synthetic sampling, cover isolated actions, reviewed combinations, asymmetry,
    neutral-onset-peak-recovery, viseme coexistence, camera/light/occlusion/imaging variation, and
    bounded edge cases. Never sample all parameters independently and uniformly.
-5. Re-run license, coverage, provenance, and leakage gates.
+6. Re-run license, coverage, provenance, and leakage gates.
 
 ### Train or evaluate F
 
-1. Complete the F checklist and pin manifest/digests, seed, revisions, Git/lock state, and config.
+1. Complete the F checklist and pin manifest/frozen-capture digests, seed, revisions, Git/lock
+   state, and config.
 2. Verify complete label provenance/confidence and licensed renderer/asset/teacher records.
 3. Train without CREMA-D.
 4. Report direct metrics only on parameter/geometry-labeled ICT-derived or first-party holdouts.

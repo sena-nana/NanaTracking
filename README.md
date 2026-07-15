@@ -38,6 +38,13 @@ uv run --extra cpu nana-tracking benchmark-python
 uv run --extra cpu nana-tracking benchmark-expression-ablation \
   --config configs/expression/ablation-v1.json \
   --output artifacts/benchmarks/issue12-expression-ablation-smoke.json
+uv run --extra cpu nana-tracking data capture-smoke \
+  --work-dir runs/capture-smoke
+uv run --extra cpu nana-tracking evaluation benchmark-capture-store \
+  --output artifacts/benchmarks/issue16-capture-store-macos-arm64-smoke.json
+uv run --extra cpu nana-tracking studio serve runs/capture-studio \
+  --host 127.0.0.1 --port 8765
+swift run --package-path apps/nana-capture-ios NanaCaptureSelfTest
 cargo run -p ntp-conformance -- stream.ntp --output json
 ```
 
@@ -89,6 +96,7 @@ profiles.
 - [Guided Basic, Spatial, and Full collection protocol](docs/data/collection-protocol-v1.md)
 - [Shared evaluation standard and report contract](docs/data/evaluation-standard-v1.md)
 - [License, privacy, and failure-sample feedback](docs/data/governance-v1.md)
+- [Local-first iOS capture, studio synchronization, and frozen-dataset workflow](docs/data/capture-archive-v1.md)
 
 The framework-neutral Rust implementations live in `crates/nana-tracking-protocol` and
 `crates/nana-tracking-semantics`. Protocol codec/capability code and deterministic semantic/model

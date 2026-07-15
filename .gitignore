@@ -9,6 +9,7 @@ __pycache__/
 coverage.xml
 htmlcov/
 build/
+**/.build/
 dist/
 target/
 *.egg-info/
@@ -27,6 +28,7 @@ target/
 !/artifacts/benchmarks/issue8-face-spatial-comparison-macos-m4-smoke.json
 !/artifacts/benchmarks/issue9-full-set-macos-m4-smoke.json
 !/artifacts/benchmarks/issue10-temporal-macos-m4-smoke.json
+!/artifacts/benchmarks/issue16-capture-store-macos-arm64-smoke.json
 /checkpoints/
 /model-packages/
 *.pt

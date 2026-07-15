@@ -102,6 +102,7 @@ class CaptureRecord(DataModel):
     record_id: str = Field(min_length=1)
     identity_id: str = Field(min_length=1)
     session_id: str = Field(min_length=1)
+    take_id: str | None = None
     device_id: str = Field(min_length=1)
     environment_id: str | None = None
     action_script_id: str | None = None

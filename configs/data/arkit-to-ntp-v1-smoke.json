@@ -1,0 +1,25 @@
+{
+  "schema_version": "arkit-to-ntp/1.0.0",
+  "mapping_revision": "arkit-to-ntp/1.0.0-smoke",
+  "signal_registry_revision": "ntp-signals/1.0.0",
+  "teacher_source_id": "synthetic-truedepth",
+  "license_record_id": "nana-synthetic-smoke",
+  "rules": [
+    {"target_signal": "brow.left.inner_vertical", "source_blendshape": "browInnerUp", "scale": 1.0, "offset": 0.0, "minimum": -1.0, "maximum": 1.0, "confidence": 0.75},
+    {"target_signal": "brow.right.inner_vertical", "source_blendshape": "browInnerUp", "scale": 1.0, "offset": 0.0, "minimum": -1.0, "maximum": 1.0, "confidence": 0.75},
+    {"target_signal": "eye.left.aperture", "source_blendshape": "eyeBlinkLeft", "scale": -1.0, "offset": 1.0, "minimum": -1.0, "maximum": 1.0, "confidence": 0.8},
+    {"target_signal": "eye.right.aperture", "source_blendshape": "eyeBlinkRight", "scale": -1.0, "offset": 1.0, "minimum": -1.0, "maximum": 1.0, "confidence": 0.8},
+    {"target_signal": "eye.left.squint", "source_blendshape": "eyeSquintLeft", "scale": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "confidence": 0.8},
+    {"target_signal": "eye.right.squint", "source_blendshape": "eyeSquintRight", "scale": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "confidence": 0.8},
+    {"target_signal": "cheek.left.inflation", "source_blendshape": "cheekPuff", "scale": 1.0, "offset": 0.0, "minimum": -1.0, "maximum": 1.0, "confidence": 0.65},
+    {"target_signal": "cheek.right.inflation", "source_blendshape": "cheekPuff", "scale": 1.0, "offset": 0.0, "minimum": -1.0, "maximum": 1.0, "confidence": 0.65},
+    {"target_signal": "nose.left.sneer", "source_blendshape": "noseSneerLeft", "scale": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "confidence": 0.8},
+    {"target_signal": "nose.right.sneer", "source_blendshape": "noseSneerRight", "scale": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "confidence": 0.8},
+    {"target_signal": "jaw.open", "source_blendshape": "jawOpen", "scale": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "confidence": 0.9},
+    {"target_signal": "mouth.seal", "source_blendshape": "mouthClose", "scale": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "confidence": 0.75},
+    {"target_signal": "mouth.protrusion", "source_blendshape": "mouthPucker", "scale": 1.0, "offset": 0.0, "minimum": -1.0, "maximum": 1.0, "confidence": 0.7},
+    {"target_signal": "mouth.roundness", "source_blendshape": "mouthFunnel", "scale": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "confidence": 0.7},
+    {"target_signal": "tongue.extension", "source_blendshape": "tongueOut", "scale": 1.0, "offset": 0.0, "minimum": 0.0, "maximum": 1.0, "confidence": 0.7}
+  ],
+  "smoke_only": true
+}

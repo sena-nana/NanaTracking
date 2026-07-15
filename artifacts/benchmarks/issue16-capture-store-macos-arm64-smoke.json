@@ -1,0 +1,39 @@
+{
+  "acknowledgement": {
+    "mean_ms": 0.0437770234375,
+    "p50_ms": 0.04275,
+    "p95_ms": 0.056583,
+    "p99_ms": 0.062458,
+    "throughput_mib_s": 0.0
+  },
+  "chunk_count": 256,
+  "design": {
+    "journal": "append-only fsync",
+    "lookup": "startup index plus constant-time ID/path checks",
+    "payload_upload": "bounded binary stream",
+    "preview": "single latest slot outside durable chunks"
+  },
+  "local_write": {
+    "mean_ms": 0.2772818515625,
+    "p50_ms": 0.257417,
+    "p95_ms": 0.343459,
+    "p99_ms": 0.481625,
+    "throughput_mib_s": 225.32342043599775
+  },
+  "payload_bytes": 65536,
+  "pending_scan_ms": 0.014084,
+  "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+  "python": "3.14.3",
+  "restart_index_ms": 1.805583,
+  "schema": "nana-capture-store-benchmark/1.0.0",
+  "smoke_only": true,
+  "total_payload_bytes": 16777216,
+  "verified_receive": {
+    "mean_ms": 0.25507783203125,
+    "p50_ms": 0.244584,
+    "p95_ms": 0.324208,
+    "p99_ms": 0.3755,
+    "throughput_mib_s": 207.9898413601683
+  },
+  "warning": "Synthetic filesystem smoke does not prove iOS flash, Windows disk, LAN, or production capture throughput."
+}

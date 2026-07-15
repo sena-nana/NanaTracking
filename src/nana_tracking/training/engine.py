@@ -10,7 +10,9 @@ from torch import Tensor, nn
 
 from nana_tracking.config import ExperimentConfig, save_config
 from nana_tracking.contracts import CheckpointMetadata
+from nana_tracking.data.capture import FrozenCaptureDataset
 from nana_tracking.data.loaders import create_loader
+from nana_tracking.data.manifest import DatasetManifest, SplitManifest
 from nana_tracking.models import (
     create_model,
     mirror_basic_rig,
@@ -130,6 +132,7 @@ def train(
     resume: Path | None = None,
     repository_root: Path | None = None,
 ) -> TrainingResult:
+    _verify_frozen_capture_input(config)
     seed_everything(config.training.seed)
     device = choose_device(config.training.device)
     if config.training.amp and device.type != "cuda":
@@ -221,3 +224,49 @@ def train(
     checkpoint = run_dir / "checkpoints" / "last.pt"
     save_checkpoint(checkpoint, model=model, optimizer=optimizer, metadata=metadata)
     return TrainingResult(run_dir, checkpoint, step, final_loss)
+
+
+def _verify_frozen_capture_input(config: ExperimentConfig) -> None:
+    frozen_path = config.data.frozen_capture
+    if frozen_path is None:
+        return
+    manifest_path = config.data.manifest
+    if manifest_path is None:
+        raise ValueError("frozen capture training requires a DatasetManifest")
+    frozen_path = frozen_path.resolve()
+    manifest_path = manifest_path.resolve()
+    frozen = FrozenCaptureDataset.load(frozen_path)
+    frozen.verify(frozen_path)
+    manifest = DatasetManifest.load(manifest_path)
+    manifest.verify_files(manifest_path)
+    if frozen.data_revision != config.reproducibility.data_revision:
+        raise ValueError("training data revision does not match the frozen capture dataset")
+    if manifest.data_revision != frozen.data_revision:
+        raise ValueError("training manifest does not expose the frozen data revision")
+    if manifest.smoke_only != frozen.smoke_only or config.export.smoke_only != frozen.smoke_only:
+        raise ValueError("training, manifest, and frozen capture smoke status must match")
+    if len(manifest.record_files) != 1 or (
+        manifest.record_files[0].sha256 != frozen.capture_records.sha256
+        or manifest.record_files[0].record_count != frozen.capture_records.record_count
+    ):
+        raise ValueError("training manifest records do not match the frozen capture records")
+    expected_splits = {
+        name: SplitManifest.model_validate(split.model_dump(mode="json"))
+        for name, split in frozen.split_plan.splits.items()
+    }
+    if manifest.splits != expected_splits:
+        raise ValueError("training manifest splits do not match the frozen capture splits")
+    if manifest.license_record_ids != frozen.license_record_ids:
+        raise ValueError("training manifest licenses do not match the frozen capture dataset")
+    if {source.version for source in manifest.teacher_sources} != set(frozen.ntp_mapping_revisions):
+        raise ValueError("training manifest teacher versions do not match frozen mappings")
+    expected_revisions = {
+        "ntp_schema_revision": config.reproducibility.ntp_schema_revision,
+        "signal_registry_revision": config.reproducibility.signal_registry_revision,
+        "normalization_revision": config.reproducibility.normalization_revision,
+        "calibration_revision": config.reproducibility.calibration_revision,
+        "feature_revision": config.reproducibility.feature_revision,
+    }
+    for field, expected in expected_revisions.items():
+        if getattr(manifest, field) != expected:
+            raise ValueError(f"training configuration {field} does not match the manifest")

@@ -49,3 +49,15 @@ def test_synthetic_data_cannot_claim_non_smoke_artifact() -> None:
     config["export"]["smoke_only"] = False
     with pytest.raises(ValidationError, match="reviewed manifest"):
         ExperimentConfig.model_validate(config)
+
+
+def test_capture_training_requires_the_manifest_and_frozen_archive_together() -> None:
+    config = load_config(Path("configs/face-basic-smoke.yaml")).model_dump(mode="json")
+    config["data"].update(
+        {
+            "dataset": "frozen_capture",
+            "manifest": "training-manifest.json",
+        }
+    )
+    with pytest.raises(ValidationError, match=r"data\.frozen_capture"):
+        ExperimentConfig.model_validate(config)
