@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
 import statistics
 import tempfile
@@ -47,6 +48,12 @@ def benchmark_capture_store(
             write_latencies_ns.append(time.perf_counter_ns() - started)
         write_wall_ns = time.perf_counter_ns() - wall_start
 
+        torn_tail = b'{"chunk_id":"crash-torn-tail"'
+        chunks_journal = root / "sender" / ".capture-state" / "chunks.jsonl"
+        with chunks_journal.open("ab") as stream:
+            stream.write(torn_tail)
+            stream.flush()
+            os.fsync(stream.fileno())
         started = time.perf_counter_ns()
         reopened = LocalChunkStore(root / "sender")
         restart_index_ns = time.perf_counter_ns() - started
@@ -55,6 +62,8 @@ def benchmark_capture_store(
         pending_scan_ns = time.perf_counter_ns() - started
         if pending != chunks:
             raise ValueError("capture benchmark restart changed the pending chunk inventory")
+        if not chunks_journal.read_bytes().endswith(b"\n"):
+            raise ValueError("capture benchmark did not repair the crash-torn journal tail")
 
         receiver = LocalChunkStore(root / "receiver")
         wall_start = time.perf_counter_ns()
@@ -75,7 +84,7 @@ def benchmark_capture_store(
 
     total_bytes = chunk_count * payload_bytes
     report: dict[str, object] = {
-        "schema": "nana-capture-store-benchmark/1.0.0",
+        "schema": "nana-capture-store-benchmark/1.1.0",
         "smoke_only": True,
         "platform": platform.platform(),
         "python": platform.python_version(),
@@ -94,10 +103,11 @@ def benchmark_capture_store(
             0,
         ),
         "restart_index_ms": restart_index_ns / 1_000_000,
+        "restart_recovered_torn_tail_bytes": len(torn_tail),
         "pending_scan_ms": pending_scan_ns / 1_000_000,
         "design": {
             "payload_upload": "bounded binary stream",
-            "journal": "append-only fsync",
+            "journal": "append-only fsync with startup-only crash-tail recovery",
             "lookup": "startup index plus constant-time ID/path checks",
             "preview": "single latest slot outside durable chunks",
         },

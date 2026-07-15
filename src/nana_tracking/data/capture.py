@@ -15,6 +15,8 @@ from typing import Annotated, BinaryIO, Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from nana_tracking.data.journal import append_jsonl as _append_jsonl
+from nana_tracking.data.journal import load_jsonl as _load_jsonl
 from nana_tracking.data.labeling import LabelCatalog
 from nana_tracking.data.manifest import (
     DatasetManifest,
@@ -1331,31 +1333,6 @@ def _file_reference(path: Path, root: Path) -> FileReference:
     path = path.resolve()
     relative = os.path.relpath(path, root).replace(os.sep, "/")
     return FileReference(path=relative, sha256=_file_digest(path))
-
-
-def _load_jsonl[T: BaseModel](path: Path, model: type[T]) -> list[T]:
-    if not path.is_file():
-        return []
-    values: list[T] = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        try:
-            values.append(model.model_validate_json(line))
-        except ValueError as error:
-            raise ValueError(f"invalid journal entry at {path}:{line_number}") from error
-    return values
-
-
-def _append_jsonl(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    created = not path.exists()
-    with path.open("ab") as stream:
-        stream.write(_canonical_json(payload) + b"\n")
-        stream.flush()
-        os.fsync(stream.fileno())
-    if created:
-        _sync_directory(path.parent)
 
 
 def _atomic_write(path: Path, payload: bytes) -> None:

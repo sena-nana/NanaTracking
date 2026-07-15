@@ -51,10 +51,12 @@ swift run --package-path apps/nana-capture-ios -c release NanaCaptureSchedulingB
 ```
 
 Chunk bytes are synchronized before their descriptor is appended to `chunks.jsonl`; acknowledgements
-are synchronized to a separate append-only journal. On restart, the journals are validated and
-indexed once. New chunk/acknowledgement checks use in-memory ID and path indexes rather than
-rescanning the growing journal. Callers should use bounded multi-frame chunk ranges instead of an
-unbounded recording or one growing file.
+are synchronized to a separate append-only journal. On restart, a complete final JSON record that
+lost only its newline is retained and repaired; an incomplete crash-torn tail is durably truncated.
+Invalid newline-terminated records and duplicates still fail closed. The journals are then indexed
+once, and new chunk/acknowledgement checks use in-memory ID and path indexes rather than rescanning
+the growing journal. Callers should use bounded multi-frame chunk ranges instead of an unbounded
+recording or one growing file.
 
 Recovery is deterministic:
 
@@ -189,11 +191,12 @@ prove TrueDepth fidelity, Windows behavior, tracking quality, privacy approval, 
 throughput.
 
 The checked-in macOS ARM64 filesystem smoke used 256 fsynced 64 KiB chunks (16 MiB total). Local
-recording measured 0.257 ms p50 / 0.343 ms p95 and 225.3 MiB/s; verified streaming receive measured
-0.245 ms p50 / 0.324 ms p95 and 208.0 MiB/s. Restart indexing took 1.81 ms and the pending scan 0.014
-ms. See `artifacts/benchmarks/issue16-capture-store-macos-arm64-smoke.json`. These figures show the
-indexed append-only implementation on this host only; they are not iPhone flash, Windows disk, LAN,
-or production throughput acceptance.
+recording measured 0.270 ms p50 / 0.347 ms p95 and 221.6 MiB/s; verified streaming receive measured
+0.219 ms p50 / 0.282 ms p95 and 228.7 MiB/s. Restart indexing, including durable recovery of a
+synthetic 29-byte torn journal tail, took 1.75 ms; the pending scan took 0.012 ms. See
+`artifacts/benchmarks/issue16-capture-store-macos-arm64-smoke.json`. These figures show the indexed
+append-only implementation on this host only; they are not iPhone flash, Windows disk, LAN, or
+production throughput acceptance.
 
 ## Privacy and admission
 

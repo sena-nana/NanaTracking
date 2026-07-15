@@ -81,19 +81,14 @@ public actor LocalChunkRecorder {
     encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
     try FileManager.default.createDirectory(at: state, withIntermediateDirectories: true)
     chunkList = try Self.loadJournal(chunksJournal, as: CaptureChunk.self)
-    chunksByID = Dictionary(uniqueKeysWithValues: chunkList.map { ($0.chunkID, $0) })
+    chunksByID = try Self.uniqueIndex(chunkList) { $0.chunkID }
     chunkPaths = Set(chunkList.map(\.relativePath))
     acknowledgementList = try Self.loadJournal(
       acknowledgementsJournal,
       as: ChunkAcknowledgement.self
     )
-    acknowledgementsByID = Dictionary(
-      uniqueKeysWithValues: acknowledgementList.map { ($0.chunkID, $0) }
-    )
-    guard chunksByID.count == chunkList.count, chunkPaths.count == chunkList.count else {
-      throw ChunkRecorderError.duplicateChunkID
-    }
-    guard acknowledgementsByID.count == acknowledgementList.count else {
+    acknowledgementsByID = try Self.uniqueIndex(acknowledgementList) { $0.chunkID }
+    guard chunkPaths.count == chunkList.count else {
       throw ChunkRecorderError.duplicateChunkID
     }
   }
@@ -266,9 +261,41 @@ public actor LocalChunkRecorder {
   private static func loadJournal<T: Decodable>(_ journal: URL, as type: T.Type) throws -> [T] {
     guard FileManager.default.fileExists(atPath: journal.path) else { return [] }
     let decoder = JSONDecoder()
-    return try Data(contentsOf: journal)
+    var payload = try Data(contentsOf: journal)
+    if !payload.isEmpty, payload.last != 0x0A {
+      let tailStart =
+        payload.lastIndex(of: 0x0A).map { payload.index(after: $0) }
+        ?? payload.startIndex
+      let tail = Data(payload[tailStart...])
+      let handle = try FileHandle(forWritingTo: journal)
+      defer { try? handle.close() }
+      if (try? decoder.decode(type, from: tail)) != nil {
+        try handle.seekToEnd()
+        try handle.write(contentsOf: Data([0x0A]))
+        payload.append(0x0A)
+      } else {
+        try handle.truncate(atOffset: UInt64(tailStart))
+        payload.removeSubrange(tailStart...)
+      }
+      try handle.synchronize()
+    }
+    return
+      try payload
       .split(separator: 0x0A)
       .map { try decoder.decode(type, from: Data($0)) }
+  }
+
+  private static func uniqueIndex<Value>(
+    _ values: [Value], key: (Value) -> String
+  ) throws -> [String: Value] {
+    var index: [String: Value] = [:]
+    index.reserveCapacity(values.count)
+    for value in values {
+      guard index.updateValue(value, forKey: key(value)) == nil else {
+        throw ChunkRecorderError.duplicateChunkID
+      }
+    }
+    return index
   }
 
   private func durableWrite(_ data: Data, to destination: URL) throws {

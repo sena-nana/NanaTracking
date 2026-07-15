@@ -18,6 +18,8 @@ from nana_tracking.data.capture import (
     ChunkAcknowledgement,
     LocalChunkStore,
 )
+from nana_tracking.data.journal import append_jsonl as _append_jsonl
+from nana_tracking.data.journal import load_jsonl as _load_jsonl
 
 ControlAction = Literal["start", "pause", "stop", "retake", "end"]
 SessionStatus = Literal["ready", "recording", "paused", "stopped", "complete"]
@@ -483,35 +485,6 @@ class CaptureStudio:
             ):
                 raise ValueError("studio acknowledgement journal is inconsistent")
             seen_revisions.add(acknowledgement.revision)
-
-
-def _load_jsonl[T: BaseModel](path: Path, model: type[T]) -> list[T]:
-    if not path.is_file():
-        return []
-    values: list[T] = []
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
-        if not line.strip():
-            continue
-        try:
-            values.append(model.model_validate_json(line))
-        except ValueError as error:
-            raise ValueError(f"invalid studio journal entry at {path}:{line_number}") from error
-    return values
-
-
-def _append_jsonl(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    created = not path.exists()
-    with path.open("ab") as stream:
-        stream.write(_canonical_json(payload) + b"\n")
-        stream.flush()
-        os.fsync(stream.fileno())
-    if created and os.name != "nt":
-        directory = os.open(path.parent, os.O_RDONLY)
-        try:
-            os.fsync(directory)
-        finally:
-            os.close(directory)
 
 
 def _atomic_write_json(path: Path, payload: object) -> None:

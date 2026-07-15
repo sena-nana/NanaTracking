@@ -86,6 +86,40 @@ def test_local_first_chunks_survive_disconnect_and_reconcile_after_restart(
     assert reconcile_chunks(manifest.chunks, [first_ack, second_ack]).complete
 
 
+def test_local_journals_recover_only_a_crash_torn_tail(tmp_path: Path) -> None:
+    root = tmp_path / "ios"
+    store = LocalChunkStore(root)
+    chunk = store.write_chunk(
+        chunk_id="chunk-0",
+        take_id="take-1",
+        kind="arkit",
+        sequence_start=0,
+        sequence_end=0,
+        capture_timestamp_start_ns=1,
+        capture_timestamp_end_ns=1,
+        payload=b"payload",
+    )
+    chunks_journal = root / ".capture-state" / "chunks.jsonl"
+    with chunks_journal.open("ab") as stream:
+        stream.write(b'{"chunk_id":"torn')
+    reopened = LocalChunkStore(root)
+    assert reopened.pending_chunks() == [chunk]
+    assert chunks_journal.read_bytes().endswith(b"\n")
+    assert b'"torn' not in chunks_journal.read_bytes()
+
+    acknowledgement = ChunkAcknowledgement(chunk_id=chunk.chunk_id, sha256=chunk.sha256)
+    reopened.acknowledge(acknowledgement)
+    acknowledgement_journal = root / ".capture-state" / "acknowledged.jsonl"
+    acknowledgement_journal.write_bytes(acknowledgement_journal.read_bytes().removesuffix(b"\n"))
+    assert LocalChunkStore(root).acknowledgements() == [acknowledgement]
+    assert acknowledgement_journal.read_bytes().endswith(b"\n")
+
+    with chunks_journal.open("ab") as stream:
+        stream.write(b"not-json\n")
+    with pytest.raises(ValueError, match="invalid journal entry"):
+        LocalChunkStore(root)
+
+
 def test_capture_studio_cli_emits_ack_only_after_durable_receive(tmp_path: Path) -> None:
     sender_root = tmp_path / "sender"
     sender = LocalChunkStore(sender_root)

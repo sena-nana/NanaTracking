@@ -7,6 +7,7 @@ enum SelfTestError: Error {
   case canonicalRoundTripFailed
   case spatialProducerLifecycleFailed
   case latestFramePolicyFailed
+  case duplicateJournalAccepted
   case unexpectedPendingChunks
   case invalidAcknowledgementAccepted
   case corruptReceiverPayloadAccepted
@@ -94,9 +95,32 @@ struct NanaCaptureSelfTest {
     try await source.acknowledge(
       ChunkAcknowledgement(chunkID: first.chunkID, sha256: first.sha256)
     )
+    let chunksJournal = root.appending(path: "source/.capture-state/chunks.jsonl")
+    let tornHandle = try FileHandle(forWritingTo: chunksJournal)
+    try tornHandle.seekToEnd()
+    try tornHandle.write(contentsOf: Data(#"{"chunk_id":"torn"#.utf8))
+    try tornHandle.close()
     let reopened = try LocalChunkRecorder(root: root.appending(path: "source"))
     guard try await reopened.pendingChunks() == [second] else {
       throw SelfTestError.unexpectedPendingChunks
+    }
+    guard try Data(contentsOf: chunksJournal).last == 0x0A else {
+      throw SelfTestError.unexpectedPendingChunks
+    }
+    let duplicateRoot = root.appending(path: "duplicate-source")
+    try FileManager.default.copyItem(at: root.appending(path: "source"), to: duplicateRoot)
+    let duplicateJournal = duplicateRoot.appending(path: ".capture-state/chunks.jsonl")
+    let duplicateHandle = try FileHandle(forWritingTo: duplicateJournal)
+    try duplicateHandle.seekToEnd()
+    var duplicateLine = try JSONEncoder().encode(first)
+    duplicateLine.append(0x0A)
+    try duplicateHandle.write(contentsOf: duplicateLine)
+    try duplicateHandle.close()
+    do {
+      _ = try LocalChunkRecorder(root: duplicateRoot)
+      throw SelfTestError.duplicateJournalAccepted
+    } catch ChunkRecorderError.duplicateChunkID {
+      // Expected: corrupt duplicate metadata is rejected without a Dictionary runtime trap.
     }
     do {
       try await reopened.acknowledge(

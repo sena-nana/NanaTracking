@@ -78,6 +78,10 @@ def test_studio_control_quality_preview_chunk_and_restart_closure(tmp_path: Path
     manifest = studio.finalize_receiver_session()
     manifest.verify_files(tmp_path / "receiver")
 
+    with (tmp_path / ".studio-state" / "commands.jsonl").open("ab") as stream:
+        stream.write(b'{"command_id":"torn')
+    with (tmp_path / ".studio-state" / "command-acks.jsonl").open("ab") as stream:
+        stream.write(b'{"command_id":"torn')
     reopened = CaptureStudio(tmp_path)
     state = reopened.state()
     assert state.status == "complete"
