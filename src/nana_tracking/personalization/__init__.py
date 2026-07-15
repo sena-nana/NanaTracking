@@ -14,6 +14,12 @@ from nana_tracking.personalization.calibration import (
     SignalCalibration,
     fit_level_a_calibration,
 )
+from nana_tracking.personalization.profile import (
+    ProfileArtifact,
+    ProfileCompatibility,
+    UserProfileMetadata,
+    profile_compatibility,
+)
 
 __all__ = [
     "AdapterPackageMetadata",
@@ -21,9 +27,13 @@ __all__ = [
     "BoundedOnlineCalibration",
     "LevelACalibration",
     "OrtLevelBAdapter",
+    "ProfileArtifact",
+    "ProfileCompatibility",
     "SignalCalibration",
+    "UserProfileMetadata",
     "ensure_adapter_compatible",
     "fit_level_a_calibration",
+    "profile_compatibility",
     "train_level_b_adapter",
     "verify_level_b_adapter",
 ]

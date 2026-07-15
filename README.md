@@ -73,6 +73,7 @@ profiles.
 - [FaceSpatial v1 model and producer](docs/model/face-spatial-v1.md)
 - [Spatial same-capture fusion contract](docs/contracts/spatial-fusion-v1.md)
 - [ADR 0001: Vendor parameters are adapters, not NTP](docs/adr/0001-vendor-parameters-are-adapters.md)
+- [ADR 0002: PyTorch authority and portable runtime boundary](docs/adr/0002-pytorch-onnx-runtime-boundary.md)
 
 ## Training data and evaluation
 

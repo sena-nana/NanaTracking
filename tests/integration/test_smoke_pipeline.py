@@ -1,3 +1,4 @@
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -55,6 +56,23 @@ def test_face_basic_train_evaluate_export_verify(tmp_path: Path) -> None:
         "confidence",
     }
     assert verified["rig"]["max_abs"] <= config.evaluation.atol
+    rust_consumer = subprocess.run(
+        [
+            "cargo",
+            "run",
+            "--quiet",
+            "-p",
+            "nana-tracking-runtime-api",
+            "--example",
+            "verify-package",
+            "--",
+            str(package),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    assert rust_consumer.returncode == 0, rust_consumer.stderr or rust_consumer.stdout
     benchmark = benchmark_face_basic_package(
         package,
         tmp_path / "runtime-benchmark.json",

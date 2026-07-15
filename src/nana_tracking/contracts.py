@@ -54,7 +54,7 @@ class CheckpointMetadata(ContractModel):
 
 
 class ModelPackageMetadata(ContractModel):
-    package_schema_version: str = "1"
+    package_schema_version: str = "nana-model-package/2.0.0"
     model_family: str
     model_version: str
     source_checkpoint_digest: str
@@ -80,6 +80,9 @@ class ModelPackageMetadata(ContractModel):
     allowed_backends: list[str] = Field(default_factory=lambda: ["onnxruntime"])
     runtime_modes: dict[str, dict[str, str]] = Field(default_factory=dict)
     adapter_schema_version: str = "1"
+    dynamic_dimensions: list[str] = Field(default_factory=list)
+    required_operators: list[str] = Field(default_factory=list)
+    custom_operator_domains: list[str] = Field(default_factory=list)
     geometry_topology_revision: str | None = None
 
 

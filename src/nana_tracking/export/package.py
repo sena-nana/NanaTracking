@@ -1,10 +1,12 @@
 """Portable ONNX package creation and verification."""
 
 import json
+from collections.abc import Iterable
 from pathlib import Path
 from typing import Any, cast
 
 import numpy as np
+import onnx
 import onnxruntime as ort
 import torch
 
@@ -31,6 +33,29 @@ REQUIRED_PACKAGE_PATHS = (
     "test-vectors/expected.npz",
     "test-vectors/parity.json",
 )
+
+
+def _operator_contract(model: onnx.ModelProto) -> tuple[list[str], list[str]]:
+    operators: set[str] = set()
+    custom_domains: set[str] = set()
+
+    def visit(nodes: Iterable[onnx.NodeProto]) -> None:
+        for node in nodes:
+            domain = node.domain or "ai.onnx"
+            operators.add(f"{domain}::{node.op_type}")
+            if node.domain not in {"", "ai.onnx"}:
+                custom_domains.add(node.domain)
+            for attribute in node.attribute:
+                if attribute.type == onnx.AttributeProto.GRAPH:
+                    visit(attribute.g.node)
+                elif attribute.type == onnx.AttributeProto.GRAPHS:
+                    for nested_graph in attribute.graphs:
+                        visit(nested_graph.node)
+
+    visit(model.graph.node)
+    for function in model.functions:
+        visit(function.node)
+    return sorted(operators), sorted(custom_domains)
 
 
 def _write_json(path: Path, payload: Any) -> None:
@@ -83,8 +108,16 @@ def create_model_package(
         output_names=list(names),
         opset_version=config.export.opset,
         dynamo=True,
+        external_data=False,
         verbose=False,
     )
+    onnx.checker.check_model(onnx_path)
+    graph = onnx.load(onnx_path, load_external_data=False)
+    required_operators, custom_domains = _operator_contract(graph)
+    if custom_domains:
+        raise ValueError(f"export contains undeclared custom operator domains: {custom_domains}")
+    if not required_operators:
+        raise ValueError("exported ONNX graph contains no executable operators")
 
     with torch.inference_mode():
         eager_values = [value.detach().cpu().numpy() for value in model(example)]
@@ -183,6 +216,9 @@ def create_model_package(
             "input": {"name": "image", "shape": list(shape), "dtype": "float32"},
             "outputs": list(names),
             "output_roles": output_roles,
+            "dynamic_dimensions": [],
+            "required_operators": required_operators,
+            "custom_operator_domains": custom_domains,
             "smoke_only": config.export.smoke_only,
         },
     )
@@ -246,6 +282,9 @@ def create_model_package(
                 "scheduling": "latest-frame-only-with-causal-refiner",
             },
         },
+        dynamic_dimensions=[],
+        required_operators=required_operators,
+        custom_operator_domains=custom_domains,
         geometry_topology_revision=geometry_topology_revision,
     )
     _write_json(output_dir / "runtime-metadata.json", metadata.model_dump(mode="json"))
@@ -269,6 +308,13 @@ def verify_model_package(
     actual_digest = sha256_file(package_dir / "model.onnx")
     if actual_digest != metadata.model_digest:
         raise ValueError("model.onnx digest does not match runtime metadata")
+    onnx.checker.check_model(package_dir / "model.onnx")
+    graph = onnx.load(package_dir / "model.onnx", load_external_data=False)
+    actual_operators, actual_custom_domains = _operator_contract(graph)
+    if actual_custom_domains or metadata.custom_operator_domains:
+        raise ValueError("custom ONNX operator domains are not allowed in portable packages")
+    if not metadata.required_operators or actual_operators != metadata.required_operators:
+        raise ValueError("ONNX operator metadata does not match the packaged graph")
     with np.load(package_dir / "test-vectors" / "input.npz") as input_file:
         image = input_file["image"]
     names = tuple(metadata.output_names)

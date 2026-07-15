@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path
 
 import numpy as np
@@ -10,11 +11,68 @@ from nana_tracking.personalization import (
     BoundedOnlineCalibration,
     LevelACalibration,
     OrtLevelBAdapter,
+    ProfileArtifact,
+    ProfileCompatibility,
     SignalCalibration,
+    UserProfileMetadata,
     ensure_adapter_compatible,
+    profile_compatibility,
     train_level_b_adapter,
     verify_level_b_adapter,
 )
+
+
+def _user_profile() -> UserProfileMetadata:
+    timestamp = datetime(2026, 7, 15, tzinfo=UTC)
+    return UserProfileMetadata(
+        user_slot="user-a",
+        base_model_family="face-basic",
+        base_model_version="1.2.3",
+        base_model_digest="a" * 64,
+        feature_revision="features-v1",
+        signal_registry_revision="signals-v1",
+        calibration_revision="calibration-v1",
+        created_at=timestamp,
+        updated_at=timestamp,
+        artifacts=[
+            ProfileArtifact(
+                kind="level-a",
+                relative_path="level-a.json",
+                digest="b" * 64,
+                runtime="native",
+            )
+        ],
+    )
+
+
+def test_user_profile_round_trip_and_compatibility_gates(tmp_path: Path) -> None:
+    path = tmp_path / "profile.json"
+    _user_profile().save(path)
+    profile = UserProfileMetadata.load(path)
+    common = {
+        "user_slot": "user-a",
+        "base_model_family": "face-basic",
+        "base_model_digest": "a" * 64,
+        "feature_revision": "features-v1",
+        "signal_registry_revision": "signals-v1",
+        "calibration_revision": "calibration-v1",
+    }
+    assert (
+        profile_compatibility(profile, base_model_version="1.2.3", **common)
+        is ProfileCompatibility.EXACT
+    )
+    assert (
+        profile_compatibility(profile, base_model_version="1.2.4", **common)
+        is ProfileCompatibility.REVALIDATION_REQUIRED
+    )
+    assert (
+        profile_compatibility(
+            profile,
+            base_model_version="1.2.3",
+            **(common | {"base_model_digest": "c" * 64}),
+        )
+        is ProfileCompatibility.INCOMPATIBLE
+    )
 
 
 def test_adapter_starts_as_identity_residual() -> None:
