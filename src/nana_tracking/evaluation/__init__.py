@@ -18,6 +18,7 @@ from nana_tracking.evaluation.runtime import (
     benchmark_face_package,
     benchmark_face_spatial_package,
     benchmark_full_set_package,
+    benchmark_rgb_roi_preprocessor,
 )
 from nana_tracking.evaluation.standard import EvaluationStandard
 from nana_tracking.evaluation.temporal import benchmark_temporal_refiner
@@ -33,6 +34,7 @@ __all__ = [
     "benchmark_face_package",
     "benchmark_face_spatial_package",
     "benchmark_full_set_package",
+    "benchmark_rgb_roi_preprocessor",
     "benchmark_temporal_refiner",
     "evaluate",
     "fit_confidence_calibration",

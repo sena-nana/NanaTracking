@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 import pytest
@@ -6,9 +7,11 @@ import torch
 from pydantic import ValidationError
 
 from nana_tracking.config import ModelConfig, load_config
+from nana_tracking.evaluation import benchmark_rgb_roi_preprocessor
 from nana_tracking.models import create_model, mirror_basic_rig
 from nana_tracking.personalization import LevelACalibration, fit_level_a_calibration
-from nana_tracking.runtime import FaceBox, FaceRoiTracker
+from nana_tracking.runtime import FaceBox, FaceRoiTracker, RgbRoiWorkspace
+from nana_tracking.runtime.face_basic import prepare_rgb_roi
 
 
 class SequenceDetector:
@@ -117,3 +120,52 @@ def test_roi_tracker_refreshes_at_a_bounded_interval_and_expires_missed_face() -
     assert tracker.update(frame, 3) == FaceBox(20, 20, 60, 60)
     assert tracker.update(frame, 4) is None
     assert detector.calls == 3
+
+
+def test_rgb_roi_workspace_preserves_sampling_with_bounded_reusable_storage() -> None:
+    workspace = RgbRoiWorkspace(output_height=7, output_width=9)
+    output = np.empty((1, 3, 7, 9), dtype=np.float32)
+    random = np.random.default_rng(17)
+
+    def expected(frame: np.ndarray, roi: FaceBox) -> np.ndarray:
+        box = roi.clamp(frame.shape[1], frame.shape[0])
+        ys = np.linspace(box.top, box.bottom - 1, 7).astype(np.intp)
+        xs = np.linspace(box.left, box.right - 1, 9).astype(np.intp)
+        return np.transpose(frame[ys[:, None], xs[None, :], :], (2, 0, 1))[None] / 255.0
+
+    storage_bytes = workspace.workspace_bytes
+    for _ in range(20):
+        height = int(random.integers(10, 40))
+        width = int(random.integers(10, 50))
+        left = int(random.integers(-5, width - 1))
+        top = int(random.integers(-5, height - 1))
+        roi = FaceBox(
+            left,
+            top,
+            int(random.integers(left + 1, width + 6)),
+            int(random.integers(top + 1, height + 6)),
+        )
+        frame = random.integers(0, 256, size=(height, width, 3), dtype=np.uint8)
+        prepare_rgb_roi(frame, roi, output, workspace=workspace)
+        np.testing.assert_allclose(output, expected(frame, roi), rtol=0.0, atol=1e-7)
+        assert workspace.workspace_bytes == storage_bytes
+
+
+def test_rgb_roi_benchmark_records_bounded_workspace_evidence(tmp_path: Path) -> None:
+    output = tmp_path / "roi-benchmark.json"
+    report = benchmark_rgb_roi_preprocessor(
+        output,
+        input_width=64,
+        input_height=48,
+        roi_side=32,
+        output_sizes=(8,),
+        roi_positions=3,
+        frames_per_roi=1,
+        warmup=1,
+        iterations=3,
+    )
+    result = cast(dict[str, object], cast(dict[str, object], report["results"])["8"])
+    assert output.is_file()
+    assert report["smoke_only"] is True
+    assert cast(int, result["persistent_workspace_bytes"]) < 3 * 8 * 8 * 4
+    assert cast(int, result["steady_tracemalloc_peak_bytes"]) < 64 * 1024

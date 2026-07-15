@@ -54,6 +54,7 @@ from nana_tracking.evaluation import (
     benchmark_face_basic_package,
     benchmark_face_spatial_package,
     benchmark_full_set_package,
+    benchmark_rgb_roi_preprocessor,
     benchmark_temporal_refiner,
     fit_confidence_calibration,
     render_failure_report,
@@ -793,6 +794,36 @@ def benchmark_face_basic_command(
         tensorrt_fp16=tensorrt_fp16,
     )
     _print_json(report)
+
+
+@app.command("benchmark-roi-preprocess")
+def benchmark_roi_preprocess_command(
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+    input_width: Annotated[int, typer.Option(min=1)] = 1280,
+    input_height: Annotated[int, typer.Option(min=1)] = 720,
+    roi_side: Annotated[int, typer.Option(min=1)] = 640,
+    output_sizes: Annotated[str, typer.Option()] = "64,96,128",
+    roi_positions: Annotated[int, typer.Option(min=1)] = 32,
+    frames_per_roi: Annotated[int, typer.Option(min=1)] = 5,
+    warmup: Annotated[int, typer.Option(min=1)] = 100,
+    iterations: Annotated[int, typer.Option(min=1)] = 2_000,
+) -> None:
+    """Benchmark bounded moving-ROI preprocessing independently of model inference."""
+
+    sizes = tuple(int(size.strip()) for size in output_sizes.split(",") if size.strip())
+    _print_json(
+        benchmark_rgb_roi_preprocessor(
+            output,
+            input_width=input_width,
+            input_height=input_height,
+            roi_side=roi_side,
+            output_sizes=sizes,
+            roi_positions=roi_positions,
+            frames_per_roi=frames_per_roi,
+            warmup=warmup,
+            iterations=iterations,
+        )
+    )
 
 
 @app.command("benchmark-face-spatial")

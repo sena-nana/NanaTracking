@@ -1,0 +1,81 @@
+{
+  "hardware": {
+    "machine": "arm64",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "processor": "arm"
+  },
+  "implementation": "numpy-preallocated-row-workspace-nearest-v1",
+  "input": {
+    "dtype": "uint8",
+    "shape_hwc": [
+      720,
+      1280,
+      3
+    ],
+    "source_buffer_reused": true
+  },
+  "iterations": 5000,
+  "note": "Synthetic preprocessing smoke only. Persistent workspace is bounded by model input size; traced peak includes Python and NumPy call overhead and is not GPU evidence.",
+  "output_sizes": [
+    64,
+    96,
+    128
+  ],
+  "provenance": {
+    "git_commit": "ef32dc7cda2b3f010ad19039ff26827efc3d35fb",
+    "uv_lock_sha256": "968b7e79b8f115b23ab9db182d1576c82fa39485644a7843433800bfe824f7ad",
+    "working_tree_dirty_during_measurement": true
+  },
+  "results": {
+    "128": {
+      "frames_per_second_at_mean": 5094.212342688838,
+      "latency_ns": {
+        "mean": 196301.2008,
+        "p50": 192500.0,
+        "p95": 211208.0,
+        "p99": 255417.0
+      },
+      "persistent_workspace_bytes": 6528,
+      "steady_tracemalloc_peak_bytes": 4724,
+      "traced_iterations": 100
+    },
+    "64": {
+      "frames_per_second_at_mean": 10963.057240057926,
+      "latency_ns": {
+        "mean": 91215.4318,
+        "p50": 89167.0,
+        "p95": 100083.0,
+        "p99": 118042.0
+      },
+      "persistent_workspace_bytes": 3264,
+      "steady_tracemalloc_peak_bytes": 3188,
+      "traced_iterations": 100
+    },
+    "96": {
+      "frames_per_second_at_mean": 7112.967366714341,
+      "latency_ns": {
+        "mean": 140588.3014,
+        "p50": 137541.0,
+        "p95": 152958.0,
+        "p99": 183375.0
+      },
+      "persistent_workspace_bytes": 4896,
+      "steady_tracemalloc_peak_bytes": 3956,
+      "traced_iterations": 100
+    }
+  },
+  "roi_strategy": {
+    "frames_per_roi": 5,
+    "indices_recomputed_only_when_roi_changes": true,
+    "moving_positions": 32,
+    "shape": "square",
+    "side_pixels": 640
+  },
+  "runtime": {
+    "numpy": "2.5.1",
+    "python": "3.14.3"
+  },
+  "schema_version": "nana-rgb-roi-preprocess-benchmark/1.0.0",
+  "smoke_only": true,
+  "warmup": 200
+}

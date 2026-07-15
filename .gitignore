@@ -24,6 +24,7 @@ target/
 !/artifacts/benchmarks/
 /artifacts/benchmarks/*
 !/artifacts/benchmarks/issue8-face-basic-macos-m4-smoke.json
+!/artifacts/benchmarks/issue7-roi-preprocess-macos-m4-smoke.json
 !/artifacts/benchmarks/issue8-face-spatial-macos-m4-smoke.json
 !/artifacts/benchmarks/issue8-face-spatial-comparison-macos-m4-smoke.json
 !/artifacts/benchmarks/issue9-full-set-macos-m4-smoke.json

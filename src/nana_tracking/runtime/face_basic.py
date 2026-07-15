@@ -289,24 +289,109 @@ def region(confidence: float = 0.0, state: str = "Unsupported") -> dict[str, obj
     return {"confidence": confidence, "state": state}
 
 
+class RgbRoiWorkspace:
+    """Reusable nearest-neighbour RGB ROI resize storage.
+
+    The largest scratch array is one resized RGB row. Moving ROIs and source-resolution changes do
+    not allocate an intermediate image-sized tensor.
+    """
+
+    def __init__(self, output_height: int, output_width: int) -> None:
+        if output_height < 1 or output_width < 1:
+            raise ValueError("ROI output dimensions must be positive")
+        self.output_height = output_height
+        self.output_width = output_width
+        self._x_fraction = np.linspace(0.0, 1.0, output_width, dtype=np.float64)
+        self._y_fraction = np.linspace(0.0, 1.0, output_height, dtype=np.float64)
+        self._x_work = np.empty(output_width, dtype=np.float64)
+        self._y_work = np.empty(output_height, dtype=np.float64)
+        self._x_indices = np.empty(output_width, dtype=np.intp)
+        self._y_indices = np.empty(output_height, dtype=np.intp)
+        self._row_rgb = np.empty((output_width, 3), dtype=np.uint8)
+        self._row_chw = self._row_rgb.T
+        self._scale = np.float32(1.0 / 255.0)
+        self._source_width = -1
+        self._source_height = -1
+        self._box = FaceBox(-1, -1, -1, -1)
+        self._output_owner: np.ndarray | None = None
+        self._output_rows: tuple[np.ndarray, ...] = ()
+
+    @property
+    def workspace_bytes(self) -> int:
+        arrays = (
+            self._x_fraction,
+            self._y_fraction,
+            self._x_work,
+            self._y_work,
+            self._x_indices,
+            self._y_indices,
+            self._row_rgb,
+        )
+        return sum(array.nbytes for array in arrays)
+
+    def prepare(self, frame: np.ndarray, roi: FaceBox | None, output: np.ndarray) -> None:
+        if frame.ndim != 3 or frame.shape[2] != 3 or frame.dtype != np.uint8:
+            raise ValueError("frames must be uint8 HWC RGB arrays")
+        expected_shape = (1, 3, self.output_height, self.output_width)
+        if output.shape != expected_shape or output.dtype != np.float32:
+            raise ValueError(f"output must be a preallocated {expected_shape} float32 array")
+        height, width, _ = frame.shape
+        if height < 1 or width < 1:
+            raise ValueError("frames must have positive height and width")
+        box = (roi or FaceBox(0, 0, width, height)).clamp(width, height)
+        if width != self._source_width or height != self._source_height or box != self._box:
+            self._fill_indices(
+                self._x_fraction,
+                self._x_work,
+                self._x_indices,
+                box.left,
+                box.right,
+            )
+            self._fill_indices(
+                self._y_fraction,
+                self._y_work,
+                self._y_indices,
+                box.top,
+                box.bottom,
+            )
+            self._source_width = width
+            self._source_height = height
+            self._box = box
+        if output is not self._output_owner:
+            self._output_owner = output
+            self._output_rows = tuple(
+                output[0, :, output_y, :] for output_y in range(self.output_height)
+            )
+        for source_y, output_row in zip(self._y_indices, self._output_rows, strict=True):
+            np.take(frame[source_y], self._x_indices, axis=0, out=self._row_rgb)
+            np.multiply(self._row_chw, self._scale, out=output_row)
+
+    @staticmethod
+    def _fill_indices(
+        fraction: np.ndarray,
+        work: np.ndarray,
+        indices: np.ndarray,
+        start: int,
+        stop: int,
+    ) -> None:
+        np.multiply(fraction, stop - start - 1, out=work)
+        np.add(work, start, out=work)
+        np.copyto(indices, work, casting="unsafe")
+
+
 def prepare_rgb_roi(
     frame: np.ndarray,
     roi: FaceBox | None,
     output: np.ndarray,
+    *,
+    workspace: RgbRoiWorkspace | None = None,
 ) -> None:
     """Resize one uint8 RGB ROI into a preallocated NCHW float32 tensor."""
 
-    if frame.ndim != 3 or frame.shape[2] != 3 or frame.dtype != np.uint8:
-        raise ValueError("frames must be uint8 HWC RGB arrays")
     if output.ndim != 4 or output.shape[0:2] != (1, 3) or output.dtype != np.float32:
         raise ValueError("output must be a preallocated [1, 3, height, width] float32 array")
-    height, width, _ = frame.shape
-    box = (roi or FaceBox(0, 0, width, height)).clamp(width, height)
-    ys = np.linspace(box.top, box.bottom - 1, output.shape[2]).astype(np.intp)
-    xs = np.linspace(box.left, box.right - 1, output.shape[3]).astype(np.intp)
-    for output_y, source_y in enumerate(ys):
-        row = frame[source_y, xs, :]
-        np.multiply(row.T, 1.0 / 255.0, out=output[0, :, output_y, :])
+    active = workspace or RgbRoiWorkspace(output.shape[2], output.shape[3])
+    active.prepare(frame, roi, output)
 
 
 class FaceBasicProducer:
@@ -335,6 +420,7 @@ class FaceBasicProducer:
         self.camera_id = camera_id
         self._clock = clock
         self._input = np.empty((1, 3, backend.input_height, backend.input_width), dtype=np.float32)
+        self._roi_workspace = RgbRoiWorkspace(backend.input_height, backend.input_width)
         self.last_stage_timings_ns: dict[str, int] = {}
 
     @property
@@ -358,7 +444,7 @@ class FaceBasicProducer:
         }
 
     def _prepare(self, frame: np.ndarray, roi: FaceBox | None) -> None:
-        prepare_rgb_roi(frame, roi, self._input)
+        prepare_rgb_roi(frame, roi, self._input, workspace=self._roi_workspace)
 
     def produce(
         self,

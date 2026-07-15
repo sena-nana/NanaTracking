@@ -6,6 +6,7 @@ import statistics
 import subprocess
 import sys
 import time
+import tracemalloc
 from pathlib import Path
 from typing import cast
 
@@ -14,13 +15,17 @@ import onnxruntime as ort
 
 from nana_tracking.contracts import ModelPackageMetadata
 from nana_tracking.export import verify_model_package
+from nana_tracking.reproducibility import git_state, sha256_file
 from nana_tracking.runtime import (
     FaceBasicProducer,
+    FaceBox,
     FaceSpatialProducer,
     OrtFaceBasicBackend,
     OrtFaceSpatialBackend,
     OrtFullSetBackend,
+    RgbRoiWorkspace,
 )
+from nana_tracking.runtime.face_basic import prepare_rgb_roi
 
 
 def _percentile(values: list[float], quantile: float) -> float:
@@ -65,6 +70,138 @@ def _nvidia_telemetry() -> dict[str, object] | None:
         "vram_used_mib": float(first[3]),
         "vram_total_mib": float(first[4]),
     }
+
+
+def benchmark_rgb_roi_preprocessor(
+    output: Path,
+    *,
+    input_width: int = 1280,
+    input_height: int = 720,
+    roi_side: int = 640,
+    output_sizes: tuple[int, ...] = (64, 96, 128),
+    roi_positions: int = 32,
+    frames_per_roi: int = 5,
+    warmup: int = 100,
+    iterations: int = 2_000,
+) -> dict[str, object]:
+    """Benchmark moving-ROI preprocessing with persistent source/output/workspace buffers."""
+
+    if input_width < 1 or input_height < 1:
+        raise ValueError("benchmark input dimensions must be positive")
+    if roi_side < 1 or roi_side > min(input_width, input_height):
+        raise ValueError("benchmark ROI must fit inside the input frame")
+    if not output_sizes or any(size < 1 for size in output_sizes):
+        raise ValueError("benchmark output sizes must be positive")
+    if len(set(output_sizes)) != len(output_sizes):
+        raise ValueError("benchmark output sizes must be unique")
+    if roi_positions < 1 or frames_per_roi < 1 or warmup < 1 or iterations < 1:
+        raise ValueError("benchmark positions, cadence, warmup, and iterations must be positive")
+
+    frame = np.zeros((input_height, input_width, 3), dtype=np.uint8)
+    horizontal_range = input_width - roi_side
+    vertical_range = input_height - roi_side
+    divisor = max(roi_positions - 1, 1)
+    boxes = tuple(
+        FaceBox(
+            horizontal_range * index // divisor,
+            vertical_range * index // divisor,
+            horizontal_range * index // divisor + roi_side,
+            vertical_range * index // divisor + roi_side,
+        )
+        for index in range(roi_positions)
+    )
+    results: dict[str, object] = {}
+    for size in output_sizes:
+        workspace = RgbRoiWorkspace(size, size)
+        model_input = np.empty((1, 3, size, size), dtype=np.float32)
+        for index in range(warmup):
+            prepare_rgb_roi(
+                frame,
+                boxes[(index // frames_per_roi) % len(boxes)],
+                model_input,
+                workspace=workspace,
+            )
+        latencies_ns: list[float] = []
+        for index in range(iterations):
+            started = time.perf_counter_ns()
+            prepare_rgb_roi(
+                frame,
+                boxes[(index // frames_per_roi) % len(boxes)],
+                model_input,
+                workspace=workspace,
+            )
+            latencies_ns.append(float(time.perf_counter_ns() - started))
+
+        traced_iterations = min(iterations, 100)
+        tracemalloc.start()
+        tracemalloc.reset_peak()
+        for index in range(traced_iterations):
+            prepare_rgb_roi(
+                frame,
+                boxes[(index // frames_per_roi) % len(boxes)],
+                model_input,
+                workspace=workspace,
+            )
+        _, traced_peak = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+        mean_ns = statistics.fmean(latencies_ns)
+        results[str(size)] = {
+            "latency_ns": {
+                "p50": statistics.median(latencies_ns),
+                "p95": _percentile(latencies_ns, 0.95),
+                "p99": _percentile(latencies_ns, 0.99),
+                "mean": mean_ns,
+            },
+            "frames_per_second_at_mean": 1_000_000_000.0 / mean_ns,
+            "persistent_workspace_bytes": workspace.workspace_bytes,
+            "steady_tracemalloc_peak_bytes": traced_peak,
+            "traced_iterations": traced_iterations,
+        }
+
+    commit, dirty = git_state()
+    lock_path = Path("uv.lock")
+    report: dict[str, object] = {
+        "schema_version": "nana-rgb-roi-preprocess-benchmark/1.0.0",
+        "smoke_only": True,
+        "implementation": "numpy-preallocated-row-workspace-nearest-v1",
+        "input": {
+            "shape_hwc": [input_height, input_width, 3],
+            "dtype": "uint8",
+            "source_buffer_reused": True,
+        },
+        "roi_strategy": {
+            "shape": "square",
+            "side_pixels": roi_side,
+            "moving_positions": roi_positions,
+            "frames_per_roi": frames_per_roi,
+            "indices_recomputed_only_when_roi_changes": True,
+        },
+        "output_sizes": list(output_sizes),
+        "warmup": warmup,
+        "iterations": iterations,
+        "results": results,
+        "runtime": {
+            "python": platform.python_version(),
+            "numpy": np.__version__,
+        },
+        "hardware": {
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+            "processor": platform.processor() or "unknown",
+        },
+        "provenance": {
+            "git_commit": commit,
+            "working_tree_dirty_during_measurement": dirty,
+            "uv_lock_sha256": sha256_file(lock_path) if lock_path.is_file() else None,
+        },
+        "note": (
+            "Synthetic preprocessing smoke only. Persistent workspace is bounded by model input "
+            "size; traced peak includes Python and NumPy call overhead and is not GPU evidence."
+        ),
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return report
 
 
 def benchmark_face_package(

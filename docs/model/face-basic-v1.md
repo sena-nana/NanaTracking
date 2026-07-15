@@ -23,6 +23,9 @@ non-smoke manifest and accompanied by the complete real-data evaluation report.
   at a bounded interval, select the track-consistent face, add a margin, square the crop, and smooth
   coordinates. The detector model remains independently versioned rather than being hidden inside
   FaceBasic.
+- `RgbRoiWorkspace` is shared by the Basic, Spatial, and Full Python producers. It caches sampling
+  indices between ROI refreshes and reuses one output-row scratch buffer, so a moving ROI or camera
+  resolution change does not allocate an intermediate image-sized tensor on every frame.
 - Basic IDs 1 through 36 are always declared supported. Runtime visibility becomes `Observed`,
   `Occluded`, or `OutOfFrame`; supported signals are never rewritten to `Unsupported`.
 - Head pose is position plus a normalized canonical xyzw quaternion in Camera space with
@@ -71,6 +74,8 @@ uv run --extra cpu nana-tracking calibrate-level-a --capture <calibration.npz> \
   --package <package-directory> --user-slot <slot> --output <profile.json>
 uv run --extra cpu nana-tracking benchmark-face-basic --package <package-directory> \
   --providers CPUExecutionProvider --output <report.json>
+uv run --extra cpu nana-tracking benchmark-roi-preprocess \
+  --output artifacts/benchmarks/issue7-roi-preprocess-macos-m4-smoke.json
 uv run --extra cpu nana-tracking evaluation render-failures <failures.jsonl> \
   --output <report.html>
 uv run --extra cpu nana-tracking evaluation validate-face-basic-acceptance \
@@ -82,6 +87,14 @@ On a compatible RTX host, the benchmark provider list may be
 `--tensorrt-fp16`. The report records active
 providers and an `nvidia-smi` telemetry snapshot when available. Missing GPU/VRAM values remain
 explicitly unavailable and are never inferred from CPU or MPS.
+
+The checked-in moving-ROI preprocessing smoke uses a reused 720p RGB source, a 640-pixel square ROI
+with 32 positions held for five frames each, and 5,000 measured iterations per model input size. On
+the local Apple M4, the 64/96/128 inputs measured P50 0.089/0.138/0.193 ms and P99
+0.118/0.183/0.255 ms. Persistent workspace was 3.2/4.8/6.4 KiB; the separately traced steady call
+peak stayed below 4.7 KiB, rather than creating an ROI- or frame-sized temporary. See
+`artifacts/benchmarks/issue7-roi-preprocess-macos-m4-smoke.json`. This is synthetic preprocessing
+evidence only, not camera, model-quality, GPU, or 720p60 end-to-end acceptance.
 
 ## Acceptance evidence boundary
 

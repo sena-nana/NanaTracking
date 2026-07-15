@@ -13,7 +13,7 @@ import onnxruntime as ort
 
 from nana_tracking.contracts import ModelPackageMetadata
 from nana_tracking.export import verify_model_package
-from nana_tracking.runtime.face_basic import FaceBox, prepare_rgb_roi, region
+from nana_tracking.runtime.face_basic import FaceBox, RgbRoiWorkspace, prepare_rgb_roi, region
 
 
 @dataclass(frozen=True, slots=True)
@@ -238,6 +238,7 @@ class FullSetProducer:
         self.maximum_body_age_ns = maximum_body_age_ns
         self._clock = clock
         self._input = np.empty((1, 3, backend.input_height, backend.input_width), dtype=np.float32)
+        self._roi_workspace = RgbRoiWorkspace(backend.input_height, backend.input_width)
         self._latest: _BodySample | None = None
         self._needs_refresh = True
         self.last_stage_timings_ns: dict[str, int] = {}
@@ -281,7 +282,12 @@ class FullSetProducer:
             or sequence % self.body_inference_interval == 0
         ):
             preprocess_started = time.perf_counter_ns()
-            prepare_rgb_roi(frame, body_roi, self._input)
+            prepare_rgb_roi(
+                frame,
+                body_roi,
+                self._input,
+                workspace=self._roi_workspace,
+            )
             preprocess_ns = time.perf_counter_ns() - preprocess_started
             inference_started = time.perf_counter_ns()
             self._latest = _BodySample(self.backend.infer(self._input), capture_timestamp_ns)

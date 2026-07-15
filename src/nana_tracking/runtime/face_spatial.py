@@ -15,6 +15,7 @@ from nana_tracking.export import verify_model_package
 from nana_tracking.personalization import LevelACalibration
 from nana_tracking.runtime.face_basic import (
     FaceBox,
+    RgbRoiWorkspace,
     empty_skeleton,
     prepare_rgb_roi,
     region,
@@ -192,6 +193,7 @@ class FaceSpatialProducer:
         self.generation = generation
         self._clock = clock
         self._input = np.empty((1, 3, backend.input_height, backend.input_width), dtype=np.float32)
+        self._roi_workspace = RgbRoiWorkspace(backend.input_height, backend.input_width)
         self.last_stage_timings_ns: dict[str, int] = {}
 
     @property
@@ -223,7 +225,7 @@ class FaceSpatialProducer:
         sequence: int,
     ) -> dict[str, object]:
         preprocess_started = time.perf_counter_ns()
-        prepare_rgb_roi(frame, roi, self._input)
+        prepare_rgb_roi(frame, roi, self._input, workspace=self._roi_workspace)
         preprocess_ns = time.perf_counter_ns() - preprocess_started
         inference_started = time.perf_counter_ns()
         prediction = self.backend.infer(self._input)
