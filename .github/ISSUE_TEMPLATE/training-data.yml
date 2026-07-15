@@ -1,0 +1,33 @@
+name: Training data or asset change
+description: Admit or change datasets, captures, teachers, render assets, mappings, or splits
+title: "[Data] "
+labels: []
+body:
+  - type: checkboxes
+    id: workflow
+    attributes:
+      label: Required workflow
+      options:
+        - label: I will apply `skills/nanatracking-training-data/SKILL.md` before download, generation, labeling, or training.
+          required: true
+  - type: textarea
+    id: admission
+    attributes:
+      label: Source, license, consent, and pipeline stage
+      description: Include registry IDs and separate dataset/content/SDK/biometric decisions.
+    validations:
+      required: true
+  - type: textarea
+    id: provenance
+    attributes:
+      label: Provenance, mapping, split, and invalidation
+      description: Include label source/confidence, mapping revisions, identity/session/device or actor split, and cache/checkpoint invalidation.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation and report boundary
+      description: State whether this is F direct evidence or G downstream expression evidence; synthetic evidence must be smoke-only.
+    validations:
+      required: true

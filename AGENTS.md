@@ -47,6 +47,10 @@
 
 ## Project skills
 
+- Use `skills/nanatracking-training-data/SKILL.md` before adding/evaluating/downloading datasets or
+  render assets; changing capture schemas, action scripts, ICT mappings, labels, teachers,
+  pseudo-labels, caches, loaders, splits, F/G training, or data/model reports; and before releasing
+  any training-derived model or artifact.
 - Use `$manage-training-data` for manifests, collection, split, provenance, privacy, and quality.
 - Use `$align-ntp-contracts` for labels, outputs, revisions, normalization, and framework boundaries.
 - Use `$train-pytorch-models` for models, losses, AMP, determinism, checkpoints, and resume.

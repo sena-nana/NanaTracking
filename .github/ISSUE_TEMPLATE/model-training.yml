@@ -1,0 +1,33 @@
+name: Model training or release
+description: Train, evaluate, adapt, export, or release model F or G
+title: "[Model] "
+labels: []
+body:
+  - type: checkboxes
+    id: workflow
+    attributes:
+      label: Required workflow
+      options:
+        - label: I will apply `skills/nanatracking-training-data/SKILL.md` and its F, G, or release checklist.
+          required: true
+  - type: dropdown
+    id: stage
+    attributes:
+      label: Stage
+      options: [F direct training/evaluation, G frozen-F training/evaluation, Approved joint optimization, Model release]
+    validations:
+      required: true
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Pinned inputs and commercial admission
+      description: List registry/data/cache/mapping/NTP/Signal/config/model digests and the admission command result.
+    validations:
+      required: true
+  - type: textarea
+    id: gates
+    attributes:
+      label: Split, metrics, and regression gates
+      description: Keep F direct and G downstream reports separate; document identity/session/device or actor isolation.
+    validations:
+      required: true

@@ -1,0 +1,4 @@
+interface:
+  display_name: "NanaTracking Training Data"
+  short_description: "Enforce commercial data and two-stage training boundaries"
+  default_prompt: "Use $nanatracking-training-data to admit and version this training-data change safely."
