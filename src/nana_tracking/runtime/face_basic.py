@@ -161,6 +161,8 @@ class OrtFaceBasicBackend:
         if self.metadata.supported_signals != list(range(1, 37)):
             raise ValueError("model package does not declare the complete BasicSet")
         requested = providers or ["CPUExecutionProvider"]
+        if tensorrt_fp16 and "TensorrtExecutionProvider" not in requested:
+            raise ValueError("TensorRT FP16 requires TensorrtExecutionProvider")
         available = cast(list[str], ort.get_available_providers())
         unavailable = set(requested).difference(available)
         if unavailable:

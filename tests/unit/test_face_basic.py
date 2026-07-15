@@ -8,6 +8,18 @@ from pydantic import ValidationError
 from nana_tracking.config import ModelConfig, load_config
 from nana_tracking.models import create_model, mirror_basic_rig
 from nana_tracking.personalization import LevelACalibration, fit_level_a_calibration
+from nana_tracking.runtime import FaceBox, FaceRoiTracker
+
+
+class SequenceDetector:
+    def __init__(self, detections: list[list[tuple[FaceBox, float]]]) -> None:
+        self._detections = iter(detections)
+        self.calls = 0
+
+    def detect(self, frame: np.ndarray) -> list[tuple[FaceBox, float]]:
+        del frame
+        self.calls += 1
+        return next(self._detections)
 
 
 def test_face_basic_has_complete_single_pass_heads() -> None:
@@ -82,3 +94,26 @@ def test_level_a_calibration_is_complete_versioned_and_robust(tmp_path: Path) ->
     calibrated_neutral = restored.apply(neutral[0])
     np.testing.assert_allclose(calibrated_neutral, np.zeros(36), atol=1e-6)
     assert [signal.signal_id for signal in restored.signals] == list(range(1, 37))
+
+
+def test_roi_tracker_refreshes_at_a_bounded_interval_and_expires_missed_face() -> None:
+    detector = SequenceDetector(
+        [
+            [(FaceBox(20, 20, 60, 60), 0.9)],
+            [],
+            [],
+        ]
+    )
+    tracker = FaceRoiTracker(
+        detector,
+        detection_interval=2,
+        smoothing=0.0,
+        margin=0.0,
+        maximum_missed=1,
+    )
+    frame = np.zeros((100, 100, 3), dtype=np.uint8)
+    assert tracker.update(frame, 1) == FaceBox(20, 20, 60, 60)
+    assert tracker.update(frame, 2) == FaceBox(20, 20, 60, 60)
+    assert tracker.update(frame, 3) == FaceBox(20, 20, 60, 60)
+    assert tracker.update(frame, 4) is None
+    assert detector.calls == 3

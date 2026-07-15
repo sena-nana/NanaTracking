@@ -11,7 +11,11 @@ import torch
 from nana_tracking.config import ExperimentConfig
 from nana_tracking.contracts import AdapterContract, ModelPackageMetadata
 from nana_tracking.data.manifest import DatasetManifest
-from nana_tracking.models import create_model, output_names
+from nana_tracking.models import (
+    create_deployment_model,
+    create_model,
+    deployment_output_names,
+)
 from nana_tracking.reproducibility import sha256_file
 from nana_tracking.training.checkpoint import load_checkpoint
 
@@ -57,10 +61,11 @@ def create_model_package(
     output_dir.mkdir(parents=True, exist_ok=True)
     vector_dir = output_dir / "test-vectors"
     vector_dir.mkdir(parents=True, exist_ok=True)
-    model = create_model(config.model)
-    load_checkpoint(checkpoint, model=model)
+    training_model = create_model(config.model)
+    load_checkpoint(checkpoint, model=training_model)
+    model = create_deployment_model(config.model, training_model)
     model.eval()
-    names = output_names(config.model)
+    names = deployment_output_names(config.model)
     shape = (
         1,
         config.model.input_channels,
@@ -117,7 +122,6 @@ def create_model_package(
                     "pose": "ntp-head-camera-pose",
                     "landmarks": "auxiliary-training-diagnostic",
                     "visibility": "runtime-state-classification",
-                    "identity": "training-only-adversary",
                     "confidence": "per-signal-confidence",
                 }
                 if config.model.name == "face_basic"

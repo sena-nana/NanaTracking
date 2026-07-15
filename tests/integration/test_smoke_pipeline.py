@@ -48,7 +48,6 @@ def test_face_basic_train_evaluate_export_verify(tmp_path: Path) -> None:
         "pose",
         "landmarks",
         "visibility",
-        "identity",
         "confidence",
     }
     assert verified["rig"]["max_abs"] <= config.evaluation.atol

@@ -6,7 +6,8 @@
 single lightweight encoder and six named heads: the 36-signal orthogonal rig, camera-space head
 pose, auxiliary normalized landmarks, visibility state, an adversarial identity classifier, and
 per-signal confidence. Geometry and identity are training/diagnostic outputs; they are not new NTP
-signals and do not leak framework values into the protocol.
+signals and do not leak framework values into the protocol. The identity adversary is excluded
+from deployable ONNX graphs so dataset identity classes cannot cross the training boundary.
 
 The checked-in `configs/face-basic-smoke.yaml` and every artifact produced from it are explicitly
 smoke-only. They validate architecture, training, resume, export, runtime, and conformance control
@@ -54,8 +55,8 @@ explicit high-confidence captures. Profiles bind to user slot, model family/vers
 Signal Registry, normalization, and calibration revisions. Incompatible profiles fail closed; the
 base package is never modified.
 
-The model package includes every file required by the ONNX package contract, six interoperable
-fixed-vector outputs, SHA-256 digests, NTP revisions, supported signals/structures, input
+The model package includes every file required by the ONNX package contract, five interoperable
+deployment outputs, SHA-256 digests, NTP revisions, supported signals/structures, input
 normalization, precision declaration, and smoke status. Export compares every PyTorch output with
 ONNX Runtime CPU before packaging; `verify-export` repeats digest and parity checks.
 
@@ -75,7 +76,8 @@ uv run --extra cpu nana-tracking evaluation render-failures <failures.jsonl> \
 ```
 
 On a compatible RTX host, the benchmark provider list may be
-`TensorrtExecutionProvider,CUDAExecutionProvider,CPUExecutionProvider`. The report records active
+`TensorrtExecutionProvider,CUDAExecutionProvider,CPUExecutionProvider` together with
+`--tensorrt-fp16`. The report records active
 providers and an `nvidia-smi` telemetry snapshot when available. Missing GPU/VRAM values remain
 explicitly unavailable and are never inferred from CPU or MPS.
 
