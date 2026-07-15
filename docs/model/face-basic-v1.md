@@ -73,6 +73,8 @@ uv run --extra cpu nana-tracking benchmark-face-basic --package <package-directo
   --providers CPUExecutionProvider --output <report.json>
 uv run --extra cpu nana-tracking evaluation render-failures <failures.jsonl> \
   --output <report.html>
+uv run --extra cpu nana-tracking evaluation validate-face-basic-acceptance \
+  <acceptance-bundle.json>
 ```
 
 On a compatible RTX host, the benchmark provider list may be
@@ -93,3 +95,9 @@ The following production acceptance still requires external evidence from review
 per-signal quality and dynamic correlation, neutral jitter, occlusion recovery, confidence
 calibration, NanaLive A/B video, and an RTX 4060 FP16/TensorRT report. Synthetic smoke results must
 not be substituted for those measurements.
+
+The acceptance command digest-pins the package metadata, NTP conformance, quality report, runtime
+report, and baseline reports. It fails unless all required metrics are measured on the same
+checkpoint/data revision, NanaLive A/B evidence exists, and the runtime report identifies an
+actual RTX 4060 with TensorRT FP16 active. Maxine alone may be explicitly unavailable when its
+license or runtime cannot be approved; the other named baselines must be measured.

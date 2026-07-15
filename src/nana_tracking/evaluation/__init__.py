@@ -1,5 +1,6 @@
 """Tracking model evaluation APIs."""
 
+from nana_tracking.evaluation.acceptance import validate_face_basic_acceptance
 from nana_tracking.evaluation.evaluator import evaluate
 from nana_tracking.evaluation.failures import FailureSample, render_failure_report
 from nana_tracking.evaluation.runtime import benchmark_face_basic_package
@@ -11,4 +12,5 @@ __all__ = [
     "benchmark_face_basic_package",
     "evaluate",
     "render_failure_report",
+    "validate_face_basic_acceptance",
 ]

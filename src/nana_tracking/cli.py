@@ -19,6 +19,7 @@ from nana_tracking.evaluation import (
     FailureSample,
     benchmark_face_basic_package,
     render_failure_report,
+    validate_face_basic_acceptance,
 )
 from nana_tracking.evaluation import (
     evaluate as evaluate_model,
@@ -124,6 +125,18 @@ def render_failures_command(
     loaded = FailureSample.load_jsonl(samples)
     render_failure_report(loaded, output)
     _print_json({"output": output, "sample_count": len(loaded)})
+
+
+@evaluation_app.command("validate-face-basic-acceptance")
+def validate_face_basic_acceptance_command(
+    bundle: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+) -> None:
+    """Validate all Issue #7 production evidence as one digest-pinned bundle."""
+
+    result = validate_face_basic_acceptance(bundle)
+    _print_json(result.model_dump(mode="json"))
+    if not result.passed:
+        raise typer.Exit(code=1)
 
 
 @app.command("train")
