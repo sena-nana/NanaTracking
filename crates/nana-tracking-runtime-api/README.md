@@ -5,6 +5,10 @@ sessions. It intentionally depends on no ML runtime and exposes only bytes, nume
 timestamps, revisions, provider identity, and structured errors. Backend crates own their tensor,
 device, stream, cache, and engine types.
 
+Inputs carry capture time and backend processing-start time in one monotonic clock domain. This
+lets a backend include mailbox or scheduler delay in `produced_timestamp_ns` instead of pretending
+inference began at capture, while stage telemetry remains split by backend work.
+
 Tracked scalars and structures keep value presence, confidence, state, capture timestamp, and
 prediction horizon separate. `Occluded`, `OutOfFrame`, and `TrackingLost` therefore remain
 distinguishable from `Unsupported` without inserting a numeric zero.

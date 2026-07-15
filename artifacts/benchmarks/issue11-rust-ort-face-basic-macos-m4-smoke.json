@@ -12,7 +12,8 @@
     "relative_tolerance": 0.0001
   },
   "git": {
-    "base_commit": "13a5ae97944675883ba6a06ddbf00adf27668ad1",
+    "base_commit": "f81ec1f816dfbbdbd939962469695125f9f13563",
+    "uv_lock_sha256": "968b7e79b8f115b23ab9db182d1576c82fa39485644a7843433800bfe824f7ad",
     "working_tree_dirty_during_measurement": true
   },
   "hardware": {
@@ -28,21 +29,11 @@
   },
   "measurement": {
     "iterations": 2000,
-    "preprocess_ns": {
-      "p50": 4542,
-      "p95": 5167,
-      "p99": 5791
-    },
-    "readback_ns": {
-      "p50": 625,
-      "p95": 750,
-      "p99": 833
-    },
-    "session_inference_ns": {
-      "p50": 119334,
-      "p95": 132916,
-      "p99": 143833
-    },
+    "preprocess_ns": {"p50": 3250, "p95": 5167, "p99": 5792},
+    "readback_ns": {"p50": 375, "p95": 500, "p99": 583},
+    "result_age_ns": {"p50": 50123834, "p95": 50134667, "p99": 50154166},
+    "session_inference_ns": {"p50": 120041, "p95": 130375, "p99": 147833},
+    "synthetic_pre_backend_wait_ns": 50000000,
     "warmup_iterations": 100
   },
   "model": {
@@ -51,7 +42,7 @@
     "source_checkpoint_digest": "4208931a2875c6492e78ac1ec450e8d7ece5cf760e1acc070371188d135b9dd8",
     "version": "0.1.0-smoke"
   },
-  "note": "Synthetic fixed-input smoke only; not real tracking quality or target-device acceptance.",
-  "schema_version": "rust-ort-face-basic-smoke-benchmark/1.0.0",
+  "note": "Synthetic fixed-input smoke with an explicit 50 ms pre-backend wait; not real tracking quality or target-device acceptance.",
+  "schema_version": "rust-ort-face-basic-smoke-benchmark/1.1.0",
   "smoke_only": true
 }

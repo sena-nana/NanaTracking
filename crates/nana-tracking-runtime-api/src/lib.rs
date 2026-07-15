@@ -127,6 +127,8 @@ pub struct TrackingModelInput<'a> {
     pub height: usize,
     pub row_stride: usize,
     pub capture_timestamp_ns: u64,
+    /// Backend processing start in the same monotonic clock domain as capture time.
+    pub processing_started_timestamp_ns: u64,
     pub generation: u32,
 }
 
@@ -149,6 +151,7 @@ impl TrackingModelInput<'_> {
             || self.height == 0
             || self.row_stride < minimum_stride
             || self.rgb.len() < minimum_bytes
+            || self.processing_started_timestamp_ns < self.capture_timestamp_ns
         {
             return Err(TrackingRuntimeError::InvalidInput);
         }

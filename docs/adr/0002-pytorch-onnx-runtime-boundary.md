@@ -13,8 +13,10 @@ and resource evidence.
 NTP, Signal Registry, conformance, semantics, fusion, and the stable runtime API expose no
 PyTorch tensor, ONNX Runtime value, TensorRT binding, Core ML object, Burn tensor, or Candle type.
 `nana-tracking-runtime-api` owns borrowed byte inputs, caller-owned numeric output storage,
-capture/generation state, actual provider identity, stage timing, model metadata, and structured
-backend-neutral errors. Backend crates alone own sessions, devices, streams, command queues,
+capture/processing-start/generation state, actual provider identity, stage timing, model metadata,
+and structured backend-neutral errors. Capture and processing-start timestamps share one monotonic
+clock domain, so produced time includes scheduler/mailbox wait rather than only backend execution.
+Backend crates alone own sessions, devices, streams, command queues,
 bindings, engine caches, and small-result readback.
 
 `nana-tracking-runtime-ort` is the first real backend implementation. It verifies the portable
@@ -62,6 +64,10 @@ interfaces backend-specific.
 Real TensorRT, DirectML, Core ML, Metal, and optional Burn acceptance remains device-specific.
 CPU or synthetic evidence cannot certify those paths.
 
-The checked-in macOS CPU measurement is
-`artifacts/benchmarks/issue11-rust-ort-face-basic-macos-m4-smoke.json`. It is synthetic fixed-input
-smoke evidence for the Rust adapter and is not tracking-quality or target-device acceptance.
+The checked-in macOS CPU measurements are
+`artifacts/benchmarks/issue11-rust-ort-face-basic-macos-m4-smoke.json` and
+`artifacts/benchmarks/issue11-rust-ort-spatial-full-macos-m4-smoke.json`. Their v1.1 result-age
+fields include an explicit synthetic 50 ms pre-backend wait; Spatial plus Full uses sequential
+processing-start timestamps so the second stage is not hidden or counted twice. These are synthetic
+fixed-input smoke evidence for the Rust adapter and are not tracking-quality or target-device
+acceptance.

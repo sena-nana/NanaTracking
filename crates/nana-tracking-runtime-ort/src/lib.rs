@@ -328,7 +328,11 @@ impl TrackingModelSession for OrtFaceBasicSession {
 
         let readback_started = Instant::now();
         populate_basic(&extract_basic(&values)?, input.capture_timestamp_ns, output)?;
-        finish_output(input.capture_timestamp_ns, readback_started, output);
+        finish_output(
+            input.processing_started_timestamp_ns,
+            readback_started,
+            output,
+        );
         Ok(())
     }
 
@@ -413,7 +417,11 @@ impl TrackingModelSession for OrtFaceSpatialSession {
             input.capture_timestamp_ns,
             output,
         )?;
-        finish_output(input.capture_timestamp_ns, readback_started, output);
+        finish_output(
+            input.processing_started_timestamp_ns,
+            readback_started,
+            output,
+        );
         Ok(())
     }
 
@@ -488,6 +496,9 @@ impl OrtFullSetSession {
         input.validate()?;
         validate_spatial_fusion_input(input.capture_timestamp_ns, output)?;
         output.provider = ActiveProvider::OnnxRuntimeCpu;
+        let prior_preprocess_ns = output.preprocess_ns;
+        let prior_inference_ns = output.inference_ns;
+        let prior_readback_ns = output.readback_ns;
 
         let preprocess_started = Instant::now();
         self.inner.preprocess(&input);
@@ -510,11 +521,15 @@ impl OrtFullSetSession {
         output.readback_ns = output
             .readback_ns
             .saturating_add(elapsed_ns(readback_started));
-        output.produced_timestamp_ns = input
-            .capture_timestamp_ns
-            .saturating_add(output.preprocess_ns)
-            .saturating_add(output.inference_ns)
-            .saturating_add(output.readback_ns);
+        let extension_elapsed_ns = output
+            .preprocess_ns
+            .saturating_sub(prior_preprocess_ns)
+            .saturating_add(output.inference_ns.saturating_sub(prior_inference_ns))
+            .saturating_add(output.readback_ns.saturating_sub(prior_readback_ns));
+        output.produced_timestamp_ns = output.produced_timestamp_ns.max(completion_timestamp(
+            input.processing_started_timestamp_ns,
+            extension_elapsed_ns,
+        ));
         Ok(())
     }
 }
@@ -1286,15 +1301,21 @@ fn clamp_confidence(value: f32) -> f32 {
 }
 
 fn finish_output(
-    capture_timestamp_ns: u64,
+    processing_started_timestamp_ns: u64,
     readback_started: Instant,
     output: &mut TrackingModelOutput,
 ) {
     output.readback_ns = elapsed_ns(readback_started);
-    output.produced_timestamp_ns = capture_timestamp_ns
-        .saturating_add(output.preprocess_ns)
+    let backend_elapsed_ns = output
+        .preprocess_ns
         .saturating_add(output.inference_ns)
         .saturating_add(output.readback_ns);
+    output.produced_timestamp_ns =
+        completion_timestamp(processing_started_timestamp_ns, backend_elapsed_ns);
+}
+
+fn completion_timestamp(processing_started_timestamp_ns: u64, backend_elapsed_ns: u64) -> u64 {
+    processing_started_timestamp_ns.saturating_add(backend_elapsed_ns)
 }
 
 fn elapsed_ns(started: Instant) -> u64 {
@@ -1319,6 +1340,17 @@ fn shape_error(model: &str) -> TrackingRuntimeError {
 mod tests {
     use super::*;
     use ndarray::{Array1, ArrayD};
+
+    #[test]
+    fn completion_time_includes_queue_delay_without_double_counting_prior_stage() {
+        let capture_timestamp_ns = 1_000;
+        let spatial_processing_started_ns = 1_050;
+        let spatial_completed_ns = completion_timestamp(spatial_processing_started_ns, 30);
+        assert_eq!(spatial_completed_ns - capture_timestamp_ns, 80);
+
+        let full_completed_ns = spatial_completed_ns.max(completion_timestamp(1_100, 40));
+        assert_eq!(full_completed_ns, 1_140);
+    }
 
     #[test]
     fn spatial_mapping_preserves_state_and_normalizes_geometry() {

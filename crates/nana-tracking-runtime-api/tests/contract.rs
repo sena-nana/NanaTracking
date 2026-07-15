@@ -12,6 +12,25 @@ fn borrowed_rgb_contract_rejects_truncation_without_backend_types() {
         height: 3,
         row_stride: 6,
         capture_timestamp_ns: 10,
+        processing_started_timestamp_ns: 10,
+        generation: 0,
+    };
+    assert!(matches!(
+        input.validate(),
+        Err(TrackingRuntimeError::InvalidInput)
+    ));
+}
+
+#[test]
+fn input_requires_one_monotonic_clock_domain_for_result_age() {
+    let rgb = [0_u8; 18];
+    let input = TrackingModelInput {
+        rgb: &rgb,
+        width: 2,
+        height: 3,
+        row_stride: 6,
+        capture_timestamp_ns: 11,
+        processing_started_timestamp_ns: 10,
         generation: 0,
     };
     assert!(matches!(

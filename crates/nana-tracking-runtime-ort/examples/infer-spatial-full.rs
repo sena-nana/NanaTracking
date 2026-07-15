@@ -56,6 +56,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut spatial_inference = Vec::with_capacity(MEASURED_ITERATIONS);
     let mut spatial_readback = Vec::with_capacity(MEASURED_ITERATIONS);
     let mut spatial_total = Vec::with_capacity(MEASURED_ITERATIONS);
+    let mut spatial_result_age = Vec::with_capacity(MEASURED_ITERATIONS);
     for _ in 0..MEASURED_ITERATIONS {
         infer_spatial(
             &mut spatial,
@@ -68,6 +69,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         spatial_inference.push(output.inference_ns);
         spatial_readback.push(output.readback_ns);
         spatial_total.push(output.preprocess_ns + output.inference_ns + output.readback_ns);
+        spatial_result_age.push(output.produced_timestamp_ns - CAPTURE_TIMESTAMP_NS);
     }
     let spatial_template = output.clone();
 
@@ -79,6 +81,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut full_inference = Vec::with_capacity(MEASURED_ITERATIONS);
     let mut full_readback = Vec::with_capacity(MEASURED_ITERATIONS);
     let mut full_total = Vec::with_capacity(MEASURED_ITERATIONS);
+    let mut fused_result_age = Vec::with_capacity(MEASURED_ITERATIONS);
     for _ in 0..MEASURED_ITERATIONS {
         output.clone_from(&spatial_template);
         let prior_preprocess_ns = output.preprocess_ns;
@@ -92,6 +95,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         full_inference.push(inference_ns);
         full_readback.push(readback_ns);
         full_total.push(preprocess_ns + inference_ns + readback_ns);
+        fused_result_age.push(output.produced_timestamp_ns - CAPTURE_TIMESTAMP_NS);
     }
     let supported = output.signals.iter().take(76).flatten().count();
     if supported != 76
@@ -106,7 +110,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("fused runtime output did not contain signals 1..76 and geometry state".into());
     }
     println!(
-        "provider={:?} signals={supported} spatial_parity_outputs={} full_parity_outputs={} spatial_preprocess_ns={:?} spatial_inference_ns={:?} spatial_readback_ns={:?} spatial_total_ns={:?} full_preprocess_ns={:?} full_inference_ns={:?} full_readback_ns={:?} full_total_ns={:?}",
+        "provider={:?} signals={supported} spatial_parity_outputs={} full_parity_outputs={} spatial_preprocess_ns={:?} spatial_inference_ns={:?} spatial_readback_ns={:?} spatial_total_ns={:?} spatial_result_age_ns={:?} full_preprocess_ns={:?} full_inference_ns={:?} full_readback_ns={:?} full_total_ns={:?} fused_result_age_ns={:?}",
         output.provider,
         spatial_parity.len(),
         full_parity.len(),
@@ -114,10 +118,12 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         percentiles(spatial_inference),
         percentiles(spatial_readback),
         percentiles(spatial_total),
+        percentiles(spatial_result_age),
         percentiles(full_preprocess),
         percentiles(full_inference),
         percentiles(full_readback),
         percentiles(full_total),
+        percentiles(fused_result_age),
     );
     Ok(())
 }
@@ -129,7 +135,10 @@ fn infer_spatial(
     height: usize,
     output: &mut TrackingModelOutput,
 ) -> Result<(), nana_tracking_runtime_api::TrackingRuntimeError> {
-    session.infer(model_input(rgb, width, height), output)
+    session.infer(
+        model_input(rgb, width, height, CAPTURE_TIMESTAMP_NS + 50_000_000),
+        output,
+    )
 }
 
 fn infer_full(
@@ -139,16 +148,25 @@ fn infer_full(
     height: usize,
     output: &mut TrackingModelOutput,
 ) -> Result<(), nana_tracking_runtime_api::TrackingRuntimeError> {
-    session.infer_fused(model_input(rgb, width, height), output)
+    session.infer_fused(
+        model_input(rgb, width, height, output.produced_timestamp_ns),
+        output,
+    )
 }
 
-fn model_input(rgb: &[u8], width: usize, height: usize) -> TrackingModelInput<'_> {
+fn model_input(
+    rgb: &[u8],
+    width: usize,
+    height: usize,
+    processing_started_timestamp_ns: u64,
+) -> TrackingModelInput<'_> {
     TrackingModelInput {
         rgb,
         width,
         height,
         row_stride: width * 3,
         capture_timestamp_ns: CAPTURE_TIMESTAMP_NS,
+        processing_started_timestamp_ns,
         generation: 0,
     }
 }

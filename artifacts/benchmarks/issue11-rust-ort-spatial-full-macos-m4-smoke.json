@@ -19,7 +19,8 @@
     "same_capture_spatial_required": true
   },
   "git": {
-    "base_commit": "45bb091e6831be9a0f10a5ea26a47ba3ab182a97",
+    "base_commit": "f81ec1f816dfbbdbd939962469695125f9f13563",
+    "uv_lock_sha256": "968b7e79b8f115b23ab9db182d1576c82fa39485644a7843433800bfe824f7ad",
     "working_tree_dirty_during_measurement": true
   },
   "hardware": {
@@ -30,20 +31,23 @@
   "measurement": {
     "full_extension": {
       "input_shape": [1, 3, 96, 96],
-      "preprocess_ns": {"p50": 10875, "p95": 10959, "p99": 11167},
-      "readback_and_fusion_ns": {"p50": 1125, "p95": 1208, "p99": 1375},
-      "session_inference_ns": {"p50": 221458, "p95": 234333, "p99": 261250},
-      "stage_total_ns": {"p50": 233457, "p95": 246126, "p99": 275500}
+      "preprocess_ns": {"p50": 10833, "p95": 10917, "p99": 11083},
+      "readback_and_fusion_ns": {"p50": 1166, "p95": 1250, "p99": 1333},
+      "session_inference_ns": {"p50": 223208, "p95": 234709, "p99": 265542},
+      "stage_total_ns": {"p50": 233875, "p95": 245667, "p99": 276626}
     },
+    "fused_result_age_ns": {"p50": 50370833, "p95": 50382625, "p99": 50413584},
     "iterations": 2000,
     "source": "constant uint8 RGB synthetic smoke frames",
     "spatial": {
       "input_shape": [1, 3, 64, 64],
-      "preprocess_ns": {"p50": 4583, "p95": 4625, "p99": 4709},
-      "readback_ns": {"p50": 917, "p95": 1000, "p99": 1125},
-      "session_inference_ns": {"p50": 128292, "p95": 138042, "p99": 147875},
-      "stage_total_ns": {"p50": 133750, "p95": 143541, "p99": 154167}
+      "preprocess_ns": {"p50": 4583, "p95": 4625, "p99": 4667},
+      "readback_ns": {"p50": 916, "p95": 959, "p99": 1083},
+      "session_inference_ns": {"p50": 129042, "p95": 136042, "p99": 151625},
+      "stage_total_ns": {"p50": 134500, "p95": 140792, "p99": 157125}
     },
+    "spatial_result_age_ns": {"p50": 50134500, "p95": 50140792, "p99": 50157125},
+    "synthetic_pre_backend_wait_ns": 50000000,
     "warmup_iterations": 100
   },
   "models": {
@@ -60,7 +64,7 @@
       "version": "0.1.0-smoke"
     }
   },
-  "note": "Synthetic fixed-input smoke only; not real tracking quality, detector/capture latency, or target-device acceptance.",
-  "schema_version": "rust-ort-spatial-full-smoke-benchmark/1.0.0",
+  "note": "Synthetic fixed-input smoke with an explicit 50 ms pre-backend wait; not real tracking quality, detector/capture latency, or target-device acceptance.",
+  "schema_version": "rust-ort-spatial-full-smoke-benchmark/1.1.0",
   "smoke_only": true
 }

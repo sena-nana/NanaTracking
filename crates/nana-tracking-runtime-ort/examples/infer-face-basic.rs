@@ -29,23 +29,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut preprocess = Vec::with_capacity(2_000);
     let mut inference = Vec::with_capacity(2_000);
     let mut readback = Vec::with_capacity(2_000);
+    let mut result_age = Vec::with_capacity(2_000);
     for _ in 0..2_000 {
         infer_once(&mut session, &rgb, width, height, &mut output)?;
         preprocess.push(output.preprocess_ns);
         inference.push(output.inference_ns);
         readback.push(output.readback_ns);
+        result_age.push(output.produced_timestamp_ns - 1_000_000_000);
     }
     let supported = output.signals.iter().flatten().count();
     if supported != 36 || output.geometry.head_camera_pose.state.is_unsupported() {
         return Err("runtime output did not contain a complete FaceBasic result".into());
     }
     println!(
-        "provider={:?} signals={supported} parity_outputs={} preprocess_ns={:?} inference_ns={:?} readback_ns={:?}",
+        "provider={:?} signals={supported} parity_outputs={} preprocess_ns={:?} inference_ns={:?} readback_ns={:?} result_age_ns={:?}",
         output.provider,
         parity.len(),
         percentiles(preprocess),
         percentiles(inference),
-        percentiles(readback)
+        percentiles(readback),
+        percentiles(result_age)
     );
     Ok(())
 }
@@ -64,6 +67,7 @@ fn infer_once(
             height,
             row_stride: width * 3,
             capture_timestamp_ns: 1_000_000_000,
+            processing_started_timestamp_ns: 1_050_000_000,
             generation: 0,
         },
         output,
