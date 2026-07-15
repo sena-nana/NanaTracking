@@ -517,9 +517,9 @@ impl LayoutNegotiator {
         producer: &NanaTrackingDescriptor,
         now_ns: u64,
     ) -> Result<LayoutAccept, HandshakeError> {
-        if let Some(last) = self.last_proposal_ns
-            && (now_ns < last || now_ns.saturating_sub(last) < self.limits.min_proposal_interval_ns)
-        {
+        if self.last_proposal_ns.is_some_and(|last| {
+            now_ns < last || now_ns.saturating_sub(last) < self.limits.min_proposal_interval_ns
+        }) {
             return Err(HandshakeError::RateLimited);
         }
         self.last_proposal_ns = Some(now_ns);

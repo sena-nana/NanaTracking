@@ -346,10 +346,10 @@ fn validate_geometry(
         produced_timestamp_ns,
         validate_pose,
     )?;
-    if let Some(pose) = &geometry.head_camera_pose.value
-        && pose.parent_space != crate::types::CoordinateSpace::Camera
-    {
-        return Err(ContractError::InvalidCoordinateBinding("head camera pose"));
+    if let Some(pose) = &geometry.head_camera_pose.value {
+        if pose.parent_space != crate::types::CoordinateSpace::Camera {
+            return Err(ContractError::InvalidCoordinateBinding("head camera pose"));
+        }
     }
     for (eye, side) in [
         (&geometry.eyes.left, "left eye"),
@@ -367,16 +367,17 @@ fn validate_geometry(
             produced_timestamp_ns,
             validate_direction,
         )?;
-        if let Some(origin) = &eye.origin_head.value
-            && (origin.space != crate::types::CoordinateSpace::HeadLocal
-                || origin.length_basis != crate::types::LengthBasis::HeadRelative)
-        {
-            return Err(ContractError::InvalidCoordinateBinding(side));
+        if let Some(origin) = &eye.origin_head.value {
+            if origin.space != crate::types::CoordinateSpace::HeadLocal
+                || origin.length_basis != crate::types::LengthBasis::HeadRelative
+            {
+                return Err(ContractError::InvalidCoordinateBinding(side));
+            }
         }
-        if let Some(direction) = &eye.direction_head.value
-            && direction.space != crate::types::CoordinateSpace::HeadLocal
-        {
-            return Err(ContractError::InvalidCoordinateBinding(side));
+        if let Some(direction) = &eye.direction_head.value {
+            if direction.space != crate::types::CoordinateSpace::HeadLocal {
+                return Err(ContractError::InvalidCoordinateBinding(side));
+            }
         }
     }
     validate_tracked(
@@ -385,10 +386,10 @@ fn validate_geometry(
         produced_timestamp_ns,
         validate_position,
     )?;
-    if let Some(position) = &geometry.look_at_camera.value
-        && position.space != crate::types::CoordinateSpace::Camera
-    {
-        return Err(ContractError::InvalidCoordinateBinding("look-at point"));
+    if let Some(position) = &geometry.look_at_camera.value {
+        if position.space != crate::types::CoordinateSpace::Camera {
+            return Err(ContractError::InvalidCoordinateBinding("look-at point"));
+        }
     }
     let mut previous = 0;
     for landmark in &geometry.face_landmarks {
@@ -402,11 +403,12 @@ fn validate_geometry(
             produced_timestamp_ns,
             validate_position,
         )?;
-        if let Some(position) = &landmark.position_head.value
-            && (position.space != crate::types::CoordinateSpace::HeadLocal
-                || position.length_basis != crate::types::LengthBasis::HeadRelative)
-        {
-            return Err(ContractError::InvalidCoordinateBinding("face landmark"));
+        if let Some(position) = &landmark.position_head.value {
+            if position.space != crate::types::CoordinateSpace::HeadLocal
+                || position.length_basis != crate::types::LengthBasis::HeadRelative
+            {
+                return Err(ContractError::InvalidCoordinateBinding("face landmark"));
+            }
         }
     }
     Ok(())
@@ -422,10 +424,10 @@ fn validate_skeleton(
         produced_timestamp_ns,
         validate_pose,
     )?;
-    if let Some(pose) = &skeleton.torso_camera_pose.value
-        && pose.parent_space != crate::types::CoordinateSpace::Camera
-    {
-        return Err(ContractError::InvalidCoordinateBinding("torso camera pose"));
+    if let Some(pose) = &skeleton.torso_camera_pose.value {
+        if pose.parent_space != crate::types::CoordinateSpace::Camera {
+            return Err(ContractError::InvalidCoordinateBinding("torso camera pose"));
+        }
     }
     for (joint, name) in [
         (&skeleton.shoulder.left, "left shoulder"),
@@ -436,17 +438,17 @@ fn validate_skeleton(
         (&skeleton.wrist.right, "right wrist"),
     ] {
         validate_tracked(joint, name, produced_timestamp_ns, validate_pose)?;
-        if let Some(pose) = &joint.value
-            && pose.parent_space != crate::types::CoordinateSpace::TorsoLocal
-        {
-            return Err(ContractError::InvalidCoordinateBinding(name));
+        if let Some(pose) = &joint.value {
+            if pose.parent_space != crate::types::CoordinateSpace::TorsoLocal {
+                return Err(ContractError::InvalidCoordinateBinding(name));
+            }
         }
-        if let (Some(torso), Some(pose)) = (&skeleton.torso_camera_pose.value, &joint.value)
-            && pose.length_basis != torso.length_basis
-        {
-            return Err(ContractError::InvalidCoordinateBinding(
-                "mixed body skeleton length bases",
-            ));
+        if let (Some(torso), Some(pose)) = (&skeleton.torso_camera_pose.value, &joint.value) {
+            if pose.length_basis != torso.length_basis {
+                return Err(ContractError::InvalidCoordinateBinding(
+                    "mixed body skeleton length bases",
+                ));
+            }
         }
     }
     for (direction, name) in [
@@ -456,10 +458,10 @@ fn validate_skeleton(
         (&skeleton.forearm_direction_torso.right, "right forearm"),
     ] {
         validate_tracked(direction, name, produced_timestamp_ns, validate_direction)?;
-        if let Some(direction) = &direction.value
-            && direction.space != crate::types::CoordinateSpace::TorsoLocal
-        {
-            return Err(ContractError::InvalidCoordinateBinding(name));
+        if let Some(direction) = &direction.value {
+            if direction.space != crate::types::CoordinateSpace::TorsoLocal {
+                return Err(ContractError::InvalidCoordinateBinding(name));
+            }
         }
     }
     for (twist, name) in [
@@ -491,10 +493,10 @@ impl NanaTrackingDescriptor {
     pub fn validate_result(&self, result: &NanaTrackingResult) -> Result<(), ContractError> {
         self.validate()?;
         result.validate()?;
-        if self.revisions.signal_registry == crate::revision::Revision::V1_0_0
-            && let Some(landmark) = result.geometry.face_landmarks.first()
-        {
-            return Err(ContractError::UnassignedLandmark(landmark.semantic_id));
+        if self.revisions.signal_registry == crate::revision::Revision::V1_0_0 {
+            if let Some(landmark) = result.geometry.face_landmarks.first() {
+                return Err(ContractError::UnassignedLandmark(landmark.semantic_id));
+            }
         }
         for (id, sample) in result.rig.iter() {
             let declared = self.supported_signals.contains(id);
