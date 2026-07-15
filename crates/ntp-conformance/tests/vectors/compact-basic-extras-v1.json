@@ -1,0 +1,22 @@
+{
+  "schema": "ntp.compact-layout-vector/1",
+  "layout_id": 7,
+  "protocol_version": "1.0",
+  "schema_revision": 1,
+  "signal_registry_revision": "1.0.0",
+  "base_profile": "Basic",
+  "base_layout_version": 1,
+  "value_encoding": "I16Normalized",
+  "quality_encoding": "StateAndConfidenceU8",
+  "target_fps": 120,
+  "extra_signal_ids": [37, 41],
+  "ordered_signal_ids": [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12,
+    13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24,
+    25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
+    37, 41
+  ],
+  "parameter_count": 38,
+  "expected_payload_len": 208,
+  "layout_hash_hex": "811f997a071505da019d41b100f6b1dbab6d8b58cc48b9f0ce5d17f3e5b29d43"
+}

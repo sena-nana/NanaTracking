@@ -14,6 +14,8 @@ nana-tracking-semantics = { version = "0.1.0", path = "../nana-tracking-semantic
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0.149"
 
+[dev-dependencies]
+stats_alloc = "0.1.10"
+
 [lints]
 workspace = true
-

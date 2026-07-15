@@ -80,6 +80,7 @@ profiles.
 - [Spatial same-capture fusion contract](docs/contracts/spatial-fusion-v1.md)
 - [ADR 0001: Vendor parameters are adapters, not NTP](docs/adr/0001-vendor-parameters-are-adapters.md)
 - [ADR 0002: PyTorch authority and portable runtime boundary](docs/adr/0002-pytorch-onnx-runtime-boundary.md)
+- [ADR 0003: Negotiated immutable compact frames](docs/adr/0003-negotiated-compact-frames.md)
 - [Commercial dataset and two-stage expression strategy](docs/training/dataset-strategy.md)
 
 ## Training data and evaluation

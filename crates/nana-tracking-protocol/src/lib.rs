@@ -5,6 +5,7 @@ extern crate alloc;
 
 pub mod capability;
 pub mod codec;
+pub mod compact;
 #[cfg(feature = "diagnostic-json")]
 pub mod diagnostic;
 pub mod ffi;
@@ -18,6 +19,7 @@ pub use capability::{
     NanaTrackingDescriptor, StructureFeatures, TrackingFeatures, TrackingProfile,
 };
 pub use codec::{CanonicalCodec, CodecError, WireDecode, WireEncode};
+pub use compact::*;
 pub use revision::{ContractRevisions, ProtocolVersion, Revision};
 pub use signal::{
     STABLE_SIGNAL_COUNT, ScalarType, SignalBitSet, SignalId, SignalMetadata, StableSet,

@@ -16,6 +16,7 @@ diagnostic-json = ["std", "dep:serde_json"]
 [dependencies]
 serde = { version = "1.0.228", default-features = false, features = ["alloc", "derive"] }
 serde_json = { version = "1.0.149", optional = true }
+sha2 = { version = "0.10.9", default-features = false }
 
 [lints]
 workspace = true

@@ -56,6 +56,17 @@ sample and structure views are safely unavailable rather than falsely observed.
 Diagnostic JSON is behind the `diagnostic-json` feature and is explicitly non-canonical. Consumers
 must not use JSON as the network, storage, equality, or signature format.
 
+## Negotiated live compact frames
+
+The canonical codec is not the high-frequency network representation. Live scalar streaming uses
+the separately versioned `NTC1` codec after an immutable `ActiveLayout` is validated and confirmed.
+Frames have a fixed 56-byte header, a dense ordered `i16` value plane, and the confirmed fixed-width
+quality plane; per-frame Signal IDs, counts, offsets, maps, and nullable objects are forbidden.
+Layout hashing, quantization, exact-size parsing, bounded negotiation, replay/time guards, recording
+requirements, and transport ownership are frozen in [ADR 0003](../adr/0003-negotiated-compact-frames.md).
+The canonical `NTP1` result remains the owned/debug/structured contract and is never confused with
+the compact data plane.
+
 ## Session safety
 
 `ResultStreamGuard` accepts only the negotiated `session_id` and `generation`, and requires strictly
