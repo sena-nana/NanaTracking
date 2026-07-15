@@ -3,8 +3,9 @@ use nana_tracking_protocol::{
     CompactRecordingSink, CompactSample, CompactStreamError, CompactStreamGuard,
     CompactStreamPolicy, ContractRevisions, HandshakeError, HandshakeLimits, LatestFrame,
     LayoutError, LayoutLimits, LayoutNegotiator, LayoutProposal, LayoutRecord,
-    NanaTrackingDescriptor, QualityEncoding, RecordingError, ScalarType, SessionId, SignalBitSet,
-    SignalId, SignalMetadata, SignalState, StructureFeatures, TrackingFeatures, TrackingProfile,
+    NanaTrackingDescriptor, ProducerClockEstimate, QualityEncoding, RecordingError, ScalarType,
+    SessionId, SignalBitSet, SignalId, SignalMetadata, SignalState, StructureFeatures,
+    TrackingFeatures, TrackingProfile,
 };
 use serde::Deserialize;
 
@@ -42,6 +43,10 @@ impl CompactRecordingSink for MemoryRecording {
 
 fn session(value: u8) -> SessionId {
     SessionId([value; 16])
+}
+
+fn producer_clock(now_ns: u64) -> ProducerClockEstimate {
+    ProducerClockEstimate::synchronized(now_ns, 0)
 }
 
 fn basic_descriptor(last_signal: u16) -> NanaTrackingDescriptor {
@@ -486,7 +491,37 @@ fn malformed_frames_are_rejected_by_exact_structure_and_semantics() {
 }
 
 #[test]
-fn stream_guard_requires_confirmation_and_rejects_replay_time_and_layout_switch_errors() {
+fn stream_guard_requires_a_bounded_producer_clock_estimate() {
+    let layout = basic_layout(3);
+    let policy = CompactStreamPolicy {
+        max_clock_uncertainty_ns: 2,
+        ..CompactStreamPolicy::default()
+    };
+    let mut guard =
+        CompactStreamGuard::confirmed(session(1), 4, layout.clone(), layout.confirmation(), policy)
+            .unwrap();
+    let frame = encode(&layout, session(1), 4, 10, 100);
+
+    assert_eq!(
+        guard
+            .accept(&frame, ProducerClockEstimate::synchronized(101, 3))
+            .unwrap_err(),
+        CompactStreamError::ClockUncertaintyExceeded {
+            maximum: 2,
+            actual: 3
+        }
+    );
+    assert_eq!(
+        guard
+            .accept(&frame, ProducerClockEstimate::synchronized(101, 2))
+            .unwrap()
+            .sequence,
+        10
+    );
+}
+
+#[test]
+fn stream_guard_requires_layout_confirmation() {
     let layout = basic_layout(3);
     let mut wrong_confirmation = layout.confirmation();
     wrong_confirmation.layout_hash[0] ^= 1;
@@ -500,10 +535,15 @@ fn stream_guard_requires_confirmation_and_rejects_replay_time_and_layout_switch_
         ),
         Err(CompactStreamError::ConfirmationMismatch)
     ));
+}
 
+#[test]
+fn stream_guard_rejects_replay_time_and_layout_switch_errors() {
+    let layout = basic_layout(3);
     let policy = CompactStreamPolicy {
         max_frame_age_ns: 20,
         max_future_skew_ns: 5,
+        max_clock_uncertainty_ns: 2,
         max_sequence_gap: 2,
         max_capture_jump_ns: 10,
     };
@@ -511,39 +551,45 @@ fn stream_guard_requires_confirmation_and_rejects_replay_time_and_layout_switch_
         CompactStreamGuard::confirmed(session(1), 4, layout.clone(), layout.confirmation(), policy)
             .unwrap();
     let first = encode(&layout, session(1), 4, 10, 100);
-    assert_eq!(guard.accept(&first, 101).unwrap().sequence, 10);
+    assert_eq!(
+        guard.accept(&first, producer_clock(101)).unwrap().sequence,
+        10
+    );
     assert!(matches!(
-        guard.accept(&first, 101),
+        guard.accept(&first, producer_clock(101)),
         Err(CompactStreamError::DuplicateOrReplay { .. })
     ));
 
     let gap = encode(&layout, session(1), 4, 14, 101);
     assert_eq!(
-        guard.accept(&gap, 102).unwrap_err(),
+        guard.accept(&gap, producer_clock(102)).unwrap_err(),
         CompactStreamError::SequenceGapTooLarge
     );
     let next = encode(&layout, session(1), 4, 11, 102);
-    assert_eq!(guard.accept(&next, 103).unwrap().sequence, 11);
+    assert_eq!(
+        guard.accept(&next, producer_clock(103)).unwrap().sequence,
+        11
+    );
 
     let regressed = encode(&layout, session(1), 4, 12, 101);
     assert_eq!(
-        guard.accept(&regressed, 103).unwrap_err(),
+        guard.accept(&regressed, producer_clock(103)).unwrap_err(),
         CompactStreamError::CaptureTimestampRegressed
     );
     let jumped = encode(&layout, session(1), 4, 12, 120);
     assert_eq!(
-        guard.accept(&jumped, 120).unwrap_err(),
+        guard.accept(&jumped, producer_clock(120)).unwrap_err(),
         CompactStreamError::CaptureTimestampJump
     );
 
     let stale = encode(&layout, session(1), 4, 12, 50);
     assert_eq!(
-        guard.accept(&stale, 100).unwrap_err(),
+        guard.accept(&stale, producer_clock(100)).unwrap_err(),
         CompactStreamError::StaleFrame
     );
     let future = encode(&layout, session(1), 4, 12, 110);
     assert_eq!(
-        guard.accept(&future, 100).unwrap_err(),
+        guard.accept(&future, producer_clock(100)).unwrap_err(),
         CompactStreamError::FutureFrame
     );
 
@@ -556,22 +602,32 @@ fn stream_guard_requires_confirmation_and_rejects_replay_time_and_layout_switch_
         .switch_layout(5, next_layout.clone(), next_layout.confirmation())
         .unwrap();
     let switched = encode(&next_layout, session(1), 5, 1, 120);
-    assert_eq!(guard.accept(&switched, 121).unwrap().sequence, 1);
+    assert_eq!(
+        guard
+            .accept(&switched, producer_clock(121))
+            .unwrap()
+            .sequence,
+        1
+    );
     let wrong_session = encode(&next_layout, session(2), 5, 2, 121);
     assert_eq!(
-        guard.accept(&wrong_session, 122).unwrap_err(),
+        guard
+            .accept(&wrong_session, producer_clock(122))
+            .unwrap_err(),
         CompactStreamError::Frame(CompactFrameError::WrongSession)
     );
     let wrong_generation = encode(&next_layout, session(1), 4, 2, 121);
     assert_eq!(
-        guard.accept(&wrong_generation, 122).unwrap_err(),
+        guard
+            .accept(&wrong_generation, producer_clock(122))
+            .unwrap_err(),
         CompactStreamError::Frame(CompactFrameError::WrongGeneration {
             expected: 5,
             actual: 4
         })
     );
     assert!(matches!(
-        guard.accept(&first, 121),
+        guard.accept(&first, producer_clock(121)),
         Err(CompactStreamError::Frame(
             CompactFrameError::WrongLayout { .. }
         ))

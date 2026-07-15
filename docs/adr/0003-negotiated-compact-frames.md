@@ -70,9 +70,12 @@ legal inside an active layout; a valid neutral zero remains distinct from missin
 `LayoutNegotiator` limits pending layouts to at most two, applies a monotonic renegotiation rate
 budget, and charges invalid proposals to that budget. `CompactStreamGuard` requires confirmation,
 checks session/generation/layout, rejects replay and excessive gaps, and applies age, future-skew,
-capture-regression, and capture-jump policies without advancing state on failure. Layout switches
-must advance generation and clear sequence/time history. `LatestFrame` is a single-slot handoff and
-counts overwritten unread frames.
+capture-regression, and capture-jump policies without advancing state on failure. Since producer and
+receiver monotonic clocks have unrelated epochs, the transport adapter must pass a bounded
+`ProducerClockEstimate` mapped into the producer clock domain. The guard includes its uncertainty in
+age/skew limits and rejects estimates above the configured uncertainty ceiling. Layout switches must
+advance generation and clear sequence/time history. `LatestFrame` is a single-slot handoff and counts
+overwritten unread frames.
 
 The codec encodes into caller-owned exact-size storage and decodes as a borrowed view. It does not
 allocate per frame, recurse, build object graphs, or depend on a network implementation.
@@ -90,5 +93,6 @@ wire format.
 layout validation, handshake bounds, state/value consistency, replay, time policy, and layout
 switches. Its fuzz target feeds arbitrary bytes to both canonical codecs and a fixed confirmed
 compact layout. The release microbenchmark is synthetic smoke-only and writes the reviewed artifact
-under `artifacts/benchmarks/issue14-compact-frame-macos-arm64-smoke.json`; it does not establish
-tracking quality or production readiness.
+under `artifacts/benchmarks/issue14-compact-frame-macos-arm64-smoke.json`. Version 2 separately
+measures full stream-guard acceptance, including the producer-clock uncertainty check. It does not
+establish tracking quality or production readiness.

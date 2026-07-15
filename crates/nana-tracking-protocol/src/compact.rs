@@ -1061,10 +1061,42 @@ fn read_u64(bytes: &[u8], offset: usize) -> Result<u64, CompactFrameError> {
     ))
 }
 
+/// A transport-provided estimate of current time in the producer's monotonic clock domain.
+///
+/// Receiver-local monotonic timestamps must never be compared directly with compact frame
+/// timestamps. A connection adapter obtains this estimate from its bounded clock synchronization
+/// and carries the remaining uncertainty explicitly.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ProducerClockEstimate {
+    now_ns: u64,
+    uncertainty_ns: u64,
+}
+
+impl ProducerClockEstimate {
+    #[must_use]
+    pub const fn synchronized(now_ns: u64, uncertainty_ns: u64) -> Self {
+        Self {
+            now_ns,
+            uncertainty_ns,
+        }
+    }
+
+    #[must_use]
+    pub const fn now_ns(self) -> u64 {
+        self.now_ns
+    }
+
+    #[must_use]
+    pub const fn uncertainty_ns(self) -> u64 {
+        self.uncertainty_ns
+    }
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct CompactStreamPolicy {
     pub max_frame_age_ns: u64,
     pub max_future_skew_ns: u64,
+    pub max_clock_uncertainty_ns: u64,
     pub max_sequence_gap: u64,
     pub max_capture_jump_ns: u64,
 }
@@ -1074,6 +1106,7 @@ impl Default for CompactStreamPolicy {
         Self {
             max_frame_age_ns: u64::MAX,
             max_future_skew_ns: 0,
+            max_clock_uncertainty_ns: 0,
             max_sequence_gap: u64::MAX,
             max_capture_jump_ns: u64::MAX,
         }
@@ -1087,6 +1120,7 @@ pub enum CompactStreamError {
     Frame(CompactFrameError),
     DuplicateOrReplay { last: u64, actual: u64 },
     SequenceGapTooLarge,
+    ClockUncertaintyExceeded { maximum: u64, actual: u64 },
     StaleFrame,
     FutureFrame,
     CaptureTimestampRegressed,
@@ -1105,6 +1139,10 @@ impl fmt::Display for CompactStreamError {
                 write!(formatter, "sequence {actual} is not newer than {last}")
             }
             Self::SequenceGapTooLarge => formatter.write_str("sequence gap exceeds policy"),
+            Self::ClockUncertaintyExceeded { maximum, actual } => write!(
+                formatter,
+                "producer clock uncertainty {actual} ns exceeds policy maximum {maximum} ns"
+            ),
             Self::StaleFrame => formatter.write_str("compact frame is stale"),
             Self::FutureFrame => formatter.write_str("compact frame timestamp is in the future"),
             Self::CaptureTimestampRegressed => {
@@ -1186,6 +1224,9 @@ impl CompactStreamGuard {
     }
 
     /// Decode and accept one current, non-replayed frame under the configured time limits.
+    /// `clock` must be synchronized into the producer timestamp domain by the transport adapter;
+    /// its bounded uncertainty is included in age/skew limits rather than comparing unrelated
+    /// receiver and producer monotonic epochs.
     ///
     /// # Errors
     ///
@@ -1194,7 +1235,7 @@ impl CompactStreamGuard {
     pub fn accept<'a>(
         &'a mut self,
         bytes: &'a [u8],
-        now_ns: u64,
+        clock: ProducerClockEstimate,
     ) -> Result<CompactFrameRef<'a>, CompactStreamError> {
         let frame =
             CompactFrameCodec::decode(&self.layout, bytes).map_err(CompactStreamError::Frame)?;
@@ -1209,12 +1250,24 @@ impl CompactStreamGuard {
                 },
             ));
         }
-        if frame.capture_timestamp_ns > now_ns.saturating_add(self.policy.max_future_skew_ns)
-            || frame.produced_timestamp_ns > now_ns.saturating_add(self.policy.max_future_skew_ns)
-        {
+        if clock.uncertainty_ns > self.policy.max_clock_uncertainty_ns {
+            return Err(CompactStreamError::ClockUncertaintyExceeded {
+                maximum: self.policy.max_clock_uncertainty_ns,
+                actual: clock.uncertainty_ns,
+            });
+        }
+        let future_limit = clock
+            .now_ns
+            .saturating_add(self.policy.max_future_skew_ns)
+            .saturating_add(clock.uncertainty_ns);
+        if frame.capture_timestamp_ns > future_limit || frame.produced_timestamp_ns > future_limit {
             return Err(CompactStreamError::FutureFrame);
         }
-        if now_ns.saturating_sub(frame.capture_timestamp_ns) > self.policy.max_frame_age_ns {
+        let age_limit = self
+            .policy
+            .max_frame_age_ns
+            .saturating_add(clock.uncertainty_ns);
+        if clock.now_ns.saturating_sub(frame.capture_timestamp_ns) > age_limit {
             return Err(CompactStreamError::StaleFrame);
         }
         if let Some(last) = self.last_sequence {

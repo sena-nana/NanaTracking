@@ -5,10 +5,10 @@ use std::{
 };
 
 use nana_tracking_protocol::{
-    ActiveLayout, CompactFrameCodec, CompactFrameInput, CompactSample, LayoutLimits,
-    LayoutProposal, NanaTrackingDescriptor, NanaTrackingResult, SessionId, SignalBitSet, SignalId,
-    SignalMetadata, SignalSample, SignalState, StructureFeatures, TrackingFeatures,
-    TrackingProfile, WireDecode, WireEncode,
+    ActiveLayout, CompactFrameCodec, CompactFrameInput, CompactSample, CompactStreamGuard,
+    CompactStreamPolicy, LayoutLimits, LayoutProposal, NanaTrackingDescriptor, NanaTrackingResult,
+    ProducerClockEstimate, SessionId, SignalBitSet, SignalId, SignalMetadata, SignalSample,
+    SignalState, StructureFeatures, TrackingFeatures, TrackingProfile, WireDecode, WireEncode,
 };
 use serde::Serialize;
 use stats_alloc::{INSTRUMENTED_SYSTEM, Region, StatsAlloc};
@@ -47,6 +47,7 @@ struct Report {
     signal_count: usize,
     layout_hash_hex: String,
     compact_dense_i16: Representation,
+    compact_stream_accept: Measurement,
     per_frame_id_value: Representation,
     canonical_nullable_result: Representation,
     interpretation: [&'static str; 3],
@@ -102,6 +103,7 @@ fn main() {
     let compact_decode = measure(COMPACT_ITERATIONS, || {
         black_box(CompactFrameCodec::decode(&layout, black_box(&compact)).unwrap());
     });
+    let compact_stream_accept = measure_stream_accept(&layout, &input, &compact);
 
     let mut id_value_scratch = vec![0_u8; id_value.len()];
     let id_value_encode = measure(COMPACT_ITERATIONS, || {
@@ -119,7 +121,7 @@ fn main() {
     });
 
     let report = Report {
-        schema: "nanatracking.issue14.compact-benchmark/1",
+        schema: "nanatracking.issue14.compact-benchmark/2",
         smoke_only: true,
         host_os: std::env::consts::OS,
         host_arch: std::env::consts::ARCH,
@@ -127,6 +129,7 @@ fn main() {
         signal_count: layout.signals().len(),
         layout_hash_hex: hex(&layout.hash()),
         compact_dense_i16: representation(compact.len(), compact_encode, compact_decode),
+        compact_stream_accept,
         per_frame_id_value: representation(id_value.len(), id_value_encode, id_value_decode),
         canonical_nullable_result: representation(
             canonical_bytes.len(),
@@ -154,6 +157,39 @@ fn representation(
         encode,
         decode,
     }
+}
+
+fn measure_stream_accept(
+    layout: &ActiveLayout,
+    input: &CompactFrameInput<'_>,
+    compact: &[u8],
+) -> Measurement {
+    let mut guarded_frame = compact.to_vec();
+    let mut guard = CompactStreamGuard::confirmed(
+        input.session_id,
+        input.generation,
+        layout.clone(),
+        layout.confirmation(),
+        CompactStreamPolicy::default(),
+    )
+    .unwrap();
+    let mut sequence = input.sequence;
+    let mut timestamp = input.capture_timestamp_ns;
+    measure(COMPACT_ITERATIONS, || {
+        sequence += 1;
+        timestamp += 1;
+        guarded_frame[32..40].copy_from_slice(&sequence.to_le_bytes());
+        guarded_frame[40..48].copy_from_slice(&timestamp.to_le_bytes());
+        guarded_frame[48..56].copy_from_slice(&(timestamp + 100).to_le_bytes());
+        black_box(
+            guard
+                .accept(
+                    black_box(&guarded_frame),
+                    ProducerClockEstimate::synchronized(timestamp + 101, 0),
+                )
+                .unwrap(),
+        );
+    })
 }
 
 fn measure(iterations: u32, mut operation: impl FnMut()) -> Measurement {

@@ -1,14 +1,14 @@
 {
-  "schema": "nanatracking.issue14.compact-benchmark/1",
+  "schema": "nanatracking.issue14.compact-benchmark/2",
   "smoke_only": true,
-  "generated_at": "2026-07-15",
+  "generated_at": "2026-07-16",
   "command": "cargo run --release -p ntp-conformance --example compact_benchmark",
   "host_os": "macos",
   "host_arch": "aarch64",
   "rustc": "1.97.0 (2d8144b78 2026-07-07)",
-  "source_git_head": "3ec018218120934b72d6ad996f56f7c0de6a2b1a",
+  "source_git_head": "924279fe8b4b72122e94749befcfa4027fa679b8",
   "source_worktree_dirty": true,
-  "cargo_lock_sha256": "7f921596575a8d648b00b8cc5dbdf10dbe3922a0c6cfcc9247998d36bfea4c3d",
+  "cargo_lock_sha256": "7176339eea8e89cf43ecdbd6f227571efe6eeae9f4015d93db02331d7c38f111",
   "profile": "BasicV1+gaze.left.yaw+tongue.extension",
   "signal_count": 38,
   "layout_hash_hex": "811f997a071505da019d41b100f6b1dbab6d8b58cc48b9f0ce5d17f3e5b29d43",
@@ -28,16 +28,22 @@
     "bytes_per_second_120_fps": 24960,
     "encode": {
       "iterations": 100000,
-      "ns_per_frame": 188.69334,
+      "ns_per_frame": 281.26458,
       "allocations_total": 0,
       "bytes_allocated_total": 0
     },
     "decode": {
       "iterations": 100000,
-      "ns_per_frame": 74.28083,
+      "ns_per_frame": 89.65958,
       "allocations_total": 0,
       "bytes_allocated_total": 0
     }
+  },
+  "compact_stream_accept": {
+    "iterations": 100000,
+    "ns_per_frame": 90.34,
+    "allocations_total": 0,
+    "bytes_allocated_total": 0
   },
   "per_frame_id_value": {
     "bytes_per_frame": 284,
@@ -45,13 +51,13 @@
     "bytes_per_second_120_fps": 34080,
     "encode": {
       "iterations": 100000,
-      "ns_per_frame": 97.39333,
+      "ns_per_frame": 124.02833,
       "allocations_total": 0,
       "bytes_allocated_total": 0
     },
     "decode": {
       "iterations": 100000,
-      "ns_per_frame": 152.70917,
+      "ns_per_frame": 159.08792000000003,
       "allocations_total": 100000,
       "bytes_allocated_total": 45600000
     }
@@ -62,13 +68,13 @@
     "bytes_per_second_120_fps": 209520,
     "encode": {
       "iterations": 5000,
-      "ns_per_frame": 4923.0,
+      "ns_per_frame": 4258.0916,
       "allocations_total": 235000,
       "bytes_allocated_total": 48575000
     },
     "decode": {
       "iterations": 5000,
-      "ns_per_frame": 637.7168,
+      "ns_per_frame": 575.2666,
       "allocations_total": 5000,
       "bytes_allocated_total": 14080000
     }
@@ -77,7 +83,8 @@
     "Synthetic protocol microbenchmark only; it does not prove tracking quality or production readiness.",
     "Compact encode_into and decode reuse a validated layout and caller-owned storage.",
     "Compact is 26.8% smaller than per-frame ID/value and 88.1% smaller than the canonical nullable result.",
-    "Compact decode is 51.4% lower latency than per-frame ID/value decode in this run, with zero allocations instead of one allocation per frame.",
+    "Full CompactStreamGuard acceptance, including structure, value, replay, time, and producer-clock uncertainty checks, is 90.34 ns/frame with zero allocations.",
+    "Compact decode is 43.6% lower latency than per-frame ID/value decode in this run, with zero allocations instead of one allocation per frame.",
     "Canonical nullable results remain the owned/debug contract, not the live compact transport format."
   ]
 }
