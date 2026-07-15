@@ -1,0 +1,31 @@
+{
+  "contract": {
+    "drain_tasks": 1,
+    "latest_pending_slots": 1,
+    "processed_values": [0, 200000],
+    "submitted_while_busy": 200000,
+    "verified_dropped_values": 199999
+  },
+  "git": {
+    "base_commit": "c8785bc95cf364629f2acffaf02f0db3850a1950",
+    "working_tree_dirty_during_measurement": true
+  },
+  "hardware": {
+    "cpu": "Apple M4",
+    "os": "macOS 26.5.2 (25F84)",
+    "swift": "6.3.3"
+  },
+  "measurement": {
+    "iterations_per_run": 200000,
+    "nanoseconds_per_submit": {
+      "maximum": 46.675,
+      "median": 45.909375,
+      "minimum": 44.60417
+    },
+    "runs": 5,
+    "warmup_runs": 1
+  },
+  "note": "Synthetic macOS scheduling smoke only. It validates bounded task and pending-slot behavior, not ARKit, TrueDepth, iPhone storage, thermal, battery, or end-to-end device latency.",
+  "schema_version": "nana-ios-capture-scheduling-smoke/1.0.0",
+  "smoke_only": true
+}

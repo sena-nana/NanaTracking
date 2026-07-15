@@ -218,6 +218,44 @@ def test_raw_arkit_can_be_rederived_under_a_new_mapping_without_mutation(
     assert hashlib.sha256(raw_path.read_bytes()).hexdigest() == before
 
 
+def test_raw_arkit_v11_preserves_asynchronous_depth_timing_and_unknown_confidence() -> None:
+    frame = raw_frame(
+        record_id="record-depth-v11",
+        subject_id="subject-1",
+        session_id="session-1",
+        device_id="device-1",
+        sequence=1,
+        timestamp_ns=100,
+    )
+    payload = frame.model_dump(mode="json") | {
+        "schema_version": "nana-raw-arkit-frame/1.1.0",
+        "depth_confidence": 0.0,
+        "depth_capture_timestamp_ns": 95,
+        "depth_width": 4,
+        "depth_height": 3,
+        "depth_pixel_format": "float32-le-meters",
+        "depth_confidence_source": "unavailable",
+        "depth_accuracy": "relative",
+        "depth_quality": "high",
+        "depth_filtered": True,
+    }
+    v11 = RawArkitFrame.model_validate(payload)
+
+    record = convert_arkit_frames([v11], mapping())[0]
+
+    assert record.depth[0].capture_timestamp_ns == 95
+    assert record.depth[0].state == "observed"
+    assert record.depth[0].confidence == 0.0
+    limited = RawArkitFrame.model_validate(payload | {"tracking_state": "limited"})
+    limited_depth = convert_arkit_frames([limited], mapping())[0].depth[0]
+    assert limited_depth.capture_timestamp_ns == 95
+    assert limited_depth.state == "unavailable"
+    with pytest.raises(ValidationError, match="complete timing"):
+        RawArkitFrame.model_validate(payload | {"depth_capture_timestamp_ns": None})
+    with pytest.raises(ValidationError, match="confidence must be zero"):
+        RawArkitFrame.model_validate(payload | {"depth_confidence": 0.5})
+
+
 def test_frozen_capture_dataset_reuses_license_and_identity_device_split_gates(
     tmp_path: Path,
 ) -> None:

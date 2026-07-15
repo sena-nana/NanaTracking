@@ -220,3 +220,83 @@ public final class NTPLatestFrameWorker<Input: Sendable>: @unchecked Sendable {
     }
   }
 }
+
+/// Bounded latest-frame worker for capture stages that durably write or upload asynchronously.
+///
+/// `submit` is synchronous and only replaces one pending value under a lock. Exactly one task
+/// drains the slot, so a slow JPEG encoder, filesystem, or network never creates one task per
+/// camera frame. `flush` waits for both the active item and the latest pending replacement.
+public final class NTPAsyncLatestFrameWorker<Input: Sendable>: @unchecked Sendable {
+  private let lock = NSLock()
+  private let process: @Sendable (Input) async -> Void
+  private var dropped: UInt64 = 0
+  private var pending: Input?
+  private var running = false
+  private var waiters: [CheckedContinuation<Void, Never>] = []
+
+  public init(process: @escaping @Sendable (Input) async -> Void) {
+    self.process = process
+  }
+
+  public func submit(_ input: Input) {
+    let shouldStart = lock.withLock {
+      if pending != nil {
+        dropped = dropped == UInt64.max ? UInt64.max : dropped + 1
+      }
+      pending = input
+      let shouldStart = !running
+      if shouldStart {
+        running = true
+      }
+      return shouldStart
+    }
+    if shouldStart {
+      Task { [self] in await drain() }
+    }
+  }
+
+  public func droppedCount() -> UInt64 {
+    lock.withLock { dropped }
+  }
+
+  public func flush() async {
+    await withCheckedContinuation { continuation in
+      let resumeImmediately = lock.withLock {
+        guard running || pending != nil else {
+          return true
+        }
+        waiters.append(continuation)
+        return false
+      }
+      if resumeImmediately {
+        continuation.resume()
+      }
+    }
+  }
+
+  private func drain() async {
+    while true {
+      let (input, completed) = takeNext()
+      guard let input else {
+        for continuation in completed {
+          continuation.resume()
+        }
+        return
+      }
+      await process(input)
+    }
+  }
+
+  private func takeNext() -> (Input?, [CheckedContinuation<Void, Never>]) {
+    lock.withLock {
+      guard let input = pending else {
+        running = false
+        let completed = waiters
+        waiters.removeAll(keepingCapacity: true)
+        return (nil, completed)
+      }
+      pending = nil
+      return (input, [])
+    }
+  }
+}

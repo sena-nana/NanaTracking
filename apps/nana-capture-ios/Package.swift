@@ -11,9 +11,17 @@ let package = Package(
   products: [
     .library(name: "NanaCaptureCore", targets: ["NanaCaptureCore"]),
     .executable(name: "NanaCaptureSelfTest", targets: ["NanaCaptureSelfTest"]),
+    .executable(
+      name: "NanaCaptureSchedulingBenchmark",
+      targets: ["NanaCaptureSchedulingBenchmark"]
+    ),
   ],
   targets: [
     .target(name: "NanaCaptureCore"),
     .executableTarget(name: "NanaCaptureSelfTest", dependencies: ["NanaCaptureCore"]),
+    .executableTarget(
+      name: "NanaCaptureSchedulingBenchmark",
+      dependencies: ["NanaCaptureCore"]
+    ),
   ]
 )

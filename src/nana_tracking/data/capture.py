@@ -419,7 +419,9 @@ class LatestPreview:
 
 
 class RawArkitFrame(CaptureModel):
-    schema_version: Literal["nana-raw-arkit-frame/1.0.0"] = "nana-raw-arkit-frame/1.0.0"
+    schema_version: Literal["nana-raw-arkit-frame/1.0.0", "nana-raw-arkit-frame/1.1.0"] = (
+        "nana-raw-arkit-frame/1.0.0"
+    )
     record_id: str = Field(min_length=1)
     subject_id: str = Field(min_length=1)
     session_id: str = Field(min_length=1)
@@ -438,8 +440,45 @@ class RawArkitFrame(CaptureModel):
     face_geometry_uri: str | None = None
     depth_uri: str | None = None
     depth_confidence: FiniteFloat = Field(ge=0.0, le=1.0)
+    depth_capture_timestamp_ns: int | None = Field(default=None, ge=0)
+    depth_width: int | None = Field(default=None, gt=0)
+    depth_height: int | None = Field(default=None, gt=0)
+    depth_pixel_format: Literal["float32-le-meters"] | None = None
+    depth_confidence_source: Literal["measured", "unavailable"] | None = None
+    depth_accuracy: Literal["absolute", "relative", "unknown"] | None = None
+    depth_quality: Literal["high", "low", "unknown"] | None = None
+    depth_filtered: bool | None = None
     tracking_state: Literal["normal", "limited", "not_available"]
     conditions: CaptureConditions
+
+    @model_validator(mode="after")
+    def validate_depth_contract(self) -> Self:
+        depth_metadata = (
+            self.depth_capture_timestamp_ns,
+            self.depth_width,
+            self.depth_height,
+            self.depth_pixel_format,
+            self.depth_confidence_source,
+            self.depth_accuracy,
+            self.depth_quality,
+            self.depth_filtered,
+        )
+        if self.schema_version == "nana-raw-arkit-frame/1.0.0":
+            if any(value is not None for value in depth_metadata):
+                raise ValueError("raw ARKit v1.0 frames cannot contain v1.1 depth metadata")
+            return self
+        if self.depth_uri is None:
+            absent_metadata = depth_metadata[:4] + depth_metadata[5:]
+            if any(value is not None for value in absent_metadata) or self.depth_confidence != 0:
+                raise ValueError("missing v1.1 depth requires no geometry and zero confidence")
+            if self.depth_confidence_source != "unavailable":
+                raise ValueError("missing v1.1 depth must declare unavailable confidence")
+            return self
+        if any(value is None for value in depth_metadata):
+            raise ValueError("v1.1 depth references require complete timing, format, and quality")
+        if self.depth_confidence_source == "unavailable" and self.depth_confidence != 0:
+            raise ValueError("unavailable depth confidence must be zero")
+        return self
 
     @classmethod
     def load_jsonl(cls, path: Path) -> list[Self]:
@@ -508,7 +547,11 @@ def convert_arkit_frames(
         depth = [
             DepthObservation(
                 source_id=mapping.teacher_source_id,
-                capture_timestamp_ns=frame.capture_timestamp_ns,
+                capture_timestamp_ns=(
+                    frame.depth_capture_timestamp_ns
+                    if frame.depth_capture_timestamp_ns is not None
+                    else frame.capture_timestamp_ns
+                ),
                 state="observed",
                 confidence=frame.depth_confidence,
                 depth_uri=frame.depth_uri,
@@ -516,7 +559,11 @@ def convert_arkit_frames(
             if frame.depth_uri is not None and frame.tracking_state == "normal"
             else DepthObservation(
                 source_id=mapping.teacher_source_id,
-                capture_timestamp_ns=frame.capture_timestamp_ns,
+                capture_timestamp_ns=(
+                    frame.depth_capture_timestamp_ns
+                    if frame.depth_capture_timestamp_ns is not None
+                    else frame.capture_timestamp_ns
+                ),
                 state="unavailable",
                 confidence=0.0,
                 unavailable_reason="depth-or-tracking-unavailable",

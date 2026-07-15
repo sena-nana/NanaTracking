@@ -113,10 +113,13 @@ public actor LocalChunkRecorder {
     guard sequenceEnd >= sequenceStart,
       captureTimestampEndNs >= captureTimestampStartNs
     else { throw ChunkRecorderError.invalidRange }
-    let relativePath = [
-      "chunks", takeID, kind.rawValue,
-      String(format: "%020llu-%020llu-%@.bin", sequenceStart, sequenceEnd, chunkID),
-    ].joined(separator: "/")
+    let relativePath = Self.relativePath(
+      chunkID: chunkID,
+      takeID: takeID,
+      kind: kind,
+      sequenceStart: sequenceStart,
+      sequenceEnd: sequenceEnd
+    )
     let chunk = CaptureChunk(
       chunkID: chunkID,
       takeID: takeID,
@@ -137,15 +140,13 @@ public actor LocalChunkRecorder {
     guard payload.count == chunk.byteLength, Self.digest(payload) == chunk.sha256 else {
       throw ChunkRecorderError.descriptorMismatch
     }
-    let expectedPath = [
-      "chunks", chunk.takeID, chunk.kind.rawValue,
-      String(
-        format: "%020llu-%020llu-%@.bin",
-        chunk.sequenceStart,
-        chunk.sequenceEnd,
-        chunk.chunkID
-      ),
-    ].joined(separator: "/")
+    let expectedPath = Self.relativePath(
+      chunkID: chunk.chunkID,
+      takeID: chunk.takeID,
+      kind: chunk.kind,
+      sequenceStart: chunk.sequenceStart,
+      sequenceEnd: chunk.sequenceEnd
+    )
     guard chunk.relativePath == expectedPath,
       chunk.sequenceEnd >= chunk.sequenceStart,
       chunk.captureTimestampEndNs >= chunk.captureTimestampStartNs,
@@ -223,6 +224,19 @@ public actor LocalChunkRecorder {
 
   public nonisolated static func digest(_ data: Data) -> String {
     SHA256.hash(data: data).map { String(format: "%02x", $0) }.joined()
+  }
+
+  public nonisolated static func relativePath(
+    chunkID: String,
+    takeID: String,
+    kind: CaptureChunkKind,
+    sequenceStart: UInt64,
+    sequenceEnd: UInt64
+  ) -> String {
+    [
+      "chunks", takeID, kind.rawValue,
+      String(format: "%020llu-%020llu-%@.bin", sequenceStart, sequenceEnd, chunkID),
+    ].joined(separator: "/")
   }
 
   private nonisolated static func safeIdentifier(_ value: String) -> Bool {

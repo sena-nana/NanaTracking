@@ -40,11 +40,18 @@ private final class LatestFrameProbe: @unchecked Sendable {
   }
 }
 
+private func blockingWait(
+  _ semaphore: DispatchSemaphore, timeout: DispatchTime
+) -> DispatchTimeoutResult {
+  semaphore.wait(timeout: timeout)
+}
+
 @main
 struct NanaCaptureSelfTest {
   static func main() async throws {
     try canonicalProtocolRoundTrip()
     try latestFrameOnlyPolicy()
+    try await asyncLatestFrameOnlyPolicy()
     try await spatialProducerLifecycle()
     let root = FileManager.default.temporaryDirectory.appending(
       path: "nana-capture-\(UUID().uuidString)",
@@ -72,6 +79,18 @@ struct NanaCaptureSelfTest {
       captureTimestampEndNs: 170,
       payload: Data("second".utf8)
     )
+    guard
+      second.relativePath
+        == LocalChunkRecorder.relativePath(
+          chunkID: second.chunkID,
+          takeID: second.takeID,
+          kind: second.kind,
+          sequenceStart: second.sequenceStart,
+          sequenceEnd: second.sequenceEnd
+        )
+    else {
+      throw SelfTestError.unexpectedPendingChunks
+    }
     try await source.acknowledge(
       ChunkAcknowledgement(chunkID: first.chunkID, sha256: first.sha256)
     )
@@ -156,6 +175,27 @@ struct NanaCaptureSelfTest {
       "NanaCaptureSelfTest passed: NTP cross-language round-trip, latest-only inference, "
         + "producer generations, restart, receiver verification, and control lifecycle"
     )
+  }
+
+  private static func asyncLatestFrameOnlyPolicy() async throws {
+    let probe = LatestFrameProbe()
+    let worker = NTPAsyncLatestFrameWorker<Int> { value in
+      probe.process(value)
+    }
+    worker.submit(1)
+    let started = await Task.detached {
+      blockingWait(probe.firstStarted, timeout: .now() + 2)
+    }.value
+    guard started == .success else {
+      throw SelfTestError.latestFramePolicyFailed
+    }
+    worker.submit(2)
+    worker.submit(3)
+    probe.releaseFirst.signal()
+    await worker.flush()
+    guard probe.snapshot() == [1, 3], worker.droppedCount() == 1 else {
+      throw SelfTestError.latestFramePolicyFailed
+    }
   }
 
   private static func canonicalProtocolRoundTrip() throws {

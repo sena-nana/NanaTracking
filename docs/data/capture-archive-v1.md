@@ -21,6 +21,9 @@ The durable model has four layers:
    timing, and every chunk digest under its own canonical digest.
 3. `RawArkitFrame` preserves the same-frame RGB reference, camera intrinsics, raw blendshapes,
    head and eye transforms, geometry/depth references, tracking state, and capture conditions.
+   Revision `nana-raw-arkit-frame/1.1.0` additionally records the independently sampled TrueDepth
+   timestamp, dimensions, float32-metre encoding, accuracy/quality/filter state, and whether a
+   numeric confidence source actually exists. Readers remain compatible with recorded v1.0 frames.
 4. `FrozenCaptureDataset` binds verified sessions, regenerated `ntp-capture/1.0.0` records, the
    license registry, admitted license records, identity/device-isolated splits, and a data revision.
 
@@ -33,12 +36,18 @@ not a reviewed production mapping.
 ## Recording and recovery
 
 `apps/nana-capture-ios` contains a Swift 6 local-first core. On an iOS ARKit build,
-`ARKitCapturePipeline` takes all face fields from one `ARFrame`, requires exposure metadata from the
-camera integration, and writes payloads through `LocalChunkRecorder`. The portable self-test proves
-durable restart, pending retry, corrupt-payload rejection, and acknowledgement handling:
+`ARKitCaptureSessionController` owns a real face-tracking `ARSession`, camera permission, Studio
+control transitions, and a single-task/latest-frame worker. `ARKitCapturePipeline` takes all face
+fields from one `ARFrame`, reads per-frame EXIF exposure where available, records front-camera
+`capturedDepthData` under its separate timestamp, and writes payloads through
+`LocalChunkRecorder`. RGB/geometry/depth URIs use the recorder's single canonical path function,
+so raw records cannot point at a filename different from the durable chunk descriptor. The
+portable self-test proves bounded asynchronous scheduling, durable restart, pending retry,
+corrupt-payload rejection, and acknowledgement handling:
 
 ```bash
 swift run --package-path apps/nana-capture-ios NanaCaptureSelfTest
+swift run --package-path apps/nana-capture-ios -c release NanaCaptureSchedulingBenchmark
 ```
 
 Chunk bytes are synchronized before their descriptor is appended to `chunks.jsonl`; acknowledgements
@@ -106,6 +115,20 @@ uv run --extra cpu nana-tracking data capture-verify ios/session-1/session.json
 Live preview is intentionally latest-only and non-durable. `LatestPreview` has one pending slot;
 publishing a newer frame drops the stale preview rather than queuing work behind current capture.
 Preview drops never remove or acknowledge training chunks.
+
+The checked-in macOS scheduling smoke holds the first asynchronous item busy while submitting
+200,000 replacements. Exactly the first and latest values are processed, 199,999 stale pending
+values are counted as dropped, and five release runs measured 45.91 ns median per submission on an
+Apple M4. See `artifacts/benchmarks/issue16-ios-capture-scheduling-macos-m4-smoke.json`. This proves
+the bounded handoff implementation only; it is not iPhone, ARKit, storage, thermal, or battery
+evidence.
+
+Apple documents in [`ARFrame.capturedDepthData`](https://developer.apple.com/documentation/arkit/arframe/captureddepthdata)
+that front-camera depth can run at a different cadence from the color feed, so a frame may have no
+depth and a present depth sample may carry a different capture timestamp. The v1.1 raw record never
+substitutes the RGB timestamp for that sample. `AVDepthData` exposes map accuracy/quality but no
+per-frame scalar confidence; the controller therefore records confidence source `unavailable` and
+value `0`, rather than inventing a teacher confidence.
 
 ## Derivation and freeze gate
 

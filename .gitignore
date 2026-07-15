@@ -30,6 +30,7 @@ target/
 !/artifacts/benchmarks/issue10-temporal-macos-m4-smoke.json
 !/artifacts/benchmarks/issue11-rust-ort-spatial-full-macos-m4-smoke.json
 !/artifacts/benchmarks/issue16-capture-store-macos-arm64-smoke.json
+!/artifacts/benchmarks/issue16-ios-capture-scheduling-macos-m4-smoke.json
 /checkpoints/
 /model-packages/
 *.pt
