@@ -71,6 +71,7 @@ def create_model_package(
         output_names=list(MODEL_OUTPUT_NAMES),
         opset_version=config.export.opset,
         dynamo=True,
+        verbose=False,
     )
 
     with torch.inference_mode():
