@@ -144,10 +144,45 @@ def test_face_basic_temporal_prediction_is_complete_and_conformant(tmp_path: Pat
             sequence=3,
         )
     )
-    predicted = cast(dict[str, object], events[-1]["value"])
-    slots = cast(list[dict[str, object]], cast(dict[str, object], predicted["rig"])["slots"])
+    first_predicted = cast(dict[str, object], events[-1]["value"])
+    slots = cast(list[dict[str, object]], cast(dict[str, object], first_predicted["rig"])["slots"])
     assert all(slot["state"] == "Predicted" for slot in slots[:36])
     assert all(slot["prediction_horizon_ns"] == 15_000_000 for slot in slots[:36])
+    first_confidence = float(cast(float, slots[0]["confidence"]))
+    events.append(
+        producer.produce(
+            frame,
+            roi=None,
+            capture_timestamp_ns=45_000_000,
+            sequence=4,
+        )
+    )
+    second_predicted = cast(dict[str, object], events[-1]["value"])
+    second_slots = cast(
+        list[dict[str, object]], cast(dict[str, object], second_predicted["rig"])["slots"]
+    )
+    assert all(slot["state"] == "Predicted" for slot in second_slots[:36])
+    assert all(slot["prediction_horizon_ns"] == 25_000_000 for slot in second_slots[:36])
+    assert float(cast(float, second_slots[0]["confidence"])) < first_confidence
+
+    backend.visibility = 0
+    backend.value = 0.1
+    events.append(
+        producer.produce(
+            frame,
+            roi=None,
+            capture_timestamp_ns=55_000_000,
+            sequence=5,
+        )
+    )
+    recovered = cast(dict[str, object], events[-1]["value"])
+    recovered_slots = cast(
+        list[dict[str, object]], cast(dict[str, object], recovered["rig"])["slots"]
+    )
+    assert all(slot["state"] == "Observed" for slot in recovered_slots[:36])
+    assert all(
+        float(cast(float, slot["value"])) == pytest.approx(0.1) for slot in recovered_slots[:36]
+    )
     stream = tmp_path / "face-basic-temporal.jsonl"
     write_diagnostic_stream(stream, producer.descriptor_event, events)
     completed = subprocess.run(

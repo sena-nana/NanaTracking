@@ -79,6 +79,79 @@ def test_prediction_uses_capture_dt_decays_and_stops_at_bound() -> None:
     assert lost.value is None
 
 
+def test_repeated_prediction_uses_observations_and_recovery_does_not_lag() -> None:
+    refiner = CausalTemporalRefiner([20])
+    _process(refiner, _sample(0.0, 10_000_000), 10_000_000)
+    _process(refiner, _sample(0.2, 20_000_000), 20_000_000)
+    first = _process(
+        refiner,
+        _sample(None, 30_000_000, TemporalState.OCCLUDED, 0.8),
+        30_000_000,
+    )
+    second = _process(
+        refiner,
+        _sample(None, 40_000_000, TemporalState.OCCLUDED, 0.8),
+        40_000_000,
+    )
+    assert first.value is not None and second.value is not None
+    assert second.value > first.value
+    assert second.prediction_horizon_ns == 20_000_000
+    assert second.confidence < first.confidence
+
+    recovered = _process(refiner, _sample(0.1, 50_000_000), 50_000_000)
+    assert recovered.state == TemporalState.OBSERVED
+    assert recovered.value == pytest.approx(0.1)
+
+
+def test_prediction_ignores_reused_fused_samples_with_the_same_source_time() -> None:
+    refiner = CausalTemporalRefiner([63])
+    _process(refiner, _sample(0.0, 10_000_000), 10_000_000)
+    _process(refiner, _sample(0.2, 20_000_000), 20_000_000)
+    _process(
+        refiner,
+        _sample(0.2, 20_000_000, TemporalState.FUSED),
+        30_000_000,
+    )
+    _process(
+        refiner,
+        _sample(0.2, 20_000_000, TemporalState.FUSED),
+        40_000_000,
+    )
+    predicted = _process(
+        refiner,
+        _sample(None, 50_000_000, TemporalState.OCCLUDED, 0.8),
+        50_000_000,
+    )
+    assert predicted.value is not None and predicted.value > 0.2
+    assert predicted.prediction_horizon_ns == 30_000_000
+
+
+def test_predicted_input_preserves_exact_horizon_and_rejects_invalid_confidence() -> None:
+    refiner = CausalTemporalRefiner([20])
+    predicted = _process(
+        refiner,
+        TemporalSample(0.2, 0.7, TemporalState.PREDICTED, 10_000_000, 5_000_000),
+        15_000_000,
+    )
+    assert predicted.value == 0.2
+    assert predicted.prediction_horizon_ns == 5_000_000
+    with pytest.raises(ValueError, match="exact horizon"):
+        _process(
+            refiner,
+            TemporalSample(0.2, 0.7, TemporalState.PREDICTED, 20_000_000, 1),
+            25_000_000,
+        )
+
+    class InvalidCalibration:
+        @staticmethod
+        def apply(signal_id: int, confidence: float) -> float:
+            return 1.1
+
+    invalid = CausalTemporalRefiner([20], confidence_calibration=InvalidCalibration())
+    with pytest.raises(ValueError, match="calibrated temporal confidence"):
+        _process(invalid, _sample(0.1, 10_000_000), 10_000_000)
+
+
 def test_camera_or_generation_change_resets_history() -> None:
     refiner = CausalTemporalRefiner([20])
     _process(refiner, _sample(0.8, 10_000_000), 10_000_000)

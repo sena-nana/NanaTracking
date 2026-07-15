@@ -126,18 +126,27 @@ class CausalTemporalRefiner:
     ) -> TemporalSample:
         if not 0.0 <= sample.confidence <= 1.0:
             raise ValueError("temporal input confidence must be in [0, 1]")
+        if sample.sample_capture_timestamp_ns < 0 or sample.sample_capture_timestamp_ns > now_ns:
+            raise ValueError("temporal sample timestamp must not be in the future")
         confidence = (
             self.confidence_calibration.apply(signal_id, sample.confidence)
             if self.confidence_calibration is not None
             else sample.confidence
         )
+        if not math.isfinite(confidence) or not 0.0 <= confidence <= 1.0:
+            raise ValueError("calibrated temporal confidence must be in [0, 1]")
         if sample.state in {TemporalState.OBSERVED, TemporalState.FUSED}:
+            if sample.prediction_horizon_ns != 0:
+                raise ValueError("observed temporal samples cannot carry a prediction horizon")
             if sample.value is None or not math.isfinite(sample.value):
                 raise ValueError("observed temporal samples require a finite value")
             value = sample.value
             if previous is not None:
                 prior = previous.samples[index]
-                if prior.value is not None:
+                if prior.value is not None and prior.state in {
+                    TemporalState.OBSERVED,
+                    TemporalState.FUSED,
+                }:
                     dt = now_ns - previous.capture_timestamp_ns
                     retention = math.exp(-dt / self._time_constant(signal_id))
                     if self._preserve_peak(signal_id, value - prior.value):
@@ -149,13 +158,33 @@ class CausalTemporalRefiner:
                 state=sample.state,
                 sample_capture_timestamp_ns=sample.sample_capture_timestamp_ns,
             )
+        if sample.state == TemporalState.PREDICTED:
+            expected_horizon = now_ns - sample.sample_capture_timestamp_ns
+            if (
+                sample.value is None
+                or not math.isfinite(sample.value)
+                or sample.prediction_horizon_ns <= 0
+                or sample.prediction_horizon_ns != expected_horizon
+            ):
+                raise ValueError("predicted temporal samples require a value and exact horizon")
+            return TemporalSample(
+                value=sample.value,
+                confidence=confidence,
+                state=sample.state,
+                sample_capture_timestamp_ns=sample.sample_capture_timestamp_ns,
+                prediction_horizon_ns=sample.prediction_horizon_ns,
+            )
+        if sample.prediction_horizon_ns != 0:
+            raise ValueError("unavailable temporal samples cannot carry a prediction horizon")
+        if sample.value is not None:
+            raise ValueError("unavailable temporal samples cannot carry a value")
         if sample.state == TemporalState.TRACKING_LOST:
             return TemporalSample(None, 0.0, TemporalState.TRACKING_LOST, now_ns)
         if sample.state not in {TemporalState.OCCLUDED, TemporalState.OUT_OF_FRAME}:
             return TemporalSample(
                 None, confidence, sample.state, sample.sample_capture_timestamp_ns
             )
-        last, older = self._last_two_values(index)
+        last, older = self._last_two_observations(index)
         if last is None:
             return TemporalSample(
                 None, confidence, sample.state, sample.sample_capture_timestamp_ns
@@ -185,18 +214,26 @@ class CausalTemporalRefiner:
             prediction_horizon_ns=horizon,
         )
 
-    def _last_two_values(self, index: int) -> tuple[TemporalSample | None, TemporalSample | None]:
+    def _last_two_observations(
+        self, index: int
+    ) -> tuple[TemporalSample | None, TemporalSample | None]:
         values: list[TemporalSample] = []
+        latest_source_timestamp: int | None = None
         for frame in reversed(self._history):
             sample = frame.samples[index]
             if sample.state == TemporalState.TRACKING_LOST:
                 break
-            if sample.value is not None and sample.state in {
-                TemporalState.OBSERVED,
-                TemporalState.FUSED,
-                TemporalState.PREDICTED,
-            }:
+            if (
+                sample.value is not None
+                and sample.state
+                in {
+                    TemporalState.OBSERVED,
+                    TemporalState.FUSED,
+                }
+                and sample.sample_capture_timestamp_ns != latest_source_timestamp
+            ):
                 values.append(sample)
+                latest_source_timestamp = sample.sample_capture_timestamp_ns
         return (
             values[0] if values else None,
             values[1] if len(values) > 1 else None,

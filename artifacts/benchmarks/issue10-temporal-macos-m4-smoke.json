@@ -4,21 +4,66 @@
     "mean": 17.1070672524,
     "minimum": 12.001648
   },
+  "checkpoint": null,
+  "data_digest_sha256": "23cbc1c19c81cbeb8bbbdd881244072119a6c4b4910c73b319eaae1b6c87cba0",
+  "data_revision": "synthetic-temporal-numerical-v1",
   "fast_peak_retention": 1.0,
   "frames": 5000,
+  "git": {
+    "commit": "bb8aad4cc5b7a5271097265b1743f3dc0c7f27bc",
+    "dirty": true,
+    "uv_lock_sha256": "968b7e79b8f115b23ab9db182d1576c82fa39485644a7843433800bfe824f7ad"
+  },
   "hardware": {
+    "byte_order": "little",
     "machine": "arm64",
+    "numpy": "2.5.1",
     "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
-    "processor": "arm"
+    "processor": "arm",
+    "python": "3.14.3"
   },
   "note": "Synthetic irregular-dt smoke only; not real tracking quality acceptance.",
-  "processing_ms": {
-    "mean": 0.0030054113999999996,
-    "p50": 0.002958,
-    "p95": 0.003209,
-    "p99": 0.004208
+  "occlusion_prediction": {
+    "confidence": [
+      0.705273003996817,
+      0.6217625127083677
+    ],
+    "predicted_values": [
+      0.1704986317050269,
+      0.2557479475575404
+    ],
+    "prediction_horizon_ms": [
+      10.0,
+      20.0
+    ],
+    "recovery_absolute_error": 0.0
   },
-  "schema_version": "causal-temporal-smoke-benchmark/1.0.0",
+  "processing_ms": {
+    "mean": 0.003231979,
+    "p50": 0.003125,
+    "p95": 0.003542,
+    "p99": 0.004417
+  },
+  "resolved_config": {
+    "auricle_time_constant_ns": 80000000,
+    "body_time_constant_ns": 50000000,
+    "expression_time_constant_ns": 18000000,
+    "fast_time_constant_ns": 8000000,
+    "history_frames": 8,
+    "maximum_prediction_delta": 0.35,
+    "maximum_prediction_ns": 120000000,
+    "peak_threshold": 0.18,
+    "pose_time_constant_ns": 35000000,
+    "prediction_confidence_half_life_ns": 55000000
+  },
+  "revisions": {
+    "calibration": "ntp-calibration/1.0.0",
+    "features": "ntp-features/1.0.0",
+    "normalization": "ntp-normalization/1.0.0",
+    "ntp": "ntp/1.0",
+    "signal_registry": "ntp-signals/1.0.0"
+  },
+  "schema_version": "causal-temporal-smoke-benchmark/1.1.0",
   "seed": 31,
   "smoke_only": true,
   "static_jitter": {

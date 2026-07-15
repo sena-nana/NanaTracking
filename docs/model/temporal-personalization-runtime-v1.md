@@ -17,7 +17,11 @@ pose, body, and auricle. Refinement is a bounded residual on the current absolut
 blink/mouth/tongue/elbow changes bypass smoothing so peaks are not weakened. Occluded or
 out-of-frame values may use bounded constant-velocity prediction for at most 120 ms; prediction
 horizon is explicit, confidence decays with horizon, and expiry becomes `TrackingLost`. No
-unbounded integrator or arrival-time filter exists.
+unbounded integrator or arrival-time filter exists. Velocity is estimated only from the latest two
+real `Observed`/`Fused` samples: predicted frames never become synthetic observations. Repeated
+low-cadence `Fused` frames with the same source timestamp are deduplicated before velocity
+estimation. Repeated occluded frames therefore advance from one stable capture-time origin, and the
+first recovered observation bypasses prediction smoothing instead of inheriting recovery lag.
 
 `FaceBasicProducer` optionally applies this refiner after Level A normalization and before NTP
 serialization. Predicted values carry the original sample timestamp and nonzero prediction
@@ -61,8 +65,11 @@ as validated support.
 
 The checked-in irregular-`dt` synthetic benchmark used 5,000 frames on Apple M4 macOS. Static
 mouth-signal standard deviation fell 33.28%, the injected fast eyelid peak retained 100%, and
-refiner overhead was 0.00296 ms p50 / 0.00321 ms p95 / 0.00421 ms p99. This benchmark proves
-algorithm behavior and overhead on fixed numerical inputs only; it is not real-camera quality or
-cross-platform acceptance.
+refiner overhead was 0.00313 ms p50 / 0.00354 ms p95 / 0.00442 ms p99. Two consecutive occluded
+frames advanced from 10 ms to 20 ms prediction horizon, confidence decreased from 0.7053 to 0.6218,
+and the first recovered observation had zero synthetic recovery error. The report now records the
+resolved policy, fixed seed, generated-input digest, NTP revisions, Git state, lock digest, and
+runtime versions. This benchmark proves algorithm behavior and overhead on fixed numerical inputs
+only; it is not real-camera quality or cross-platform acceptance.
 
 - `artifacts/benchmarks/issue10-temporal-macos-m4-smoke.json`
