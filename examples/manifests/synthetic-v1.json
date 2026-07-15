@@ -1,24 +1,86 @@
 {
+  "schema_version": "ntp-dataset/2.0.0",
+  "capture_schema_version": "ntp-capture/1.0.0",
   "data_revision": "synthetic-v1",
-  "digest": "0000000000000000000000000000000000000000000000000000000000000000",
-  "ntp_schema_revision": "smoke-ntp-v0",
-  "schema_version": "1",
-  "signal_registry_revision": "smoke-signals-v0",
-  "splits": {
-    "test": {
-      "devices": ["synthetic"],
-      "identities": ["synthetic-test"],
-      "sessions": ["test-0"]
+  "digest": "ebad096427351b0df2b1764b67466fe3669bf548b6d0327c5366362a12045bae",
+  "ntp_schema_revision": "ntp/1.0",
+  "signal_registry_revision": "ntp-signals/1.0.0",
+  "normalization_revision": "ntp-normalization/1.0.0",
+  "calibration_revision": "ntp-calibration/1.0.0",
+  "feature_revision": "ntp-features/1.0.0",
+  "label_catalog": {
+    "path": "../../configs/data/ntp-v1-label-catalog.json",
+    "sha256": "3c9e29f6eb64bec72c951ec4f277c992030d4ecd6f0ee65299c5bb528cabc8d4"
+  },
+  "record_files": [
+    {
+      "path": "../records/synthetic-capture-v1.jsonl",
+      "sha256": "f784ea08c554802adcb356cc9ebfbaf861b1c414216ab11fa22ae971250ab41a",
+      "record_count": 3
+    }
+  ],
+  "teacher_sources": [
+    {
+      "source_id": "synthetic-truedepth",
+      "source_type": "truedepth",
+      "version": "smoke-1",
+      "license_id": "synthetic-fixture"
     },
+    {
+      "source_id": "synthetic-rgb-detail",
+      "source_type": "offline_face",
+      "version": "smoke-1",
+      "license_id": "synthetic-fixture"
+    },
+    {
+      "source_id": "synthetic-upper-body",
+      "source_type": "multiview_pose",
+      "version": "smoke-1",
+      "license_id": "synthetic-fixture"
+    },
+    {
+      "source_id": "synthetic-human-review",
+      "source_type": "human_review",
+      "version": "smoke-1",
+      "license_id": "synthetic-fixture"
+    }
+  ],
+  "license_reviews": [
+    {
+      "license_id": "synthetic-fixture",
+      "scope": "synthetic",
+      "status": "approved",
+      "evidence": "Repository-generated smoke fixture; no third-party data or SDK output.",
+      "permissions": {
+        "collection": true,
+        "distillation": true,
+        "pseudo_labeling": true,
+        "commercial_training": true
+      }
+    }
+  ],
+  "synchronization": {
+    "max_teacher_skew_ns": 5000000,
+    "max_depth_skew_ns": 2000000,
+    "require_monotonic_timestamps": true,
+    "require_increasing_sequence": true
+  },
+  "splits": {
     "train": {
-      "devices": ["synthetic"],
       "identities": ["synthetic-train"],
-      "sessions": ["train-0"]
+      "sessions": ["train-0"],
+      "devices": ["synthetic-truedepth-device"]
     },
     "validation": {
-      "devices": ["synthetic"],
       "identities": ["synthetic-validation"],
-      "sessions": ["validation-0"]
+      "sessions": ["validation-0"],
+      "devices": ["synthetic-truedepth-device"]
+    },
+    "test": {
+      "identities": ["synthetic-test"],
+      "sessions": ["test-0"],
+      "devices": ["synthetic-rgb-device"]
     }
-  }
+  },
+  "smoke_only": true
 }

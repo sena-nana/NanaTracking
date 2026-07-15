@@ -2,22 +2,27 @@
 
 import json
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 import typer
 from rich.console import Console
 
 from nana_tracking.config import ExperimentConfig, load_config
 from nana_tracking.data.executors import benchmark_backends
+from nana_tracking.data.labeling import LabelCatalog, materialize_dataset, write_materialized_labels
 from nana_tracking.data.manifest import DatasetManifest
+from nana_tracking.data.schema import CaptureRecord
 from nana_tracking.doctor import doctor_report
 from nana_tracking.evaluation import evaluate as evaluate_model
+from nana_tracking.evaluation.standard import BenchmarkReport, EvaluationStandard
 from nana_tracking.export import create_model_package, verify_model_package
 from nana_tracking.training import train as train_model
 
 app = typer.Typer(no_args_is_help=True, help="NanaTracking training and ONNX tooling.")
 data_app = typer.Typer(no_args_is_help=True, help="Dataset manifest commands.")
+evaluation_app = typer.Typer(no_args_is_help=True, help="Evaluation standard commands.")
 app.add_typer(data_app, name="data")
+app.add_typer(evaluation_app, name="evaluation")
 console = Console()
 
 
@@ -34,10 +39,69 @@ def doctor() -> None:
 
 @data_app.command("validate")
 def validate_data(manifest: Annotated[Path, typer.Argument(exists=True, dir_okay=False)]) -> None:
-    """Validate schema fields and identity-safe dataset splits."""
+    """Validate the complete dataset contract and automatic quality gates."""
 
-    validated = DatasetManifest.load(manifest)
-    _print_json(validated.model_dump(mode="json"))
+    result = materialize_dataset(manifest)
+    _print_json(result.quality.model_dump(mode="json"))
+    if result.quality.error_count:
+        raise typer.Exit(code=1)
+
+
+@data_app.command("materialize-labels")
+def materialize_labels_command(
+    manifest: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+) -> None:
+    """Deterministically materialize available or explicitly unavailable NTP labels."""
+
+    result = materialize_dataset(manifest)
+    if result.quality.error_count:
+        _print_json({"output": None, "quality": result.quality.model_dump(mode="json")})
+        raise typer.Exit(code=1)
+    write_materialized_labels(result, output)
+    _print_json({"output": output, "quality": result.quality.model_dump(mode="json")})
+
+
+@data_app.command("schema")
+def data_schema_command(
+    kind: Annotated[
+        Literal["manifest", "capture-record", "label-catalog"], typer.Argument()
+    ] = "manifest",
+) -> None:
+    """Print the authoritative JSON schema for a versioned data contract."""
+
+    models = {
+        "manifest": DatasetManifest,
+        "capture-record": CaptureRecord,
+        "label-catalog": LabelCatalog,
+    }
+    _print_json(models[kind].model_json_schema())
+
+
+@evaluation_app.command("validate-standard")
+def validate_evaluation_standard(
+    standard: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+) -> None:
+    """Validate shared metrics, fixed sequences, and the benchmark report template."""
+
+    validated = EvaluationStandard.load(standard)
+    sequences, report = validated.validate_assets(standard)
+    _print_json(
+        {
+            "standard_revision": validated.standard_revision,
+            "profiles": [suite.profile for suite in validated.suites],
+            "metric_count": len(validated.metrics),
+            "fixed_sequence_count": len(sequences.sequences),
+            "report_schema_version": report.schema_version,
+        }
+    )
+
+
+@evaluation_app.command("report-schema")
+def evaluation_report_schema() -> None:
+    """Print the machine-readable benchmark report schema."""
+
+    _print_json(BenchmarkReport.model_json_schema())
 
 
 @app.command("train")

@@ -23,6 +23,10 @@ The `cpu` and `cu130` extras are intentionally mutually exclusive.
 ```bash
 uv run --extra cpu nana-tracking doctor
 uv run --extra cpu nana-tracking data validate examples/manifests/synthetic-v1.json
+uv run --extra cpu nana-tracking data materialize-labels \
+  examples/manifests/synthetic-v1.json --output artifacts/data/synthetic-labels.jsonl
+uv run --extra cpu nana-tracking evaluation validate-standard \
+  configs/evaluation/ntp-v1-standard.json
 uv run --extra cpu nana-tracking train --config configs/smoke.yaml
 uv run --extra cpu nana-tracking smoke --work-dir runs/smoke
 uv run --extra cpu nana-tracking benchmark-python
@@ -34,7 +38,7 @@ PyTorch 2.11 autograd never shares a process that has created subinterpreters. B
 are written under `artifacts/benchmarks/`; adopt an executor only when target-workload evidence
 shows a throughput benefit without unacceptable startup or memory cost.
 
-Run the quality gates before opening a pull request:
+Run the quality gates before handing off a change:
 
 ```bash
 uv lock --check
@@ -60,6 +64,13 @@ profiles.
 - [NTP v1 semantic derivation and rig binding reference](docs/semantics/ntp-v1-reference.md)
 - [NTP v1 conformance and compatibility matrix](docs/conformance/ntp-v1-compatibility-matrix.md)
 - [ADR 0001: Vendor parameters are adapters, not NTP](docs/adr/0001-vendor-parameters-are-adapters.md)
+
+## Training data and evaluation
+
+- [Dataset schema, synchronization, labeling, and quality gates](docs/data/dataset-contract-v1.md)
+- [Guided Basic, Spatial, and Full collection protocol](docs/data/collection-protocol-v1.md)
+- [Shared evaluation standard and report contract](docs/data/evaluation-standard-v1.md)
+- [License, privacy, and failure-sample feedback](docs/data/governance-v1.md)
 
 The framework-neutral Rust implementations live in `crates/nana-tracking-protocol` and
 `crates/nana-tracking-semantics`. Protocol codec/capability code and deterministic semantic/model

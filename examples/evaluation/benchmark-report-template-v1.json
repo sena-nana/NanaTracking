@@ -1,0 +1,47 @@
+{
+  "schema_version": "ntp-benchmark-report/1.0.0",
+  "standard_revision": "ntp-evaluation/1.0.0",
+  "profile": "Full",
+  "checkpoint_digest": "REQUIRED",
+  "data_revision": "REQUIRED",
+  "data_digest": "REQUIRED",
+  "config_digest": "REQUIRED",
+  "ntp_schema_revision": "ntp/1.0",
+  "signal_registry_revision": "ntp-signals/1.0.0",
+  "normalization_revision": "ntp-normalization/1.0.0",
+  "calibration_revision": "ntp-calibration/1.0.0",
+  "feature_revision": "ntp-features/1.0.0",
+  "git_commit": "REQUIRED",
+  "hardware": "REQUIRED",
+  "backend": "REQUIRED",
+  "smoke_only": false,
+  "output_families": {
+    "face_rig": {
+      "per_signal_error": {"status": "pending", "values": null, "sample_count": null, "reason": null},
+      "per_signal_correlation": {"status": "pending", "values": null, "sample_count": null, "reason": null},
+      "neutral_jitter": {"status": "pending", "values": null, "sample_count": null, "reason": null},
+      "dynamic_response_delay": {"status": "pending", "values": null, "sample_count": null, "reason": null},
+      "peak_attenuation": {"status": "pending", "values": null, "sample_count": null, "reason": null},
+      "left_right_asymmetry": {"status": "pending", "values": null, "sample_count": null, "reason": null},
+      "identity_neutral_bias": {"status": "pending", "values": null, "sample_count": null, "reason": null}
+    },
+    "geometry": {
+      "geometry_consistency": {"status": "pending", "values": null, "sample_count": null, "reason": null}
+    },
+    "tracking_quality": {
+      "state_classification": {"status": "pending", "values": null, "sample_count": null, "reason": null},
+      "occlusion_recovery_time": {"status": "pending", "values": null, "sample_count": null, "reason": null},
+      "confidence_calibration": {"status": "pending", "values": null, "sample_count": null, "reason": null}
+    },
+    "runtime": {
+      "capture_to_result_latency": {"status": "pending", "values": null, "sample_count": null, "reason": null},
+      "result_age_at_consume": {"status": "pending", "values": null, "sample_count": null, "reason": null},
+      "runtime_resources": {"status": "pending", "values": null, "sample_count": null, "reason": null}
+    },
+    "character_drive": {
+      "character_drive_ab_video": {"status": "pending", "values": null, "sample_count": null, "reason": null}
+    }
+  },
+  "failure_sample_ids": [],
+  "ab_video_uris": []
+}

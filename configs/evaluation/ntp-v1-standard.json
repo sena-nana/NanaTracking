@@ -1,0 +1,54 @@
+{
+  "schema_version": "ntp-evaluation-standard/1.0.0",
+  "standard_revision": "ntp-evaluation/1.0.0",
+  "ntp_schema_revision": "ntp/1.0",
+  "signal_registry_revision": "ntp-signals/1.0.0",
+  "normalization_revision": "ntp-normalization/1.0.0",
+  "calibration_revision": "ntp-calibration/1.0.0",
+  "feature_revision": "ntp-features/1.0.0",
+  "fixed_sequences": {
+    "path": "../../examples/evaluation/fixed-sequences-v1.json",
+    "sha256": "0dc9c8681c9575537cd851042921d16eba7815c0c585fac31c484244e7357405"
+  },
+  "report_template": {
+    "path": "../../examples/evaluation/benchmark-report-template-v1.json",
+    "sha256": "b018c7262c1c5d5fc4c592a94cb13fe141c2557ede6fa4c695381de516d16cd6"
+  },
+  "metrics": [
+    {"metric_id": "per_signal_error", "unit": "signal-native", "aggregations": ["per-signal", "p50", "p95", "p99"], "required_metadata": ["label confidence", "signal state"]},
+    {"metric_id": "per_signal_correlation", "unit": "correlation", "aggregations": ["per-signal"], "required_metadata": ["identity"]},
+    {"metric_id": "neutral_jitter", "unit": "signal-native rms", "aggregations": ["per-signal", "p95"], "required_metadata": ["neutral segment"]},
+    {"metric_id": "dynamic_response_delay", "unit": "milliseconds", "aggregations": ["per-signal", "p50", "p95", "p99"], "required_metadata": ["capture timestamp"]},
+    {"metric_id": "peak_attenuation", "unit": "ratio", "aggregations": ["per-signal", "p50", "p95"], "required_metadata": ["action segment"]},
+    {"metric_id": "left_right_asymmetry", "unit": "signal-native error", "aggregations": ["paired-signal", "p95"], "required_metadata": ["anatomical side"]},
+    {"metric_id": "identity_neutral_bias", "unit": "signal-native", "aggregations": ["per-identity", "between-identity"], "required_metadata": ["identity", "session"]},
+    {"metric_id": "geometry_consistency", "unit": "geometry-native", "aggregations": ["per-structure", "p50", "p95"], "required_metadata": ["camera calibration", "geometry state"]},
+    {"metric_id": "state_classification", "unit": "precision-recall", "aggregations": ["per-state", "macro"], "required_metadata": ["observed", "predicted", "occluded", "out-of-frame", "lost"]},
+    {"metric_id": "occlusion_recovery_time", "unit": "milliseconds", "aggregations": ["per-region", "p50", "p95", "p99"], "required_metadata": ["occlusion interval"]},
+    {"metric_id": "confidence_calibration", "unit": "ece-brier", "aggregations": ["per-signal-family", "per-state"], "required_metadata": ["confidence", "label availability"]},
+    {"metric_id": "capture_to_result_latency", "unit": "milliseconds", "aggregations": ["p50", "p95", "p99"], "required_metadata": ["capture timestamp", "produced timestamp"]},
+    {"metric_id": "result_age_at_consume", "unit": "milliseconds", "aggregations": ["p50", "p95", "p99"], "required_metadata": ["capture timestamp", "consume timestamp"]},
+    {"metric_id": "runtime_resources", "unit": "percent-mib-count", "aggregations": ["cpu", "hottest-thread", "gpu", "vram", "copies", "queue-depth", "long-run-growth"], "required_metadata": ["hardware", "backend", "duration"]},
+    {"metric_id": "character_drive_ab_video", "unit": "review", "aggregations": ["blind preference", "failure tags"], "required_metadata": ["video URI", "review protocol"]}
+  ],
+  "suites": [
+    {
+      "profile": "Basic",
+      "required_signal_ids": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36],
+      "metric_ids": ["per_signal_error","per_signal_correlation","neutral_jitter","dynamic_response_delay","peak_attenuation","left_right_asymmetry","identity_neutral_bias","geometry_consistency","state_classification","occlusion_recovery_time","confidence_calibration","capture_to_result_latency","result_age_at_consume","runtime_resources","character_drive_ab_video"],
+      "fixed_sequence_ids": ["basic-neutral-variety","basic-eyes-asymmetric","basic-brows-asymmetric","basic-cheek-nose","basic-jaw","basic-mouth","basic-speech"]
+    },
+    {
+      "profile": "Spatial",
+      "required_signal_ids": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41],
+      "metric_ids": ["per_signal_error","per_signal_correlation","neutral_jitter","dynamic_response_delay","peak_attenuation","left_right_asymmetry","identity_neutral_bias","geometry_consistency","state_classification","occlusion_recovery_time","confidence_calibration","capture_to_result_latency","result_age_at_consume","runtime_resources","character_drive_ab_video"],
+      "fixed_sequence_ids": ["basic-neutral-variety","basic-eyes-asymmetric","basic-brows-asymmetric","basic-cheek-nose","basic-jaw","basic-mouth","basic-speech","spatial-gaze-eight-way","spatial-gaze-asymmetric","spatial-head-gaze-decouple","spatial-tongue","spatial-adverse"]
+    },
+    {
+      "profile": "Full",
+      "required_signal_ids": [1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49,50,51,52,53,54,55,56,57,58,59,60,61,62,63,64,65,66,67,68,69,70,71,72,73,74,75,76],
+      "metric_ids": ["per_signal_error","per_signal_correlation","neutral_jitter","dynamic_response_delay","peak_attenuation","left_right_asymmetry","identity_neutral_bias","geometry_consistency","state_classification","occlusion_recovery_time","confidence_calibration","capture_to_result_latency","result_age_at_consume","runtime_resources","character_drive_ab_video"],
+      "fixed_sequence_ids": ["basic-neutral-variety","basic-eyes-asymmetric","basic-brows-asymmetric","basic-cheek-nose","basic-jaw","basic-mouth","basic-speech","spatial-gaze-eight-way","spatial-gaze-asymmetric","spatial-head-gaze-decouple","spatial-tongue","spatial-adverse","full-torso","full-head-relative","full-shoulders","full-arms","full-wrist-reentry","full-auricle","full-adverse"]
+    }
+  ]
+}
