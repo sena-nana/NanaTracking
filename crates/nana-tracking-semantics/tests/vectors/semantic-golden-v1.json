@@ -1,0 +1,20 @@
+{
+  "eye_blink_left": 0.8,
+  "eye_wide_right": 0.25,
+  "cheek_suck_left": 0.4,
+  "cheek_puff_right": 0.3,
+  "jaw_right": 0.6,
+  "mouth_smile_left": 0.5,
+  "mouth_frown_right": 0.2,
+  "mouth_pucker": 0.12,
+  "mouth_funnel": 0.48,
+  "mouth_interior_visible": 0.48,
+  "tongue_visible": 0.37,
+  "body_lean_forward": 0.4,
+  "body_lean_right": 0.2,
+  "body_twist_left": 0.3,
+  "auricle_raise_left": 0.3,
+  "auricle_pull_back_left": 0.4,
+  "auricle_flatten_left": 0.5,
+  "auricle_wiggle_amplitude_left": 0.4082483
+}

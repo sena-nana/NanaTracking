@@ -56,8 +56,9 @@ profiles.
 - [NTP v1 Signal Registry](docs/protocol/ntp-v1-signal-registry.md)
 - [NTP v1 freeze review checklist](docs/protocol/ntp-v1-freeze-checklist.md)
 - [NTP v1 canonical codec and Rust/C contract](docs/protocol/ntp-v1-codec.md)
+- [NTP v1 semantic derivation and rig binding reference](docs/semantics/ntp-v1-reference.md)
 - [ADR 0001: Vendor parameters are adapters, not NTP](docs/adr/0001-vendor-parameters-are-adapters.md)
 
-The framework-neutral Rust reference implementation lives in
-`crates/nana-tracking-protocol`. Its canonical codec, fixed slots, capability checks, and stream
-guard are independent from the Python/PyTorch training workspace.
+The framework-neutral Rust implementations live in `crates/nana-tracking-protocol` and
+`crates/nana-tracking-semantics`. Protocol codec/capability code and deterministic semantic/model
+binding code remain independent from the Python/PyTorch training workspace.
