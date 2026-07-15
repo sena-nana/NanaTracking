@@ -173,7 +173,8 @@ struct NanaCaptureSelfTest {
     }
     print(
       "NanaCaptureSelfTest passed: NTP cross-language round-trip, latest-only inference, "
-        + "producer generations, restart, receiver verification, and control lifecycle"
+        + "exact-frame Spatial fusion, producer generations, restart, receiver verification, "
+        + "and control lifecycle"
     )
   }
 
@@ -222,29 +223,67 @@ struct NanaCaptureSelfTest {
 
   private static func spatialProducerLifecycle() async throws {
     let timestamp: UInt64 = 2_000_000_000
-    let rig = Dictionary(
-      uniqueKeysWithValues: (UInt16(1)...UInt16(42)).map { signalID in
-        (
+    let sessionID = [UInt8](repeating: 7, count: 16)
+    let referenceDescriptor = NTPDescriptor(
+      guaranteedProfile: .spatial,
+      supportedSignals: Array(UInt16(1)...UInt16(41)),
+      supportedStructures: .spatialRequired
+    )
+    let supplementDescriptor = NTPDescriptor(
+      guaranteedProfile: .spatial,
+      supportedSignals: Array(UInt16(1)...UInt16(42)),
+      supportedStructures: .spatialRequired
+    )
+    let fusionPlan = try NTPSpatialFusionPlan(
+      referenceDescriptor: referenceDescriptor,
+      extensionDescriptor: supplementDescriptor
+    )
+    let referenceRig = Dictionary(
+      uniqueKeysWithValues: (UInt16(1)...UInt16(41)).map { signalID in
+        let value: Float? = signalID == 41 ? nil : (signalID == 37 ? 0.2 : 0)
+        return (
           signalID,
           NTPSignalSample(
-            value: 0,
-            confidence: 0.9,
-            state: .fused,
+            value: value,
+            confidence: signalID == 41 ? 0.2 : 0.7,
+            state: value == nil ? .occluded : .observed,
             sampleCaptureTimestampNs: timestamp
           )
         )
       })
-    let trackedPose = NTPTracked(
-      value: NTPPose(
-        parentSpace: .camera,
-        lengthBasis: .headRelative,
-        position: .zero,
-        orientationXYZW: .identity
-      ),
-      confidence: 0.9,
-      state: .fused,
-      sampleCaptureTimestampNs: timestamp
-    )
+    let supplementRig = Dictionary(
+      uniqueKeysWithValues: (UInt16(1)...UInt16(42)).map { signalID in
+        let value: Float =
+          switch signalID {
+          case 1: 0.02
+          case 37: -0.5
+          case 41: 0.7
+          case 42: 0.4
+          default: 0
+          }
+        return (
+          signalID,
+          NTPSignalSample(
+            value: value,
+            confidence: 0.9,
+            state: .observed,
+            sampleCaptureTimestampNs: timestamp
+          )
+        )
+      })
+    func pose(_ x: Float) -> NTPTracked<NTPPose> {
+      NTPTracked(
+        value: NTPPose(
+          parentSpace: .camera,
+          lengthBasis: .headRelative,
+          position: NTPVector3(x: x, y: 0, z: 0),
+          orientationXYZW: .identity
+        ),
+        confidence: 0.9,
+        state: .observed,
+        sampleCaptureTimestampNs: timestamp
+      )
+    }
     func origin(_ x: Float) -> NTPTracked<NTPPosition3> {
       NTPTracked(
         value: NTPPosition3(
@@ -253,14 +292,14 @@ struct NanaCaptureSelfTest {
           value: NTPVector3(x: x, y: 0, z: 0)
         ),
         confidence: 0.9,
-        state: .fused,
+        state: .observed,
         sampleCaptureTimestampNs: timestamp
       )
     }
     let direction = NTPTracked(
       value: NTPDirection3(space: .headLocal, value: NTPVector3(x: 0, y: 0, z: 1)),
       confidence: 0.9,
-      state: .fused,
+      state: .observed,
       sampleCaptureTimestampNs: timestamp
     )
     let lookAt = NTPTracked(
@@ -270,46 +309,91 @@ struct NanaCaptureSelfTest {
         value: NTPVector3(x: 0, y: 0, z: 1)
       ),
       confidence: 0.9,
-      state: .fused,
+      state: .observed,
       sampleCaptureTimestampNs: timestamp
     )
-    let geometry = NTPGeometryResult(
-      headCameraPose: trackedPose,
-      leftEye: NTPEyeGeometry(originHead: origin(-0.15), directionHead: direction),
-      rightEye: NTPEyeGeometry(originHead: origin(0.15), directionHead: direction),
-      lookAtCamera: lookAt,
-      faceGeometryState: .fused
-    )
-    let quality = NTPTrackingQuality(
-      overallConfidence: 0.9,
-      face: NTPRegionQuality(confidence: 0.9, state: .fused),
-      eyes: NTPRegionQuality(confidence: 0.9, state: .fused),
-      torso: NTPRegionQuality(confidence: 0.9, state: .fused),
-      arm: NTPSideMap(left: .unsupported, right: .unsupported),
-      auricle: NTPSideMap(left: .unsupported, right: .unsupported)
-    )
-    let payload = NTPSpatialPayload(rig: rig, geometry: geometry, quality: quality)
-    let descriptor = NTPDescriptor(
-      guaranteedProfile: .spatial,
-      supportedSignals: Array(UInt16(1)...UInt16(42)),
-      supportedStructures: .spatialRequired
-    )
-    let producer = try NTPSpatialProducer(
-      sessionID: [UInt8](repeating: 7, count: 16), descriptor: descriptor)
-    let firstBytes = try await producer.encode(
+    func geometry(_ x: Float) -> NTPGeometryResult {
+      NTPGeometryResult(
+        headCameraPose: pose(x),
+        leftEye: NTPEyeGeometry(originHead: origin(-0.15), directionHead: direction),
+        rightEye: NTPEyeGeometry(originHead: origin(0.15), directionHead: direction),
+        lookAtCamera: lookAt,
+        faceGeometryState: .observed
+      )
+    }
+    func quality(torso: NTPRegionQuality) -> NTPTrackingQuality {
+      NTPTrackingQuality(
+        overallConfidence: 0.9,
+        face: NTPRegionQuality(confidence: 0.9, state: .observed),
+        eyes: NTPRegionQuality(confidence: 0.9, state: .observed),
+        torso: torso,
+        arm: NTPSideMap(left: .unsupported, right: .unsupported),
+        auricle: NTPSideMap(left: .unsupported, right: .unsupported)
+      )
+    }
+    let reference = NTPTrackingResult(
+      sessionID: sessionID,
+      generation: 0,
+      sequence: 0,
       captureTimestampNs: timestamp,
       producedTimestampNs: timestamp + 1_000_000,
-      payload: payload
+      rig: referenceRig,
+      geometry: geometry(0),
+      quality: quality(torso: .unsupported)
     )
+    let supplement = NTPTrackingResult(
+      sessionID: sessionID,
+      generation: 0,
+      sequence: 0,
+      captureTimestampNs: timestamp,
+      producedTimestampNs: timestamp + 2_000_000,
+      rig: supplementRig,
+      geometry: geometry(0.5),
+      quality: quality(torso: NTPRegionQuality(confidence: 0.9, state: .observed))
+    )
+    let fused = try fusionPlan.fuse(reference: reference, supplement: supplement)
+    guard fused.rig[1]?.value == 0, fused.rig[1]?.state == .fused,
+      fused.rig[37]?.value == 0.2, fused.rig[41]?.value == 0.7,
+      fused.rig[42]?.value == 0.4, fused.quality.torso.state == .observed,
+      fused.geometry.headCameraPose.value?.position.x == 0,
+      fused.geometry.headCameraPose.state == .fused
+    else {
+      throw SelfTestError.spatialProducerLifecycleFailed
+    }
+    let mismatchedSupplement = NTPTrackingResult(
+      sessionID: sessionID,
+      generation: 0,
+      sequence: 1,
+      captureTimestampNs: timestamp,
+      producedTimestampNs: supplement.producedTimestampNs,
+      rig: supplement.rig,
+      geometry: supplement.geometry,
+      quality: supplement.quality
+    )
+    do {
+      _ = try fusionPlan.fuse(reference: reference, supplement: mismatchedSupplement)
+      throw SelfTestError.spatialProducerLifecycleFailed
+    } catch NTPSpatialFusionError.sequenceMismatch {
+      // Expected: arrival order cannot join distinct capture identities.
+    }
+    let producer = try NTPSpatialProducer(
+      sessionID: sessionID, descriptor: fusionPlan.descriptor)
+    let firstBytes = try await producer.encode(fused)
     let first = try NTPCanonicalCodec.decodeResult(firstBytes)
     try await producer.reconfigure()
+    let nextGeneration = NTPTrackingResult(
+      sessionID: sessionID,
+      generation: 1,
+      sequence: 0,
+      captureTimestampNs: timestamp,
+      producedTimestampNs: fused.producedTimestampNs,
+      rig: fused.rig,
+      geometry: fused.geometry,
+      quality: fused.quality
+    )
     let second = try NTPCanonicalCodec.decodeResult(
-      await producer.encode(
-        captureTimestampNs: timestamp,
-        producedTimestampNs: timestamp + 1_000_000,
-        payload: payload
-      ))
-    guard first.generation == 0, first.sequence == 0, first.rig[42]?.value == 0,
+      await producer.encode(nextGeneration))
+    guard first.generation == 0, first.sequence == 0, first.rig[42]?.value == 0.4,
       second.generation == 1, second.sequence == 0
     else {
       throw SelfTestError.spatialProducerLifecycleFailed

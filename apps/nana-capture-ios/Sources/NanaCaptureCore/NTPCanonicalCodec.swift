@@ -14,8 +14,16 @@ public enum NTPCodecError: Error, Equatable {
 }
 
 public enum NTPCanonicalCodec {
+  public static func validate(_ descriptor: NTPDescriptor) throws {
+    try validateDescriptor(descriptor)
+  }
+
+  public static func validate(_ result: NTPTrackingResult) throws {
+    try validateResult(result)
+  }
+
   public static func encode(_ descriptor: NTPDescriptor) throws -> Data {
-    try validate(descriptor)
+    try validateDescriptor(descriptor)
     var payload = NTPWriter()
     try payload.tlv(1) { writer in
       writer.u16(descriptor.revisions.protocolVersion.major)
@@ -101,12 +109,12 @@ public enum NTPCanonicalCodec {
       supportedStructures: structures,
       features: features
     )
-    try validate(descriptor)
+    try validateDescriptor(descriptor)
     return descriptor
   }
 
   public static func encode(_ result: NTPTrackingResult) throws -> Data {
-    try validate(result)
+    try validateResult(result)
     var payload = NTPWriter()
     try payload.tlv(1) { writer in
       writer.bytes(result.sessionID)
@@ -186,7 +194,7 @@ public enum NTPCanonicalCodec {
       skeleton: skeleton,
       quality: quality
     )
-    try validate(result)
+    try validateResult(result)
     return result
   }
 }
@@ -638,7 +646,7 @@ private func decodeQuality(_ reader: inout NTPReader) throws -> NTPTrackingQuali
   )
 }
 
-private func validate(_ descriptor: NTPDescriptor) throws {
+private func validateDescriptor(_ descriptor: NTPDescriptor) throws {
   guard descriptor.revisions.protocolVersion.major == 1 else {
     throw NTPCodecError.invalidContract("unsupported protocol major")
   }
@@ -670,7 +678,7 @@ private func validate(_ descriptor: NTPDescriptor) throws {
   }
 }
 
-private func validate(_ result: NTPTrackingResult) throws {
+private func validateResult(_ result: NTPTrackingResult) throws {
   guard result.sessionID.count == 16 else {
     throw NTPCodecError.invalidContract("session ID must contain 16 bytes")
   }

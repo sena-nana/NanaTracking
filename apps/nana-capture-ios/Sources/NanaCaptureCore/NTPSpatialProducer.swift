@@ -9,6 +9,8 @@ public enum NTPSpatialProducerError: Error, Equatable {
   case incompleteSpatialQuality
   case qualityCapabilityMismatch
   case unassignedFaceLandmarks
+  case unexpectedBodySkeleton
+  case mismatchedFrameIdentity
   case sequenceOverflow
   case generationOverflow
 }
@@ -47,15 +49,7 @@ public actor NTPSpatialProducer {
     descriptor: NTPDescriptor = .spatialV1
   ) throws {
     guard sessionID.count == 16 else { throw NTPSpatialProducerError.invalidSessionID }
-    guard descriptor.guaranteedProfile == .spatial,
-      descriptor.supportedStructures.contains(.spatialRequired),
-      !descriptor.supportedStructures.contains(.bodySkeleton),
-      descriptor.supportedSignals.allSatisfy({ $0 <= 88 }),
-      (UInt16(1)...UInt16(41)).allSatisfy(descriptor.supportedSignals.contains)
-    else {
-      throw NTPSpatialProducerError.invalidDescriptor
-    }
-    _ = try NTPCanonicalCodec.encode(descriptor)
+    try validateSpatialDescriptor(descriptor)
     self.sessionID = sessionID
     self.descriptor = descriptor
     self.generation = generation
@@ -86,11 +80,6 @@ public actor NTPSpatialProducer {
     producedTimestampNs: UInt64,
     payload: NTPSpatialPayload
   ) throws -> Data {
-    try validateSpatialPayload(
-      payload,
-      descriptor: descriptor,
-      captureTimestampNs: captureTimestampNs
-    )
     guard nextSequence < UInt64.max else { throw NTPSpatialProducerError.sequenceOverflow }
     let result = NTPTrackingResult(
       sessionID: sessionID,
@@ -102,13 +91,52 @@ public actor NTPSpatialProducer {
       geometry: payload.geometry,
       quality: payload.quality
     )
+    return try encode(result)
+  }
+
+  /// Encodes a pre-fused exact-capture result without allowing arrival order to assign identity.
+  public func encode(_ result: NTPTrackingResult) throws -> Data {
+    guard result.sessionID == sessionID,
+      result.generation == generation,
+      result.sequence == nextSequence
+    else {
+      throw NTPSpatialProducerError.mismatchedFrameIdentity
+    }
+    guard nextSequence < UInt64.max else { throw NTPSpatialProducerError.sequenceOverflow }
+    try validateSpatialResult(result, descriptor: descriptor)
     let encoded = try NTPCanonicalCodec.encode(result)
     nextSequence += 1
     return encoded
   }
 }
 
-private func validateSpatialPayload(
+func validateSpatialDescriptor(_ descriptor: NTPDescriptor) throws {
+  guard descriptor.guaranteedProfile == .spatial,
+    descriptor.supportedStructures.contains(.spatialRequired),
+    !descriptor.supportedStructures.contains(.bodySkeleton),
+    descriptor.supportedSignals.allSatisfy({ $0 <= 88 }),
+    (UInt16(1)...UInt16(41)).allSatisfy(descriptor.supportedSignals.contains)
+  else {
+    throw NTPSpatialProducerError.invalidDescriptor
+  }
+  try NTPCanonicalCodec.validate(descriptor)
+}
+
+func validateSpatialResult(
+  _ result: NTPTrackingResult, descriptor: NTPDescriptor
+) throws {
+  guard result.skeleton == .unsupported else {
+    throw NTPSpatialProducerError.unexpectedBodySkeleton
+  }
+  try validateSpatialPayload(
+    NTPSpatialPayload(rig: result.rig, geometry: result.geometry, quality: result.quality),
+    descriptor: descriptor,
+    captureTimestampNs: result.captureTimestampNs
+  )
+  try NTPCanonicalCodec.validate(result)
+}
+
+func validateSpatialPayload(
   _ payload: NTPSpatialPayload, descriptor: NTPDescriptor,
   captureTimestampNs: UInt64
 ) throws {

@@ -45,11 +45,16 @@ inference; a single replaceable slot prevents result-age growth. Transport, encr
 and reconnect behavior remain outside this crate.
 
 The iOS package mirrors the stable NTP value types rather than Swift or ARKit memory layouts.
-`NTPSpatialProducer` owns session/generation/sequence and rejects incomplete `1...41` signals,
-missing Spatial structures, mixed capture timestamps, or undeclared signals. Declared additive
-signals remain in the frame instead of being clipped to 41. `NTPLatestFrameWorker` implements the
-single replaceable slot. Its canonical codec decodes and re-encodes the Rust descriptor and result
-golden bytes exactly, so the Swift boundary is checked against the authoritative Rust wire format.
+`NTPSpatialFusionPlan` prevalidates the descriptor union and bounded decision policy once, then
+validates both normalized results and requires the exact session, generation, sequence, and capture
+timestamp on every fusion. It mirrors the Rust reference/gaze priority, gap filling, confidence
+margin, and no-averaging rules. `NTPSpatialProducer` owns session/generation/sequence, directly
+encodes the fused result without reassigning identity from arrival order, and rejects incomplete
+`1...41` signals, missing Spatial structures, mixed capture timestamps, or undeclared signals.
+Declared additive signals remain in the frame instead of being clipped to 41.
+`NTPLatestFrameWorker` implements the single replaceable slot. Its canonical codec decodes and
+re-encodes the Rust descriptor and result golden bytes exactly, so the Swift boundary is checked
+against the authoritative Rust wire format.
 
 ## Validation
 
@@ -57,3 +62,9 @@ The crate validates both descriptors and frames before fusion, validates the fus
 the union descriptor, and runs the output through `ntp-conformance` in its acceptance test. Tests
 cover exact-capture rejection, reference gaze/geometry priority, RGB tongue completion, Spatial
 certification, and preservation of additional Full signals.
+
+The checked-in macOS Swift benchmark measures the normalized 41+42-signal fusion path in release
+mode. It is synthetic smoke-only evidence of local fusion overhead, not FaceSpatial quality,
+TrueDepth device behavior, or iOS latency:
+
+- `artifacts/benchmarks/issue8-swift-spatial-fusion-macos-m4-smoke.json`

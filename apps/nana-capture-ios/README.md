@@ -19,9 +19,11 @@ and does not display unsupported controls.
 - Raw ARKit JSON remains separate from NTP labels. The Python capture tooling regenerates labels
   under an explicit mapping revision.
 - `NTPContract` and `NTPCanonicalCodec` provide framework-neutral Swift value types and the same
-  canonical `NTP1` binary format as Rust. `NTPSpatialProducer` accepts only a complete, normalized
-  same-capture Spatial payload; it owns session generation and sequence state and cannot emit raw
-  ARKit names or Swift struct memory as a network ABI.
+  canonical `NTP1` binary format as Rust. `NTPSpatialFusionPlan` joins two normalized results only
+  when session, generation, sequence, and capture timestamp all match, with reference geometry/gaze
+  priority and RGB gap filling but no numeric averaging. `NTPSpatialProducer` accepts the fused
+  identity directly; it owns session generation and sequence state and cannot emit raw ARKit names
+  or Swift struct memory as a network ABI.
 - `NTPLatestFrameWorker` gives RGB inference one replaceable pending slot. A capture callback only
   swaps the pending value; it never waits for inference or builds an unbounded frame queue.
 - `CaptureStudioClient` polls authenticated control commands, posts applied-command ACKs and quality
@@ -35,8 +37,9 @@ cross-language Rust-vector round-trip, Spatial generation lifecycle, latest-only
 restart, pending-retry, corrupt-payload, and acknowledgement assertions without a test framework:
 
 ```bash
-swift run --package-path apps/nana-capture-ios NanaCaptureSelfTest
-swift run --package-path apps/nana-capture-ios -c release NanaCaptureSchedulingBenchmark
+rtk swift run --package-path apps/nana-capture-ios NanaCaptureSelfTest
+rtk swift run --package-path apps/nana-capture-ios -c release NanaCaptureSchedulingBenchmark
+rtk swift run --package-path apps/nana-capture-ios -c release NanaSpatialFusionBenchmark
 ```
 
 The repository host currently has Swift command-line tools but not full Xcode. The portable worker,

@@ -43,12 +43,15 @@ it is never queued behind newer captures. Input storage is preallocated and reus
 calibration applies to the nested Basic 36 signals; gaze and geometry keep their separately
 versioned normalization.
 
-The iOS Swift boundary uses the same separation. `NTPSpatialProducer` consumes only normalized NTP
-values, confidence, state, and geometry from one capture identity; raw ARKit fields stay outside the
-stream contract. The Swift canonical codec is byte-compatible with the Rust golden descriptor and
-result vectors, and stream reconfiguration increments generation while resetting sequence. A
-bounded `NTPLatestFrameWorker` gives device RGB inference the same replaceable-slot behavior as the
-portable runtime.
+The iOS Swift boundary uses the same separation. `NTPSpatialFusionPlan` accepts only normalized NTP
+results, prevalidates the union descriptor, and rejects any mismatch in session, generation,
+sequence, or exact capture timestamp. Reference TrueDepth geometry/gaze priority, RGB gap filling,
+confidence-margin selection, and no-averaging behavior match the Rust fusion contract.
+`NTPSpatialProducer` then encodes that exact fused identity rather than assigning identity from
+arrival order; raw ARKit fields stay outside the stream contract. The Swift canonical codec is
+byte-compatible with the Rust golden descriptor and result vectors, and stream reconfiguration
+increments generation while resetting sequence. A bounded `NTPLatestFrameWorker` gives device RGB
+inference the same replaceable-slot behavior as the portable runtime.
 
 ## Smoke workflow
 
@@ -76,3 +79,9 @@ not a 720p detector benchmark, iOS result, model-quality measurement, or CUDA cl
 - `artifacts/benchmarks/issue8-face-basic-macos-m4-smoke.json`
 - `artifacts/benchmarks/issue8-face-spatial-macos-m4-smoke.json`
 - `artifacts/benchmarks/issue8-face-spatial-comparison-macos-m4-smoke.json`
+
+The separate release Swift fusion microbenchmark measured a 5.431 microsecond median for one
+validated 41+42-signal fusion on the same Apple M4 host. It isolates normalized-result fusion and
+does not include capture, preprocessing, inference, transport, or iOS device work.
+
+- `artifacts/benchmarks/issue8-swift-spatial-fusion-macos-m4-smoke.json`

@@ -15,12 +15,20 @@ let package = Package(
       name: "NanaCaptureSchedulingBenchmark",
       targets: ["NanaCaptureSchedulingBenchmark"]
     ),
+    .executable(
+      name: "NanaSpatialFusionBenchmark",
+      targets: ["NanaSpatialFusionBenchmark"]
+    ),
   ],
   targets: [
     .target(name: "NanaCaptureCore"),
     .executableTarget(name: "NanaCaptureSelfTest", dependencies: ["NanaCaptureCore"]),
     .executableTarget(
       name: "NanaCaptureSchedulingBenchmark",
+      dependencies: ["NanaCaptureCore"]
+    ),
+    .executableTarget(
+      name: "NanaSpatialFusionBenchmark",
       dependencies: ["NanaCaptureCore"]
     ),
   ]

@@ -1,0 +1,45 @@
+{
+  "schema": "nanatracking.swift-spatial-fusion-benchmark-evidence/1.0.0",
+  "smoke_only": true,
+  "claim_boundary": "This synthetic local benchmark measures Swift normalized-result fusion overhead only. It does not prove FaceSpatial quality, iOS device latency, TrueDepth behavior, or production readiness.",
+  "command": "rtk swift run -c release --package-path apps/nana-capture-ios NanaSpatialFusionBenchmark",
+  "resolved_configuration": {
+    "build": "release",
+    "descriptor_union": "Spatial signals 1...41 plus additive signal 42",
+    "agreement_tolerance": 0.08,
+    "confidence_switch_margin": 0.12,
+    "warmup_iterations": 500,
+    "measured_iterations_per_run": 10000,
+    "runs": 5,
+    "fixed_seed": null,
+    "data_revision": null,
+    "data_digest": null,
+    "ntp_protocol": "1.0",
+    "signal_registry": "1.0.0",
+    "normalization": "1.0.0"
+  },
+  "environment": {
+    "os": "macOS 26.5.2 (25F84)",
+    "hardware": "Apple M4",
+    "swift": "Apple Swift 6.3.3",
+    "target": "arm64-apple-macosx26.0"
+  },
+  "git": {
+    "base_commit": "40e49105560aedc28e85d3e32f35fc7f6765d7cd",
+    "dirty": true,
+    "uv_lock_sha256": "968b7e79b8f115b23ab9db182d1576c82fa39485644a7843433800bfe824f7ad"
+  },
+  "result": {
+    "nanoseconds_per_fusion": [
+      7574.7875,
+      5388.7333,
+      5456.1583,
+      5403.8834,
+      5430.5708
+    ],
+    "minimum_nanoseconds_per_fusion": 5388.7333,
+    "median_nanoseconds_per_fusion": 5430.5708,
+    "maximum_nanoseconds_per_fusion": 7574.7875,
+    "median_fusions_per_second": 184142.710637
+  }
+}
