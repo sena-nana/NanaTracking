@@ -23,78 +23,236 @@
     ]
   },
   "config_sha256": "4202b160df181bdcb2ebdc012289ad6ddf21530fb42ced711fcd74c304384ad3",
+  "data": {
+    "revision": "synthetic-frozen-f-expression/1.0.0",
+    "sha256": "fcd9805fbce0bdb999b3e4f12d5906f6159d3812cb50ff0a701303de92f7a586"
+  },
   "f_weights_trainable": false,
   "frozen_f_source": "synthetic-frozen-f-predictions",
+  "reproducibility": {
+    "git_commit": "b2effceb251c7ca04e8a702a2175e55e5ba6eaa7",
+    "seed": 29,
+    "uv_lock_sha256": "968b7e79b8f115b23ab9db182d1576c82fa39485644a7843433800bfe824f7ad",
+    "working_tree_dirty_during_measurement": true
+  },
+  "resolved_config": {
+    "ablations": [
+      {
+        "include_head_pose": true,
+        "name": "all_parameters",
+        "parameter_subset": "all",
+        "rgb_upper_bound": false,
+        "temporal_features": "position"
+      },
+      {
+        "include_head_pose": true,
+        "name": "single_frame_parameters",
+        "parameter_subset": "all",
+        "rgb_upper_bound": false,
+        "temporal_features": "single"
+      },
+      {
+        "include_head_pose": true,
+        "name": "parameters_velocity",
+        "parameter_subset": "all",
+        "rgb_upper_bound": false,
+        "temporal_features": "velocity"
+      },
+      {
+        "include_head_pose": true,
+        "name": "parameters_velocity_acceleration",
+        "parameter_subset": "all",
+        "rgb_upper_bound": false,
+        "temporal_features": "acceleration"
+      },
+      {
+        "include_head_pose": false,
+        "name": "mouth_jaw_only",
+        "parameter_subset": "mouth-jaw",
+        "rgb_upper_bound": false,
+        "temporal_features": "acceleration"
+      },
+      {
+        "include_head_pose": true,
+        "name": "without_mouth_viseme",
+        "parameter_subset": "non-mouth",
+        "rgb_upper_bound": false,
+        "temporal_features": "acceleration"
+      },
+      {
+        "include_head_pose": true,
+        "name": "head_pose_only",
+        "parameter_subset": "none",
+        "rgb_upper_bound": false,
+        "temporal_features": "single"
+      },
+      {
+        "include_head_pose": false,
+        "name": "without_head_pose",
+        "parameter_subset": "all",
+        "rgb_upper_bound": false,
+        "temporal_features": "acceleration"
+      },
+      {
+        "include_head_pose": true,
+        "name": "shuffled_time",
+        "parameter_subset": "all",
+        "rgb_upper_bound": false,
+        "temporal_features": "shuffled"
+      },
+      {
+        "include_head_pose": false,
+        "name": "rgb_upper_bound",
+        "parameter_subset": "none",
+        "rgb_upper_bound": true,
+        "temporal_features": "position"
+      }
+    ],
+    "emotion_labels": [
+      "anger",
+      "disgust",
+      "fear",
+      "happy",
+      "neutral",
+      "sad"
+    ],
+    "hidden_dims": 32,
+    "learning_rate": 0.02,
+    "schema_version": "nana-expression-ablation/1.0.0",
+    "seed": 29,
+    "smoke_only": true,
+    "steps": 80
+  },
   "results": {
     "all_parameters": {
       "balanced_accuracy": 1.0,
+      "confidence_mae": 0.05251385644078255,
       "expected_calibration_error": 6.622738308376736e-09,
       "intensity_mae": 0.07142094522714615,
       "macro_f1": 1.0,
-      "train_eval_ms": 42.84679202828556
+      "train_eval_ms": 42.665749962907284,
+      "validation_balanced_accuracy": 0.8888888888888888,
+      "validation_confidence_mae": 0.07255377620458603,
+      "validation_expected_calibration_error": 0.07445134884781308,
+      "validation_intensity_mae": 0.15928857028484344,
+      "validation_macro_f1": 0.8854700854700854
     },
     "head_pose_only": {
       "balanced_accuracy": 0.16666666666666666,
+      "confidence_mae": 0.06694512814283371,
       "expected_calibration_error": 0.7200389057397842,
       "intensity_mae": 0.3509453535079956,
       "macro_f1": 0.15177738927738924,
-      "train_eval_ms": 26.935875008348376
+      "train_eval_ms": 26.953916996717453,
+      "validation_balanced_accuracy": 0.1111111111111111,
+      "validation_confidence_mae": 0.0649658665060997,
+      "validation_expected_calibration_error": 0.8006846606731415,
+      "validation_intensity_mae": 0.3172847628593445,
+      "validation_macro_f1": 0.10286935286935288
     },
     "mouth_jaw_only": {
       "balanced_accuracy": 0.638888888888889,
+      "confidence_mae": 0.06258963793516159,
       "expected_calibration_error": 0.3171618315908644,
       "intensity_mae": 0.2781201899051666,
       "macro_f1": 0.6201298701298702,
-      "train_eval_ms": 28.766291972715408
+      "train_eval_ms": 28.841458028182387,
+      "validation_balanced_accuracy": 0.47222222222222215,
+      "validation_confidence_mae": 0.10024458914995193,
+      "validation_expected_calibration_error": 0.410040557384491,
+      "validation_intensity_mae": 0.28496214747428894,
+      "validation_macro_f1": 0.4385503385503385
     },
     "parameters_velocity": {
       "balanced_accuracy": 1.0,
+      "confidence_mae": 0.0694475993514061,
       "expected_calibration_error": 1.1960665384928385e-05,
       "intensity_mae": 0.11833003908395767,
       "macro_f1": 1.0,
-      "train_eval_ms": 29.430583002977073
+      "train_eval_ms": 29.488250031135976,
+      "validation_balanced_accuracy": 0.9444444444444445,
+      "validation_confidence_mae": 0.09967966377735138,
+      "validation_expected_calibration_error": 0.018982705142762922,
+      "validation_intensity_mae": 0.1571188122034073,
+      "validation_macro_f1": 0.9458874458874459
     },
     "parameters_velocity_acceleration": {
       "balanced_accuracy": 0.9722222222222222,
+      "confidence_mae": 0.08140571415424347,
       "expected_calibration_error": 0.021102746327718098,
       "intensity_mae": 0.1816408336162567,
       "macro_f1": 0.972027972027972,
-      "train_eval_ms": 29.630458040628582
+      "train_eval_ms": 29.62679200572893,
+      "validation_balanced_accuracy": 0.9722222222222223,
+      "validation_confidence_mae": 0.0751892626285553,
+      "validation_expected_calibration_error": 0.0024031433794233534,
+      "validation_intensity_mae": 0.18812303245067596,
+      "validation_macro_f1": 0.9720279720279721
     },
     "rgb_upper_bound": {
       "balanced_accuracy": 0.9166666666666666,
+      "confidence_mae": 0.07050974667072296,
       "expected_calibration_error": 0.07986581491099466,
       "intensity_mae": 0.12204570323228836,
       "macro_f1": 0.9111111111111111,
-      "train_eval_ms": 27.32491702772677
+      "train_eval_ms": 27.51929103396833,
+      "validation_balanced_accuracy": 1.0,
+      "validation_confidence_mae": 0.06721048057079315,
+      "validation_expected_calibration_error": 0.01161914567152659,
+      "validation_intensity_mae": 0.12051187455654144,
+      "validation_macro_f1": 1.0
     },
     "shuffled_time": {
       "balanced_accuracy": 0.9722222222222223,
+      "confidence_mae": 0.05649210885167122,
       "expected_calibration_error": 0.02777713206079271,
       "intensity_mae": 0.11948137730360031,
       "macro_f1": 0.9720279720279721,
-      "train_eval_ms": 35.25875002378598
+      "train_eval_ms": 31.94437501952052,
+      "validation_balanced_accuracy": 0.9444444444444443,
+      "validation_confidence_mae": 0.06859608739614487,
+      "validation_expected_calibration_error": 0.044281931387053594,
+      "validation_intensity_mae": 0.13933585584163666,
+      "validation_macro_f1": 0.9428571428571427
     },
     "single_frame_parameters": {
       "balanced_accuracy": 0.9444444444444445,
+      "confidence_mae": 0.06287498772144318,
       "expected_calibration_error": 0.051971370975176484,
       "intensity_mae": 0.10421016812324524,
       "macro_f1": 0.9410256410256411,
-      "train_eval_ms": 27.891249977983534
+      "train_eval_ms": 27.65770797850564,
+      "validation_balanced_accuracy": 0.861111111111111,
+      "validation_confidence_mae": 0.07026907801628113,
+      "validation_expected_calibration_error": 0.13290319343407947,
+      "validation_intensity_mae": 0.16675083339214325,
+      "validation_macro_f1": 0.8679875679875679
     },
     "without_head_pose": {
       "balanced_accuracy": 0.9722222222222222,
+      "confidence_mae": 0.07250652462244034,
       "expected_calibration_error": 0.0276359584596422,
       "intensity_mae": 0.11043651401996613,
       "macro_f1": 0.9720279720279721,
-      "train_eval_ms": 29.47291702730581
+      "train_eval_ms": 29.492000001482666,
+      "validation_balanced_accuracy": 0.9166666666666666,
+      "validation_confidence_mae": 0.10473641753196716,
+      "validation_expected_calibration_error": 0.0858811338742574,
+      "validation_intensity_mae": 0.1783299595117569,
+      "validation_macro_f1": 0.913947163947164
     },
     "without_mouth_viseme": {
       "balanced_accuracy": 0.9722222222222222,
+      "confidence_mae": 0.06919915974140167,
       "expected_calibration_error": 0.00011564791202545166,
       "intensity_mae": 0.10658573359251022,
       "macro_f1": 0.9720279720279721,
-      "train_eval_ms": 29.066874994896352
+      "train_eval_ms": 28.75345799839124,
+      "validation_balanced_accuracy": 0.9722222222222223,
+      "validation_confidence_mae": 0.06566059589385986,
+      "validation_expected_calibration_error": 0.012124761939048767,
+      "validation_intensity_mae": 0.10437754541635513,
+      "validation_macro_f1": 0.9720279720279721
     }
   },
   "runtime": {
@@ -103,10 +261,10 @@
     "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
     "python": "3.14.3",
     "sample_count": 180,
-    "suite_elapsed_ms": 320.10162505321205,
+    "suite_elapsed_ms": 344.3057500408031,
     "torch": "2.11.0"
   },
-  "schema_version": "nana-expression-ablation-report/1.0.0",
+  "schema_version": "nana-expression-ablation-report/1.1.0",
   "smoke_only": true,
   "warning": "Synthetic smoke evidence does not validate CREMA-D or production expression quality."
 }

@@ -76,10 +76,18 @@ def test_frozen_f_expression_smoke_runs_complete_ablation_without_f_weights(
     assert isinstance(results, dict)
     typed_results = cast(dict[str, dict[str, float]], results)
     assert {ablation.name for ablation in config.ablations} == set(typed_results)
+    assert all(
+        "confidence_mae" in metrics and "validation_confidence_mae" in metrics
+        for metrics in typed_results.values()
+    )
     splits = report["actor_split"]
     assert isinstance(splits, dict)
     typed_splits = cast(dict[str, list[int]], splits)
     assert not set(typed_splits["train"]) & set(typed_splits["test"])
+    assert report["resolved_config"] == config.model_dump(mode="json")
+    data = cast(dict[str, object], report["data"])
+    assert data["revision"] == "synthetic-frozen-f-expression/1.0.0"
+    assert isinstance(data["sha256"], str)
 
 
 def test_expression_cache_verifies_frozen_f_license_digests_and_actor_splits(
@@ -121,10 +129,11 @@ def test_expression_cache_verifies_frozen_f_license_digests_and_actor_splits(
         },
     )
     manifest = ExpressionCacheManifest(
-        cache_revision="synthetic-cache-v1",
+        cache_revision="synthetic-cache-v1.1",
         cache_digest="0" * 64,
-        source_dataset="synthetic",
-        source_dataset_revision="synthetic-v1",
+        source_dataset="NanaTracking generated smoke fixtures",
+        source_dataset_revision="1.0.0",
+        source_dataset_license_record_id="nana-synthetic-smoke",
         license_registry=FileReference(
             path=registry_path.name,
             sha256=hashlib.sha256(registry_path.read_bytes()).hexdigest(),
@@ -154,3 +163,10 @@ def test_expression_cache_verifies_frozen_f_license_digests_and_actor_splits(
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(manifest.model_dump_json(), encoding="utf-8")
     assert len(ExpressionCacheManifest.load(manifest_path).verify_files(manifest_path)) == 3
+
+    mismatched = manifest.model_copy(update={"source_dataset": "unrelated approved dataset"})
+    mismatched = mismatched.model_copy(update={"cache_digest": expression_cache_digest(mismatched)})
+    mismatched_path = tmp_path / "mismatched-manifest.json"
+    mismatched_path.write_text(mismatched.model_dump_json(), encoding="utf-8")
+    with pytest.raises(ValueError, match="identity does not match"):
+        ExpressionCacheManifest.load(mismatched_path).verify_files(mismatched_path)

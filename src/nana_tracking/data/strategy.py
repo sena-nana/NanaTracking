@@ -282,11 +282,12 @@ class FrozenFContract(StrategyModel):
 
 
 class ExpressionCacheManifest(StrategyModel):
-    schema_version: Literal["nana-expression-cache/1.0.0"] = "nana-expression-cache/1.0.0"
+    schema_version: Literal["nana-expression-cache/1.1.0"] = "nana-expression-cache/1.1.0"
     cache_revision: str = Field(min_length=1)
     cache_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     source_dataset: str = Field(min_length=1)
     source_dataset_revision: str = Field(min_length=1)
+    source_dataset_license_record_id: str = Field(min_length=1)
     license_registry: FileReference
     license_record_ids: list[str] = Field(min_length=1)
     frozen_f: FrozenFContract
@@ -303,6 +304,8 @@ class ExpressionCacheManifest(StrategyModel):
             raise ValueError("expression caches require the complete ordered BasicSet 1..36")
         if len(self.emotion_labels) != len(set(self.emotion_labels)):
             raise ValueError("emotion labels must be unique")
+        if self.source_dataset_license_record_id not in self.license_record_ids:
+            raise ValueError("source dataset license must be included in license_record_ids")
         return self
 
     @classmethod
@@ -319,11 +322,22 @@ class ExpressionCacheManifest(StrategyModel):
         registry_path = (root / self.license_registry.path).resolve()
         registry = LicenseRegistry.load(registry_path)
         registry.verify_local_license_texts(registry_path)
-        registry.admit(
+        admitted = registry.admit(
             self.license_record_ids,
             stage="expression-model-training",
             production=not self.smoke_only,
         )
+        source_license = next(
+            record
+            for record in admitted
+            if record.record_id == self.source_dataset_license_record_id
+        )
+        if (
+            source_license.kind != "dataset"
+            or source_license.name != self.source_dataset
+            or source_license.version != self.source_dataset_revision
+        ):
+            raise ValueError("source dataset identity does not match its license record")
         if expression_cache_digest(self) != self.cache_digest:
             raise ValueError("expression cache manifest digest mismatch")
         records = [

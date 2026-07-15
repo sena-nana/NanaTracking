@@ -13,6 +13,8 @@ from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from torch import Tensor, nn
 
+from nana_tracking.reproducibility import git_state, sha256_file
+
 _REQUIRED_ABLATIONS = {
     "all_parameters",
     "single_frame_parameters",
@@ -213,6 +215,48 @@ def _calibration_error(probabilities: FloatArray, labels: IntArray) -> float:
     return error
 
 
+def _synthetic_data_digest(
+    arrays: dict[str, FloatArray],
+    labels: IntArray,
+    intensity: FloatArray,
+    label_confidence: FloatArray,
+    actors: IntArray,
+) -> str:
+    digest = hashlib.sha256()
+    for name, values in [
+        *sorted(arrays.items()),
+        ("labels", labels),
+        ("intensity", intensity),
+        ("label_confidence", label_confidence),
+        ("actors", actors),
+    ]:
+        digest.update(name.encode())
+        digest.update(str(values.dtype).encode())
+        digest.update(json.dumps(values.shape).encode())
+        digest.update(values.tobytes(order="C"))
+    return digest.hexdigest()
+
+
+def _expression_metrics(
+    *,
+    probabilities: FloatArray,
+    predicted_intensity: FloatArray,
+    predicted_confidence: FloatArray,
+    labels: IntArray,
+    intensity: FloatArray,
+    label_confidence: FloatArray,
+    class_count: int,
+) -> dict[str, float]:
+    macro_f1, balanced_accuracy = _macro_metrics(labels, probabilities.argmax(axis=1), class_count)
+    return {
+        "macro_f1": macro_f1,
+        "balanced_accuracy": balanced_accuracy,
+        "intensity_mae": float(np.abs(predicted_intensity - intensity).mean()),
+        "confidence_mae": float(np.abs(predicted_confidence - label_confidence).mean()),
+        "expected_calibration_error": _calibration_error(probabilities, labels),
+    }
+
+
 def run_expression_ablation_smoke(
     config: ExpressionAblationConfig,
     output: Path,
@@ -234,6 +278,7 @@ def run_expression_ablation_smoke(
     validation_mask = np.array([actor in validation_actors for actor in actors], dtype=bool)
     test_mask = np.array([actor in test_actors for actor in actors], dtype=bool)
     results: dict[str, dict[str, float]] = {}
+    data_digest = _synthetic_data_digest(arrays, labels, intensity, label_confidence, actors)
     suite_started = time.perf_counter()
     for offset, spec in enumerate(config.ablations):
         ablation_started = time.perf_counter()
@@ -267,24 +312,43 @@ def run_expression_ablation_smoke(
             loss.backward()
             optimizer.step()
         model.eval()
+        evaluation_mask = validation_mask | test_mask
+        evaluation_indices = np.flatnonzero(evaluation_mask)
         with torch.inference_mode():
-            logits, predicted_intensity, _ = model(x[test_mask])
+            logits, predicted_intensity, predicted_confidence = model(
+                x[torch.from_numpy(evaluation_indices)]
+            )
             probabilities = torch.softmax(logits, dim=-1).numpy()
-        macro_f1, balanced_accuracy = _macro_metrics(
-            labels[test_mask], probabilities.argmax(axis=1), len(config.emotion_labels)
+        evaluation_validation_mask = validation_mask[evaluation_indices]
+        evaluation_test_mask = test_mask[evaluation_indices]
+        validation_metrics = _expression_metrics(
+            probabilities=probabilities[evaluation_validation_mask],
+            predicted_intensity=predicted_intensity.numpy()[evaluation_validation_mask],
+            predicted_confidence=predicted_confidence.numpy()[evaluation_validation_mask],
+            labels=labels[validation_mask],
+            intensity=intensity[validation_mask],
+            label_confidence=label_confidence[validation_mask],
+            class_count=len(config.emotion_labels),
+        )
+        test_metrics = _expression_metrics(
+            probabilities=probabilities[evaluation_test_mask],
+            predicted_intensity=predicted_intensity.numpy()[evaluation_test_mask],
+            predicted_confidence=predicted_confidence.numpy()[evaluation_test_mask],
+            labels=labels[test_mask],
+            intensity=intensity[test_mask],
+            label_confidence=label_confidence[test_mask],
+            class_count=len(config.emotion_labels),
         )
         results[spec.name] = {
-            "macro_f1": macro_f1,
-            "balanced_accuracy": balanced_accuracy,
-            "intensity_mae": float(
-                np.abs(predicted_intensity.numpy() - intensity[test_mask]).mean()
-            ),
-            "expected_calibration_error": _calibration_error(probabilities, labels[test_mask]),
+            **test_metrics,
+            **{f"validation_{name}": value for name, value in validation_metrics.items()},
             "train_eval_ms": (time.perf_counter() - ablation_started) * 1_000.0,
         }
     config_payload = config.model_dump(mode="json")
+    commit, dirty = git_state()
+    lock_path = Path("uv.lock")
     report: dict[str, object] = {
-        "schema_version": "nana-expression-ablation-report/1.0.0",
+        "schema_version": "nana-expression-ablation-report/1.1.0",
         "smoke_only": True,
         "warning": (
             "Synthetic smoke evidence does not validate CREMA-D or production expression quality."
@@ -299,6 +363,17 @@ def run_expression_ablation_smoke(
         "config_sha256": hashlib.sha256(
             json.dumps(config_payload, separators=(",", ":"), sort_keys=True).encode()
         ).hexdigest(),
+        "resolved_config": config_payload,
+        "data": {
+            "revision": "synthetic-frozen-f-expression/1.0.0",
+            "sha256": data_digest,
+        },
+        "reproducibility": {
+            "seed": config.seed,
+            "git_commit": commit,
+            "working_tree_dirty_during_measurement": dirty,
+            "uv_lock_sha256": sha256_file(lock_path) if lock_path.is_file() else None,
+        },
         "runtime": {
             "python": platform.python_version(),
             "torch": torch.__version__,

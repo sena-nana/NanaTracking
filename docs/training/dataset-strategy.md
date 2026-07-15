@@ -41,13 +41,15 @@ production training is authorized by this repository snapshot.
    split and reserving one or more devices exclusively for test.
 4. Train/evaluate F without CREMA-D. Pin the manifest digest in the checkpoint and report.
 5. Run the released F offline over CREMA-D only after its license record is approved. Emit the
-   `nana-expression-cache/1.0.0` format; the contract requires a frozen F digest and BasicSet IDs
-   1..36 in order.
+   `nana-expression-cache/1.1.0` format; the contract requires a frozen F digest, BasicSet IDs 1..36
+   in order, and an exact source dataset name/revision bound to its admitted dataset-license record.
 6. Build actor-level G splits with `data split-actors`; clips from one actor cannot cross splits.
 7. Train G and the required ablations. Store F and G reports separately.
 
 The checked-in G report is synthetic smoke-only. It verifies the frozen boundary, actor split,
-feature paths, metrics, and complete ablation execution, but does not claim CREMA-D performance.
+feature paths, validation/test metrics, confidence-head error, and complete ablation execution. The
+report pins its resolved configuration, generated data digest, Git state, and dependency lock, but
+does not claim CREMA-D performance.
 
 ## Required evaluation
 
@@ -70,4 +72,3 @@ removed, head pose only, head pose removed, shuffled time, and RGB upper-bound r
 - F and G reports stay separate. Emotion accuracy cannot waive F regression failures.
 - Raw recordings, CREMA-D media, caches, model weights, consent documents, or biometric identifiers
   are never committed.
-
