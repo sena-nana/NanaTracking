@@ -44,6 +44,13 @@ result from an old generation is rejected. Capture callbacks do not wait for RGB
 inference; a single replaceable slot prevents result-age growth. Transport, encryption, pairing,
 and reconnect behavior remain outside this crate.
 
+The iOS package mirrors the stable NTP value types rather than Swift or ARKit memory layouts.
+`NTPSpatialProducer` owns session/generation/sequence and rejects incomplete `1...41` signals,
+missing Spatial structures, mixed capture timestamps, or undeclared signals. Declared additive
+signals remain in the frame instead of being clipped to 41. `NTPLatestFrameWorker` implements the
+single replaceable slot. Its canonical codec decodes and re-encodes the Rust descriptor and result
+golden bytes exactly, so the Swift boundary is checked against the authoritative Rust wire format.
+
 ## Validation
 
 The crate validates both descriptors and frames before fusion, validates the fused result against

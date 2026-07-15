@@ -43,6 +43,13 @@ it is never queued behind newer captures. Input storage is preallocated and reus
 calibration applies to the nested Basic 36 signals; gaze and geometry keep their separately
 versioned normalization.
 
+The iOS Swift boundary uses the same separation. `NTPSpatialProducer` consumes only normalized NTP
+values, confidence, state, and geometry from one capture identity; raw ARKit fields stay outside the
+stream contract. The Swift canonical codec is byte-compatible with the Rust golden descriptor and
+result vectors, and stream reconfiguration increments generation while resetting sequence. A
+bounded `NTPLatestFrameWorker` gives device RGB inference the same replaceable-slot behavior as the
+portable runtime.
+
 ## Smoke workflow
 
 ```bash

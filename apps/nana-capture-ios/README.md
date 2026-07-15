@@ -14,6 +14,12 @@ and does not display unsupported controls.
   with invented defaults.
 - Raw ARKit JSON remains separate from NTP labels. The Python capture tooling regenerates labels
   under an explicit mapping revision.
+- `NTPContract` and `NTPCanonicalCodec` provide framework-neutral Swift value types and the same
+  canonical `NTP1` binary format as Rust. `NTPSpatialProducer` accepts only a complete, normalized
+  same-capture Spatial payload; it owns session generation and sequence state and cannot emit raw
+  ARKit names or Swift struct memory as a network ABI.
+- `NTPLatestFrameWorker` gives RGB inference one replaceable pending slot. A capture callback only
+  swaps the pending value; it never waits for inference or builds an unbounded frame queue.
 - `CaptureStudioClient` polls authenticated control commands, posts applied-command ACKs and quality
   samples, publishes latest-only previews, and uploads durable chunk files without base64 expansion.
   `LocalChunkRecorder.synchronizePending` records the Studio ACK only after the returned ID and digest
@@ -21,6 +27,7 @@ and does not display unsupported controls.
 
 Run the portable local persistence self-test on macOS. The command-line Swift bundle on the
 repository host does not ship XCTest or Swift Testing, so this executable performs the same
+cross-language Rust-vector round-trip, Spatial generation lifecycle, latest-only scheduling,
 restart, pending-retry, corrupt-payload, and acknowledgement assertions without a test framework:
 
 ```bash
