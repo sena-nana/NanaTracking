@@ -323,6 +323,29 @@ fn arkit_profile_binds_all_52_targets_without_protocol_aliases() {
 }
 
 #[test]
+fn buffered_binding_evaluation_preserves_compiled_target_order_and_values() {
+    let mut input = frame(0, 1, 100);
+    for id in 1..=41 {
+        set(&mut input, id, 0.0, 1.0);
+    }
+    set(&mut input, 7, -0.8, 1.0);
+    let semantics = SemanticDeriver::default().derive(&input, 100).unwrap();
+    let evaluator = BindingEvaluator::new(arkit_style_52_profile()).unwrap();
+    let expected = evaluator.evaluate(&input, &semantics).unwrap();
+    let mut buffer = evaluator.new_buffer();
+
+    for _ in 0..2 {
+        let values = evaluator
+            .evaluate_buffered(&input, &semantics, &mut buffer)
+            .unwrap();
+        assert_eq!(values.len(), evaluator.targets().len());
+        for (target, value) in evaluator.targets().iter().zip(values) {
+            assert_eq!(value.as_ref(), expected.get(target));
+        }
+    }
+}
+
+#[test]
 fn low_dof_profile_merges_bilateral_values_and_conflicts_are_rejected() {
     let mut input = frame(0, 1, 100);
     set(&mut input, 20, 0.8, 0.9);

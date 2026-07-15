@@ -354,13 +354,25 @@ impl std::error::Error for BindingError {}
 
 pub struct BindingEvaluator {
     profile: BindingProfile,
+    targets: Vec<ModelParameterId>,
+    target_indices: Vec<usize>,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 struct Accumulator {
     sample: DerivedSample,
     count: u16,
     mode: CombineMode,
+}
+
+/// Caller-owned scratch space for allocation-free repeated binding evaluation.
+///
+/// Create it with [`BindingEvaluator::new_buffer`] after compiling a profile. Reusing the same
+/// buffer preserves its storage across frames; changing evaluators transparently resizes it once.
+#[derive(Debug, Default)]
+pub struct BindingEvaluationBuffer {
+    accumulators: Vec<Option<Accumulator>>,
+    values: Vec<Option<ModelParameterValue>>,
 }
 
 impl BindingEvaluator {
@@ -409,12 +421,41 @@ impl BindingEvaluator {
                 }
             }
         }
-        Ok(Self { profile })
+        let mut targets = profile
+            .bindings
+            .iter()
+            .map(|layered| layered.binding.target.clone())
+            .collect::<Vec<_>>();
+        targets.sort();
+        targets.dedup();
+        let target_indices = profile
+            .bindings
+            .iter()
+            .map(|layered| targets.partition_point(|candidate| candidate < &layered.binding.target))
+            .collect();
+        Ok(Self {
+            profile,
+            targets,
+            target_indices,
+        })
     }
 
     #[must_use]
     pub fn profile(&self) -> &BindingProfile {
         &self.profile
+    }
+
+    #[must_use]
+    pub fn targets(&self) -> &[ModelParameterId] {
+        &self.targets
+    }
+
+    #[must_use]
+    pub fn new_buffer(&self) -> BindingEvaluationBuffer {
+        BindingEvaluationBuffer {
+            accumulators: vec![None; self.targets.len()],
+            values: vec![None; self.targets.len()],
+        }
     }
 
     /// Evaluates all available bindings against one NTP and semantic frame pair.
@@ -428,6 +469,31 @@ impl BindingEvaluator {
         ntp: &NanaTrackingResult,
         semantics: &SemanticFrame,
     ) -> Result<BTreeMap<ModelParameterId, ModelParameterValue>, BindingError> {
+        let mut buffer = self.new_buffer();
+        let values = self.evaluate_buffered(ntp, semantics, &mut buffer)?;
+        Ok(self
+            .targets
+            .iter()
+            .cloned()
+            .zip(values.iter().copied())
+            .filter_map(|(target, value)| value.map(|value| (target, value)))
+            .collect())
+    }
+
+    /// Evaluates into caller-owned storage without allocating after the buffer reaches the
+    /// evaluator's target count. Output slots have the same stable order as [`Self::targets`].
+    /// Missing source data is represented by `None` for only that target.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`BindingError::FrameMismatch`] for unrelated input frames or
+    /// [`BindingError::InvalidExpression`] if a runtime constant is non-finite.
+    pub fn evaluate_buffered<'buffer>(
+        &self,
+        ntp: &NanaTrackingResult,
+        semantics: &SemanticFrame,
+        buffer: &'buffer mut BindingEvaluationBuffer,
+    ) -> Result<&'buffer [Option<ModelParameterValue>], BindingError> {
         if ntp.session_id != semantics.session_id
             || ntp.generation != semantics.generation
             || ntp.sequence != semantics.sequence
@@ -435,22 +501,24 @@ impl BindingEvaluator {
         {
             return Err(BindingError::FrameMismatch);
         }
-        let mut accumulators: BTreeMap<ModelParameterId, Accumulator> = BTreeMap::new();
-        for layered in &self.profile.bindings {
+        if buffer.accumulators.len() != self.targets.len() {
+            buffer.accumulators.resize(self.targets.len(), None);
+            buffer.values.resize(self.targets.len(), None);
+        }
+        buffer.accumulators.fill(None);
+        buffer.values.fill(None);
+        for (layered, target_index) in self.profile.bindings.iter().zip(&self.target_indices) {
             let Some(mut sample) = layered.binding.source.evaluate(ntp, semantics)? else {
                 continue;
             };
             sample.value = layered.binding.transform.apply(sample.value);
-            match accumulators.get_mut(&layered.binding.target) {
+            match &mut buffer.accumulators[*target_index] {
                 None => {
-                    accumulators.insert(
-                        layered.binding.target.clone(),
-                        Accumulator {
-                            sample,
-                            count: 1,
-                            mode: layered.binding.combine,
-                        },
-                    );
+                    buffer.accumulators[*target_index] = Some(Accumulator {
+                        sample,
+                        count: 1,
+                        mode: layered.binding.combine,
+                    });
                 }
                 Some(accumulator) => {
                     accumulator.sample =
@@ -459,23 +527,21 @@ impl BindingEvaluator {
                 }
             }
         }
-        Ok(accumulators
-            .into_iter()
-            .map(|(target, mut accumulator)| {
-                if accumulator.mode == CombineMode::Average {
-                    accumulator.sample.value /= f32::from(accumulator.count);
-                }
-                (
-                    target,
-                    ModelParameterValue {
-                        value: accumulator.sample.value,
-                        confidence: accumulator.sample.confidence,
-                        state: accumulator.sample.state,
-                        sample_age_ns: accumulator.sample.sample_age_ns,
-                    },
-                )
-            })
-            .collect())
+        for (value, accumulator) in buffer.values.iter_mut().zip(&buffer.accumulators) {
+            let Some(mut accumulator) = *accumulator else {
+                continue;
+            };
+            if accumulator.mode == CombineMode::Average {
+                accumulator.sample.value /= f32::from(accumulator.count);
+            }
+            *value = Some(ModelParameterValue {
+                value: accumulator.sample.value,
+                confidence: accumulator.sample.confidence,
+                state: accumulator.sample.state,
+                sample_age_ns: accumulator.sample.sample_age_ns,
+            });
+        }
+        Ok(&buffer.values)
     }
 }
 
