@@ -9,12 +9,9 @@ import onnxruntime as ort
 import torch
 
 from nana_tracking.config import ExperimentConfig
-from nana_tracking.contracts import (
-    MODEL_OUTPUT_NAMES,
-    AdapterContract,
-    ModelPackageMetadata,
-)
-from nana_tracking.models import create_model
+from nana_tracking.contracts import AdapterContract, ModelPackageMetadata
+from nana_tracking.data.manifest import DatasetManifest
+from nana_tracking.models import create_model, output_names
 from nana_tracking.reproducibility import sha256_file
 from nana_tracking.training.checkpoint import load_checkpoint
 
@@ -37,9 +34,13 @@ def _write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _ort_outputs(model_path: Path, input_array: np.ndarray) -> list[np.ndarray]:
+def _ort_outputs(
+    model_path: Path,
+    input_array: np.ndarray,
+    names: tuple[str, ...],
+) -> list[np.ndarray]:
     session = ort.InferenceSession(str(model_path), providers=["CPUExecutionProvider"])
-    values = session.run(list(MODEL_OUTPUT_NAMES), {"image": input_array})
+    values = session.run(list(names), {"image": input_array})
     return [cast(np.ndarray, value) for value in values]
 
 
@@ -48,12 +49,18 @@ def create_model_package(
     checkpoint: Path,
     output_dir: Path,
 ) -> dict[str, dict[str, float]]:
+    if not config.export.smoke_only:
+        if config.data.dataset != "manifest" or config.data.manifest is None:
+            raise ValueError("non-smoke packages require a reviewed manifest dataset")
+        if DatasetManifest.load(config.data.manifest).smoke_only:
+            raise ValueError("a smoke-only manifest cannot produce a non-smoke package")
     output_dir.mkdir(parents=True, exist_ok=True)
     vector_dir = output_dir / "test-vectors"
     vector_dir.mkdir(parents=True, exist_ok=True)
     model = create_model(config.model)
     load_checkpoint(checkpoint, model=model)
     model.eval()
+    names = output_names(config.model)
     shape = (
         1,
         config.model.input_channels,
@@ -68,7 +75,7 @@ def create_model_package(
         (example,),
         onnx_path,
         input_names=["image"],
-        output_names=list(MODEL_OUTPUT_NAMES),
+        output_names=list(names),
         opset_version=config.export.opset,
         dynamo=True,
         verbose=False,
@@ -77,9 +84,9 @@ def create_model_package(
     with torch.inference_mode():
         eager_values = [value.detach().cpu().numpy() for value in model(example)]
     input_array = example.numpy()
-    runtime_values = _ort_outputs(onnx_path, input_array)
+    runtime_values = _ort_outputs(onnx_path, input_array, names)
     parity: dict[str, dict[str, float]] = {}
-    for name, eager, runtime in zip(MODEL_OUTPUT_NAMES, eager_values, runtime_values, strict=True):
+    for name, eager, runtime in zip(names, eager_values, runtime_values, strict=True):
         difference = np.abs(eager - runtime)
         parity[name] = {
             "mae": float(difference.mean()),
@@ -95,26 +102,55 @@ def create_model_package(
     np.savez(vector_dir / "input.npz", image=input_array)
     np.savez(
         vector_dir / "expected.npz",
-        **dict(zip(MODEL_OUTPUT_NAMES, eager_values, strict=True)),
+        **dict(zip(names, eager_values, strict=True)),
     )
     _write_json(vector_dir / "parity.json", parity)
     _write_json(
         output_dir / "schema.json",
         {
-            "schema_version": "smoke-1",
+            "schema_version": "face-basic-1" if config.model.name == "face_basic" else "smoke-1",
             "input": {"name": "image", "shape": list(shape), "dtype": "float32"},
-            "outputs": list(MODEL_OUTPUT_NAMES),
-            "smoke_only": True,
+            "outputs": list(names),
+            "output_roles": (
+                {
+                    "rig": "ntp-basic-36",
+                    "pose": "ntp-head-camera-pose",
+                    "landmarks": "auxiliary-training-diagnostic",
+                    "visibility": "runtime-state-classification",
+                    "identity": "training-only-adversary",
+                    "confidence": "per-signal-confidence",
+                }
+                if config.model.name == "face_basic"
+                else {
+                    "rig": "smoke-rig",
+                    "pose": "smoke-pose",
+                    "confidence": "smoke-confidence",
+                }
+            ),
+            "smoke_only": config.export.smoke_only,
         },
     )
     _write_json(
         output_dir / "signal-registry-revision.json",
         {"revision": config.reproducibility.signal_registry_revision},
     )
-    _write_json(output_dir / "normalization.json", {"input_range": [0.0, 1.0]})
+    _write_json(
+        output_dir / "normalization.json",
+        {
+            "revision": config.reproducibility.normalization_revision,
+            "input_range": [0.0, 1.0],
+            "layout": "NCHW",
+            "color": "RGB",
+        },
+    )
     _write_json(
         output_dir / "calibration-schema.json",
-        {"schema_version": "1", "default_path": "level-a", "smoke_only": True},
+        {
+            "schema_version": "1",
+            "revision": config.reproducibility.calibration_revision,
+            "default_path": "level-a",
+            "smoke_only": config.export.smoke_only,
+        },
     )
     adapter = AdapterContract(
         adapter_type="affine-residual",
@@ -129,11 +165,17 @@ def create_model_package(
         source_checkpoint_digest=sha256_file(checkpoint),
         ntp_schema_revision=config.reproducibility.ntp_schema_revision,
         signal_registry_revision=config.reproducibility.signal_registry_revision,
+        normalization_revision=config.reproducibility.normalization_revision,
+        calibration_revision=config.reproducibility.calibration_revision,
         feature_revision=config.reproducibility.feature_revision,
         onnx_opset=config.export.opset,
         input_shape=list(shape),
-        output_names=list(MODEL_OUTPUT_NAMES),
+        output_names=list(names),
         model_digest=sha256_file(onnx_path),
+        smoke_only=config.export.smoke_only,
+        precision_support=["fp32"],
+        supported_signals=list(range(1, 37)) if config.model.name == "face_basic" else [],
+        supported_structures=["head_geometry"] if config.model.name == "face_basic" else [],
     )
     _write_json(output_dir / "runtime-metadata.json", metadata.model_dump(mode="json"))
     return parity
@@ -158,11 +200,12 @@ def verify_model_package(
         raise ValueError("model.onnx digest does not match runtime metadata")
     with np.load(package_dir / "test-vectors" / "input.npz") as input_file:
         image = input_file["image"]
+    names = tuple(metadata.output_names)
     with np.load(package_dir / "test-vectors" / "expected.npz") as expected_file:
-        expected = {name: expected_file[name] for name in MODEL_OUTPUT_NAMES}
-    actual = _ort_outputs(package_dir / "model.onnx", image)
+        expected = {name: expected_file[name] for name in names}
+    actual = _ort_outputs(package_dir / "model.onnx", image, names)
     report: dict[str, dict[str, float]] = {}
-    for name, runtime in zip(MODEL_OUTPUT_NAMES, actual, strict=True):
+    for name, runtime in zip(names, actual, strict=True):
         difference = np.abs(runtime - expected[name])
         report[name] = {
             "mae": float(difference.mean()),

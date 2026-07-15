@@ -42,3 +42,10 @@ def test_parallel_executor_requires_workers() -> None:
                 },
             }
         )
+
+
+def test_synthetic_data_cannot_claim_non_smoke_artifact() -> None:
+    config = load_config(Path("configs/face-basic-smoke.yaml")).model_dump(mode="json")
+    config["export"]["smoke_only"] = False
+    with pytest.raises(ValidationError, match="reviewed manifest"):
+        ExperimentConfig.model_validate(config)

@@ -4,18 +4,28 @@ import json
 from pathlib import Path
 from typing import Annotated, Literal
 
+import numpy as np
 import typer
 from rich.console import Console
 
 from nana_tracking.config import ExperimentConfig, load_config
+from nana_tracking.contracts import ModelPackageMetadata
 from nana_tracking.data.executors import benchmark_backends
 from nana_tracking.data.labeling import LabelCatalog, materialize_dataset, write_materialized_labels
 from nana_tracking.data.manifest import DatasetManifest
 from nana_tracking.data.schema import CaptureRecord
 from nana_tracking.doctor import doctor_report
-from nana_tracking.evaluation import evaluate as evaluate_model
+from nana_tracking.evaluation import (
+    FailureSample,
+    benchmark_face_basic_package,
+    render_failure_report,
+)
+from nana_tracking.evaluation import (
+    evaluate as evaluate_model,
+)
 from nana_tracking.evaluation.standard import BenchmarkReport, EvaluationStandard
 from nana_tracking.export import create_model_package, verify_model_package
+from nana_tracking.personalization import fit_level_a_calibration
 from nana_tracking.training import train as train_model
 
 app = typer.Typer(no_args_is_help=True, help="NanaTracking training and ONNX tooling.")
@@ -104,6 +114,18 @@ def evaluation_report_schema() -> None:
     _print_json(BenchmarkReport.model_json_schema())
 
 
+@evaluation_app.command("render-failures")
+def render_failures_command(
+    samples: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+) -> None:
+    """Render a local report from versioned failure-sample JSONL."""
+
+    loaded = FailureSample.load_jsonl(samples)
+    render_failure_report(loaded, output)
+    _print_json({"output": output, "sample_count": len(loaded)})
+
+
 @app.command("train")
 def train_command(
     config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)],
@@ -151,6 +173,58 @@ def verify_export_command(
     """Verify package contents, digest, and ORT fixed-vector parity."""
 
     _print_json(verify_model_package(package))
+
+
+@app.command("calibrate-level-a")
+def calibrate_level_a_command(
+    capture: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    package: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+    user_slot: Annotated[str, typer.Option()],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+) -> None:
+    """Fit a resettable Level A profile from neutral/range/confidence NPZ arrays."""
+
+    verify_model_package(package)
+    contract = ModelPackageMetadata.model_validate_json(
+        (package / "runtime-metadata.json").read_text(encoding="utf-8")
+    )
+    with np.load(capture) as values:
+        profile = fit_level_a_calibration(
+            values["neutral"],
+            values["range"],
+            values["confidence"],
+            user_slot=user_slot,
+            model_family=contract.model_family,
+            model_version=contract.model_version,
+            feature_revision=contract.feature_revision,
+            signal_registry_revision=contract.signal_registry_revision,
+            normalization_revision=contract.normalization_revision,
+            calibration_revision=contract.calibration_revision,
+        )
+    profile.save(output)
+    _print_json({"output": output, "user_slot": user_slot, "signal_count": 36})
+
+
+@app.command("benchmark-face-basic")
+def benchmark_face_basic_command(
+    package: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+    providers: Annotated[str, typer.Option()] = "CPUExecutionProvider",
+    warmup: Annotated[int, typer.Option(min=1)] = 20,
+    iterations: Annotated[int, typer.Option(min=1)] = 200,
+    tensorrt_fp16: Annotated[bool, typer.Option()] = False,
+) -> None:
+    """Benchmark a FaceBasic package on explicitly selected target providers."""
+
+    report = benchmark_face_basic_package(
+        package,
+        output,
+        providers=[provider.strip() for provider in providers.split(",") if provider.strip()],
+        warmup=warmup,
+        iterations=iterations,
+        tensorrt_fp16=tensorrt_fp16,
+    )
+    _print_json(report)
 
 
 @app.command("smoke")

@@ -14,9 +14,8 @@ from nana_tracking.contracts import TrackingBatch
 @dataclass(frozen=True, slots=True)
 class SyntheticSample:
     image: Tensor
-    rig: Tensor
-    pose: Tensor
-    confidence: Tensor
+    targets: dict[str, Tensor]
+    label_confidence: dict[str, Tensor]
     sample_id: str
 
 
@@ -49,20 +48,45 @@ class SyntheticTrackingDataset(Dataset[SyntheticSample]):
         pose_repeats = (model.pose_dims + pose_seed.numel() - 1) // pose_seed.numel()
         pose = pose_seed.repeat(pose_repeats)[: model.pose_dims]
         confidence = torch.ones(model.rig_dims)
-        return SyntheticSample(image, rig, pose, confidence, f"synthetic-{index:05d}")
+        targets = {"rig": rig, "pose": pose, "confidence": confidence}
+        label_confidence = {
+            "rig": torch.ones_like(rig),
+            "pose": torch.ones_like(pose),
+            "confidence": torch.ones_like(confidence),
+        }
+        if model.name == "face_basic":
+            targets.update(
+                {
+                    "landmarks": torch.zeros(model.landmark_count, 2),
+                    "visibility": torch.tensor(0, dtype=torch.long),
+                    "identity": torch.tensor(index % model.identity_classes, dtype=torch.long),
+                }
+            )
+            label_confidence.update(
+                {
+                    "landmarks": torch.ones(model.landmark_count, 2),
+                    "visibility": torch.ones(1),
+                    "identity": torch.ones(1),
+                }
+            )
+        return SyntheticSample(
+            image,
+            targets,
+            label_confidence,
+            f"synthetic-{index:05d}",
+        )
 
 
 def collate_tracking(samples: list[SyntheticSample]) -> TrackingBatch:
     return TrackingBatch(
         images=torch.stack([sample.image for sample in samples]),
         targets={
-            "rig": torch.stack([sample.rig for sample in samples]),
-            "pose": torch.stack([sample.pose for sample in samples]),
-            "confidence": torch.stack([sample.confidence for sample in samples]),
+            name: torch.stack([sample.targets[name] for sample in samples])
+            for name in samples[0].targets
         },
         label_confidence={
-            "rig": torch.ones(len(samples), samples[0].rig.numel()),
-            "pose": torch.ones(len(samples), samples[0].pose.numel()),
+            name: torch.stack([sample.label_confidence[name] for sample in samples])
+            for name in samples[0].label_confidence
         },
         sample_ids=tuple(sample.sample_id for sample in samples),
     )

@@ -28,9 +28,3 @@ class SmokeTrackingModel(nn.Module):
             self.pose_head(features),
             torch.sigmoid(self.confidence_head(features)),
         )
-
-
-def create_model(config: ModelConfig) -> SmokeTrackingModel:
-    if config.name != "smoke":
-        raise ValueError(f"unknown model: {config.name}")
-    return SmokeTrackingModel(config)

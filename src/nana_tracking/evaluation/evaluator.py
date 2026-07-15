@@ -6,9 +6,8 @@ from pathlib import Path
 import torch
 
 from nana_tracking.config import ExperimentConfig
-from nana_tracking.contracts import TrackingModelOutput
-from nana_tracking.data.synthetic import create_loader
-from nana_tracking.models import create_model
+from nana_tracking.data.loaders import create_loader
+from nana_tracking.models import create_model, output_names
 from nana_tracking.reproducibility import choose_device
 from nana_tracking.training.checkpoint import load_checkpoint
 
@@ -23,13 +22,16 @@ def evaluate(
     model = create_model(config.model).to(device)
     load_checkpoint(checkpoint, model=model)
     model.eval()
-    loader = create_loader(config, shuffle=False, seed_offset=10_000)
-    errors: dict[str, list[torch.Tensor]] = {"rig": [], "pose": [], "confidence": []}
+    loader = create_loader(config, split="validation", shuffle=False, seed_offset=10_000)
+    names = output_names(config.model)
+    comparable = [name for name in names if name not in {"visibility", "identity"}]
+    errors: dict[str, list[torch.Tensor]] = {name: [] for name in comparable}
 
     with torch.inference_mode():
         for batch in loader:
-            output = TrackingModelOutput.from_tuple(model(batch.images.to(device)))
-            for name, prediction in output.as_dict().items():
+            outputs = dict(zip(names, model(batch.images.to(device)), strict=True))
+            for name in comparable:
+                prediction = outputs[name]
                 target = batch.targets[name].to(device)
                 errors[name].append((prediction - target).detach().abs().cpu())
 

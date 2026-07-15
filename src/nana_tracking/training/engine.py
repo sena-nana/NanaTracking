@@ -9,9 +9,9 @@ import torch
 from torch import Tensor, nn
 
 from nana_tracking.config import ExperimentConfig, save_config
-from nana_tracking.contracts import CheckpointMetadata, TrackingModelOutput
-from nana_tracking.data.synthetic import create_loader
-from nana_tracking.models import create_model
+from nana_tracking.contracts import CheckpointMetadata
+from nana_tracking.data.loaders import create_loader
+from nana_tracking.models import create_model, mirror_basic_rig, output_names
 from nana_tracking.reproducibility import (
     choose_device,
     git_state,
@@ -31,12 +31,52 @@ class TrainingResult:
     final_loss: float
 
 
-def _loss(output: TrackingModelOutput, targets: dict[str, Tensor]) -> Tensor:
-    return (
-        nn.functional.mse_loss(output.rig, targets["rig"])
-        + nn.functional.mse_loss(output.pose, targets["pose"])
-        + nn.functional.binary_cross_entropy(output.confidence, targets["confidence"])
+def _weighted_mean(values: Tensor, weights: Tensor) -> Tensor:
+    return (values * weights).sum() / weights.sum().clamp_min(1.0)
+
+
+def _losses(
+    config: ExperimentConfig,
+    outputs: dict[str, Tensor],
+    targets: dict[str, Tensor],
+    label_confidence: dict[str, Tensor],
+    images: Tensor,
+    model: nn.Module,
+) -> dict[str, Tensor]:
+    if config.model.name == "smoke":
+        return {
+            "rig": nn.functional.mse_loss(outputs["rig"], targets["rig"]),
+            "pose": nn.functional.mse_loss(outputs["pose"], targets["pose"]),
+            "confidence": nn.functional.binary_cross_entropy(
+                outputs["confidence"], targets["confidence"]
+            ),
+        }
+    raw = nn.functional.smooth_l1_loss(outputs["rig"], targets["rig"], reduction="none")
+    pose = nn.functional.smooth_l1_loss(outputs["pose"], targets["pose"], reduction="none")
+    landmarks = nn.functional.smooth_l1_loss(
+        outputs["landmarks"], targets["landmarks"], reduction="none"
     )
+    mirrored_outputs = dict(
+        zip(output_names(config.model), model(torch.flip(images, dims=(-1,))), strict=True)
+    )
+    mirror_consistency = nn.functional.smooth_l1_loss(
+        mirrored_outputs["rig"], mirror_basic_rig(outputs["rig"])
+    )
+    return {
+        "rig": _weighted_mean(raw, label_confidence["rig"]) * config.training.rig_loss_weight,
+        "pose": _weighted_mean(pose, label_confidence["pose"]) * config.training.pose_loss_weight,
+        "landmarks": _weighted_mean(landmarks, label_confidence["landmarks"])
+        * config.training.landmark_loss_weight,
+        "visibility": nn.functional.cross_entropy(outputs["visibility"], targets["visibility"])
+        * config.training.visibility_loss_weight,
+        "identity_adversary": nn.functional.cross_entropy(outputs["identity"], targets["identity"])
+        * config.training.identity_adversary_weight,
+        "confidence": nn.functional.binary_cross_entropy(
+            outputs["confidence"], targets["confidence"]
+        )
+        * config.training.confidence_loss_weight,
+        "mirror_consistency": mirror_consistency * config.training.mirror_consistency_weight,
+    }
 
 
 def train(
@@ -72,7 +112,7 @@ def train(
     run_dir.mkdir(parents=True, exist_ok=True)
     save_config(config, run_dir / "config.resolved.yaml")
     metrics_path = run_dir / "metrics.jsonl"
-    loader = create_loader(config, shuffle=False)
+    loader = create_loader(config, split="train", shuffle=False)
     step = start_step
     final_loss = float("nan")
     model.train()
@@ -87,15 +127,26 @@ def train(
             targets = {name: value.to(device) for name, value in batch.targets.items()}
             optimizer.zero_grad(set_to_none=True)
             with torch.autocast(device_type=device.type, enabled=amp_enabled):
-                output = TrackingModelOutput.from_tuple(model(images))
-                loss = _loss(output, targets)
+                outputs = dict(zip(output_names(config.model), model(images), strict=True))
+                label_confidence = {
+                    name: value.to(device) for name, value in batch.label_confidence.items()
+                }
+                components = _losses(config, outputs, targets, label_confidence, images, model)
+                loss = torch.stack(tuple(components.values())).sum()
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
             step += 1
             final_loss = float(loss.detach().cpu())
             with metrics_path.open("a", encoding="utf-8") as handle:
-                handle.write(json.dumps({"step": step, "train/loss": final_loss}) + "\n")
+                metrics = {"step": step, "train/loss": final_loss}
+                metrics.update(
+                    {
+                        f"train/{name}": float(value.detach().cpu())
+                        for name, value in components.items()
+                    }
+                )
+                handle.write(json.dumps(metrics, sort_keys=True) + "\n")
         if not made_progress:
             raise RuntimeError("training loader produced no batches")
 
@@ -112,6 +163,9 @@ def train(
         data_revision=config.reproducibility.data_revision,
         ntp_schema_revision=config.reproducibility.ntp_schema_revision,
         signal_registry_revision=config.reproducibility.signal_registry_revision,
+        normalization_revision=config.reproducibility.normalization_revision,
+        calibration_revision=config.reproducibility.calibration_revision,
+        feature_revision=config.reproducibility.feature_revision,
         device=str(device),
         amp_enabled=amp_enabled,
         git_commit=git_commit,

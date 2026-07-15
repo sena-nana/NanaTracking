@@ -29,6 +29,7 @@ uv run --extra cpu nana-tracking evaluation validate-standard \
   configs/evaluation/ntp-v1-standard.json
 uv run --extra cpu nana-tracking train --config configs/smoke.yaml
 uv run --extra cpu nana-tracking smoke --work-dir runs/smoke
+uv run --extra cpu nana-tracking train --config configs/face-basic-smoke.yaml
 uv run --extra cpu nana-tracking benchmark-python
 cargo run -p ntp-conformance -- stream.ntp --output json
 ```
@@ -37,6 +38,11 @@ The interpreter benchmark runs `InterpreterPoolExecutor` inside an isolated brok
 PyTorch 2.11 autograd never shares a process that has created subinterpreters. Benchmark reports
 are written under `artifacts/benchmarks/`; adopt an executor only when target-workload evidence
 shows a throughput benefit without unacceptable startup or memory cost.
+
+The [FaceBasic v1 baseline](docs/model/face-basic-v1.md) documents the shared-encoder multi-task
+model, manifest loader, Level A calibration, latest-frame-only NTP producer, ONNX package, target
+hardware benchmark, and failure-sample workflow. Its checked-in configuration is smoke-only and
+cannot serve as real tracking-quality or RTX 4060 acceptance evidence.
 
 Run the quality gates before handing off a change:
 

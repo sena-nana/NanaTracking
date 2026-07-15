@@ -6,8 +6,6 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 from torch import Tensor
 
-MODEL_OUTPUT_NAMES = ("rig", "pose", "confidence")
-
 
 @dataclass(frozen=True, slots=True)
 class TrackingBatch:
@@ -44,6 +42,9 @@ class CheckpointMetadata(ContractModel):
     data_revision: str
     ntp_schema_revision: str
     signal_registry_revision: str
+    normalization_revision: str
+    calibration_revision: str
+    feature_revision: str
     device: str
     amp_enabled: bool
     git_commit: str
@@ -59,12 +60,21 @@ class ModelPackageMetadata(ContractModel):
     source_checkpoint_digest: str
     ntp_schema_revision: str
     signal_registry_revision: str
+    normalization_revision: str
+    calibration_revision: str
     feature_revision: str
     onnx_opset: int
     input_shape: list[int]
     output_names: list[str]
     model_digest: str
     smoke_only: bool = True
+    input_layout: str = "NCHW"
+    input_color: str = "RGB"
+    input_range: tuple[float, float] = (0.0, 1.0)
+    precision_support: list[str] = Field(default_factory=lambda: ["fp32"])
+    supported_signals: list[int] = Field(default_factory=list)
+    supported_structures: list[str] = Field(default_factory=list)
+    temporal_state: str = "single-frame"
 
 
 class AdapterContract(ContractModel):
