@@ -345,6 +345,25 @@ fn low_dof_profile_merges_bilateral_values_and_conflicts_are_rejected() {
 }
 
 #[test]
+fn live2d_profile_converts_ntp_radians_to_model_degrees() {
+    let mut input = frame(0, 1, 100);
+    set(&mut input, 52, core::f32::consts::PI / 6.0, 0.9);
+    set(&mut input, 45, -core::f32::consts::PI / 18.0, 0.8);
+    let semantics = SemanticDeriver::default().derive(&input, 100).unwrap();
+    let output = BindingEvaluator::new(live2d_common_profile())
+        .unwrap()
+        .evaluate(&input, &semantics)
+        .unwrap();
+
+    let head = ModelParameterId::new("ParamAngleX").unwrap();
+    let body = ModelParameterId::new("ParamBodyAngleY").unwrap();
+    assert_close(output[&head].value, 30.0);
+    assert_close(output[&body].value, -10.0);
+    assert_close(output[&head].confidence, 0.9);
+    assert_close(output[&body].confidence, 0.8);
+}
+
+#[test]
 fn declarative_transforms_and_multi_binding_combine_are_executable() {
     let mut input = frame(0, 1, 100);
     set(&mut input, 1, 0.6, 0.9);

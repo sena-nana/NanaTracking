@@ -191,9 +191,9 @@ pub fn live2d_common_profile() -> BindingProfile {
             signed.clone(),
         ),
     ];
-    bindings.extend(live2d_angle_bindings(&signed));
+    bindings.extend(live2d_angle_bindings());
     BindingProfile {
-        name: "Live2D Common 1.0".into(),
+        name: "Live2D Common 1.1".into(),
         requirements: SignalRequirements {
             required_signals: ids(1..=36),
             preferred_signals: ids(37..=76),
@@ -202,22 +202,27 @@ pub fn live2d_common_profile() -> BindingProfile {
     }
 }
 
-fn live2d_angle_bindings(transform: &BindingTransform) -> Vec<LayeredBinding> {
+fn live2d_angle_bindings() -> Vec<LayeredBinding> {
     [
-        ("ParamAngleX", 52),
-        ("ParamAngleY", 51),
-        ("ParamAngleZ", 53),
-        ("ParamBodyAngleX", 46),
-        ("ParamBodyAngleY", 45),
-        ("ParamBodyAngleZ", 47),
+        ("ParamAngleX", 52, -30.0, 30.0),
+        ("ParamAngleY", 51, -30.0, 30.0),
+        ("ParamAngleZ", 53, -30.0, 30.0),
+        ("ParamBodyAngleX", 46, -10.0, 10.0),
+        ("ParamBodyAngleY", 45, -10.0, 10.0),
+        ("ParamBodyAngleZ", 47, -10.0, 10.0),
     ]
     .into_iter()
-    .map(|(target, raw)| {
+    .map(|(target, raw, clamp_min, clamp_max)| {
         layered(
             BindingLayer::Compatibility,
             target,
             SignalExpression::Ntp(signal_id(raw)),
-            transform.clone(),
+            BindingTransform {
+                clamp_min,
+                clamp_max,
+                scale: 180.0 / core::f32::consts::PI,
+                ..BindingTransform::default()
+            },
         )
     })
     .collect()
@@ -227,7 +232,7 @@ fn live2d_angle_bindings(transform: &BindingTransform) -> Vec<LayeredBinding> {
 #[must_use]
 pub fn vtube_studio_common_profile() -> BindingProfile {
     let mut profile = live2d_common_profile();
-    profile.name = "VTube Studio Common 1.0".into();
+    profile.name = "VTube Studio Common 1.1".into();
     profile
 }
 

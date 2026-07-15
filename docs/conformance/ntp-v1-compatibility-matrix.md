@@ -33,7 +33,7 @@ capability emitting `Unsupported` fails certification.
 | --- | --- | --- | --- | --- | --- |
 | Nana Native Rig 1.0 | 1-36 | 37-88 | compatible, degraded optional coverage | compatible, optional Full gaps | compatible through 76, optional 77-88 depend on capability |
 | ARKit-style 52 1.0 | 1-36 | 37-41 | compatible, gaze/tongue controls depend on extras | complete preferred coverage | complete preferred coverage |
-| Live2D Common 1.0 / VTube Studio Common 1.0 | 1-36 | 37-76 | compatible, body controls degrade | compatible, body controls degrade | complete preferred coverage |
+| Live2D Common 1.1 / VTube Studio Common 1.1 | 1-36 | 37-76 | compatible, body controls degrade | compatible, body controls degrade | complete preferred coverage |
 
 Compatibility is resolved from `supported_signals`, never from a producer or backend name.
 
@@ -66,4 +66,3 @@ rotation, arm raise/bend weights, and auricle orthogonality. Rust structure/temp
 hand-near-face geometry, periodic auricle motion, occlusion, out-of-frame, prediction,
 `TrackingLost`, generation switches, and late-frame rejection. Anatomical reflection has a
 separate fixed-rule test for side swaps and lateral-axis negation.
-
