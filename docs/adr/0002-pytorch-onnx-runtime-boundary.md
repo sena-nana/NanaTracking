@@ -77,6 +77,14 @@ processing-start timestamps so the second stage is not hidden or counted twice. 
 fixed-input smoke evidence for the Rust adapter and are not tracking-quality or target-device
 acceptance.
 
+The Rust CPU consumer long-run smoke is
+`artifacts/benchmarks/issue11-rust-ort-face-basic-30m-macos-m4-smoke.json`. On Apple M4 it paced
+107,997 release-mode inferences over 1,800.003 seconds at 59.998 FPS, with result-age
+P50/P95/P99 0.539/0.870/0.987 ms and 0.0023 ms first-to-last P95 drift. Process CPU was 0.0338 core
+equivalents, the sampled process stayed at one thread, RSS did not grow, and CPU measured zero
+after dropping the session. This closes the local Rust CPU scheduling/resource evidence gap only;
+the fixed input remains smoke-only and does not certify real tracking quality or another backend.
+
 The opt-in macOS Core ML execution-provider smoke is
 `artifacts/benchmarks/issue11-rust-ort-coreml-macos-m4-smoke.json`. It verifies actual profiled Core
 ML nodes plus fixed-vector parity for Basic, Spatial, and Full, and reports CPU fallback. These tiny

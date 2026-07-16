@@ -1,0 +1,362 @@
+{
+  "bounded_sampling": {
+    "algorithm": "deterministic Algorithm R reservoir plus fixed first/last windows",
+    "edge_window_capacity": 4096,
+    "observed_samples": 107997,
+    "reservoir_capacity": 65536,
+    "retained_samples_including_windows": 73728,
+    "seed": 47
+  },
+  "calibration_revision": "ntp-calibration/1.0.0",
+  "capture_to_result": {
+    "all_reservoir": {
+      "mean_ms": 0.5430788290100098,
+      "p50_ms": 0.532916,
+      "p95_ms": 0.86170725,
+      "p99_ms": 0.9755543000000001
+    },
+    "first_window": {
+      "mean_ms": 0.5388216726074219,
+      "p50_ms": 0.534416,
+      "p95_ms": 0.78708375,
+      "p99_ms": 0.9555905
+    },
+    "last_window": {
+      "mean_ms": 0.35070852807617187,
+      "p50_ms": 0.2593545,
+      "p95_ms": 0.78805275,
+      "p99_ms": 0.89863335
+    }
+  },
+  "feature_revision": "ntp-features/1.0.0",
+  "fixed_vector": {
+    "absolute_tolerance": 0.00001,
+    "input_sha256": "f0303914dce75ee1b699a7d91f1e7aa8c64a443a1b12fd656663d723093fe4d6",
+    "maximum_absolute_error": 5.960464477539063e-8,
+    "relative_tolerance": 0.0001
+  },
+  "hardware": {
+    "architecture": "aarch64",
+    "cpu": "Apple M4",
+    "os": "macos"
+  },
+  "limitations": "Fixed package test-vector RGB smoke only. This proves the Rust ORT CPU consumer scheduling, result freshness, bounded sampling, and sampled process resources on this host. It does not prove camera I/O, tracking quality, GPU execution, other platforms, or production readiness.",
+  "model_digest": "8f5a9dd44f4f19b6cdb8d12acf5c4f6f7f2a1ca47fb3490fef3ad38da0fec542",
+  "normalization_revision": "ntp-normalization/1.0.0",
+  "ntp_schema_revision": "ntp/1.0",
+  "provenance": {
+    "cargo_lock_sha256": "9c6366dc4ab40ad275f7f0be88c5a48b5317731b3a5f42897e0ee2093079d2fa",
+    "git_commit": "a8b09dcb3a1644bc8a6f2b6e6a0c018cecf7dd12",
+    "git_dirty": false
+  },
+  "resources": {
+    "after_session_drop": {
+      "elapsed_seconds": 1801.01979075,
+      "hottest_thread_cpu_percent": 0.0,
+      "process_cpu_seconds": 60.88,
+      "rss_bytes": 32161792,
+      "thread_count": 1
+    },
+    "cpu_core_equivalents": 0.03377215989071037,
+    "gpu": null,
+    "gpu_note": "GPU and VRAM are unavailable for the CPU provider and are not inferred",
+    "peak_sampled_hottest_thread_cpu_percent": 12.8,
+    "peak_sampled_rss_bytes": 60538880,
+    "rss_growth_bytes": -28377088,
+    "samples": [
+      {
+        "elapsed_seconds": 0.0,
+        "hottest_thread_cpu_percent": 12.8,
+        "process_cpu_seconds": 0.09,
+        "rss_bytes": 60538880,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 60.003826541,
+        "hottest_thread_cpu_percent": 3.6,
+        "process_cpu_seconds": 2.09,
+        "rss_bytes": 31244288,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 120.000676291,
+        "hottest_thread_cpu_percent": 4.6,
+        "process_cpu_seconds": 4.39,
+        "rss_bytes": 31309824,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 180.000584958,
+        "hottest_thread_cpu_percent": 3.8,
+        "process_cpu_seconds": 6.79,
+        "rss_bytes": 31358976,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 240.001352666,
+        "hottest_thread_cpu_percent": 4.0,
+        "process_cpu_seconds": 9.15,
+        "rss_bytes": 31424512,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 300.003396791,
+        "hottest_thread_cpu_percent": 4.0,
+        "process_cpu_seconds": 11.43,
+        "rss_bytes": 31473664,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 360.000962875,
+        "hottest_thread_cpu_percent": 4.0,
+        "process_cpu_seconds": 13.85,
+        "rss_bytes": 31539200,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 420.004251541,
+        "hottest_thread_cpu_percent": 4.0,
+        "process_cpu_seconds": 16.28,
+        "rss_bytes": 31588352,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 480.003526666,
+        "hottest_thread_cpu_percent": 3.6,
+        "process_cpu_seconds": 18.74,
+        "rss_bytes": 31653888,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 540.002015,
+        "hottest_thread_cpu_percent": 3.8,
+        "process_cpu_seconds": 21.01,
+        "rss_bytes": 31703040,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 600.004726708,
+        "hottest_thread_cpu_percent": 2.9,
+        "process_cpu_seconds": 23.35,
+        "rss_bytes": 31768576,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 660.003894875,
+        "hottest_thread_cpu_percent": 2.4,
+        "process_cpu_seconds": 25.48,
+        "rss_bytes": 31752192,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 720.002370041,
+        "hottest_thread_cpu_percent": 2.8,
+        "process_cpu_seconds": 27.55,
+        "rss_bytes": 31817728,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 780.001202333,
+        "hottest_thread_cpu_percent": 2.8,
+        "process_cpu_seconds": 29.35,
+        "rss_bytes": 31866880,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 840.003891625,
+        "hottest_thread_cpu_percent": 3.3,
+        "process_cpu_seconds": 31.15,
+        "rss_bytes": 31932416,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 900.003630333,
+        "hottest_thread_cpu_percent": 3.1,
+        "process_cpu_seconds": 33.12,
+        "rss_bytes": 31981568,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 960.003043208,
+        "hottest_thread_cpu_percent": 3.6,
+        "process_cpu_seconds": 35.1,
+        "rss_bytes": 32047104,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1020.003512458,
+        "hottest_thread_cpu_percent": 1.2,
+        "process_cpu_seconds": 36.97,
+        "rss_bytes": 32096256,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1080.003829666,
+        "hottest_thread_cpu_percent": 1.4,
+        "process_cpu_seconds": 38.75,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1140.003817208,
+        "hottest_thread_cpu_percent": 3.0,
+        "process_cpu_seconds": 40.67,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1200.00403275,
+        "hottest_thread_cpu_percent": 3.9,
+        "process_cpu_seconds": 42.63,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1260.002559375,
+        "hottest_thread_cpu_percent": 3.2,
+        "process_cpu_seconds": 44.68,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1320.001946958,
+        "hottest_thread_cpu_percent": 2.8,
+        "process_cpu_seconds": 46.58,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1380.00160225,
+        "hottest_thread_cpu_percent": 2.5,
+        "process_cpu_seconds": 48.21,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1440.00169725,
+        "hottest_thread_cpu_percent": 2.5,
+        "process_cpu_seconds": 49.74,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1500.003696875,
+        "hottest_thread_cpu_percent": 3.3,
+        "process_cpu_seconds": 51.59,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1560.003804791,
+        "hottest_thread_cpu_percent": 3.4,
+        "process_cpu_seconds": 53.57,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1620.003724166,
+        "hottest_thread_cpu_percent": 3.7,
+        "process_cpu_seconds": 55.64,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1680.003820833,
+        "hottest_thread_cpu_percent": 3.1,
+        "process_cpu_seconds": 57.63,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1740.003797791,
+        "hottest_thread_cpu_percent": 2.1,
+        "process_cpu_seconds": 59.58,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1800.003322208,
+        "hottest_thread_cpu_percent": 1.6,
+        "process_cpu_seconds": 60.88,
+        "rss_bytes": 32161792,
+        "thread_count": 1
+      }
+    ],
+    "stopped_cpu_core_equivalents": 0.0,
+    "thread_growth": 0,
+    "vram": null
+  },
+  "result_age_at_consume": {
+    "all_reservoir": {
+      "mean_ms": 0.5491665376434326,
+      "p50_ms": 0.538958,
+      "p95_ms": 0.87005225,
+      "p99_ms": 0.9866103
+    },
+    "first_window": {
+      "mean_ms": 0.5456531303710938,
+      "p50_ms": 0.5417085,
+      "p95_ms": 0.794562,
+      "p99_ms": 0.9648398999999999
+    },
+    "last_window": {
+      "mean_ms": 0.3549069509277344,
+      "p50_ms": 0.26275,
+      "p95_ms": 0.79689625,
+      "p99_ms": 0.9082961499999999
+    }
+  },
+  "runtime": {
+    "active_provider": "OnnxRuntimeCpu",
+    "allow_spinning": false,
+    "completed_frames": 107997,
+    "delivered_fps": 59.99822259774712,
+    "duration_seconds_measured": 1800.003322166,
+    "duration_seconds_requested": 1800.0,
+    "execution_mode": "sequential",
+    "input_shape": [
+      1,
+      3,
+      64,
+      64
+    ],
+    "inter_threads": 1,
+    "intra_threads": 1,
+    "known_copy_boundary": "borrowed RGB is resized directly into one reused owned NCHW input; ORT-internal copies are not observable",
+    "maximum_observed_queue_depth": 0,
+    "onnxruntime_dylib": ".venv/lib/python3.14/site-packages/onnxruntime/capi/libonnxruntime.1.27.0.dylib",
+    "onnxruntime_dylib_sha256": "610618102f62a00f7dfb21b3641ad81d88a6ee428967dd89d08af0b916c63774",
+    "ort_wrapper": "2.0.0-rc.9",
+    "queue_capacity": 0,
+    "runtime_ort_crate": "0.1.0",
+    "rust": "rustc 1.97.0 (2d8144b78 2026-07-07)",
+    "scheduling": "paced latest-capture; overdue capture periods are skipped, never queued",
+    "skipped_capture_periods": 3,
+    "target_fps": 60.0,
+    "warmup": 100
+  },
+  "schema_version": "rust-face-basic-runtime-stability/1.0.0",
+  "signal_registry_revision": "ntp-signals/1.0.0",
+  "smoke_only": true,
+  "source_checkpoint_digest": "27f11926ace11da026340fa54fb964c83e8725e3986532bb42f4b3cd77ee5815",
+  "stability": {
+    "gates": {
+      "cpu_core_equivalents_within_limit": true,
+      "duration_reached": true,
+      "result_age_p95_drift_within_limit": true,
+      "rss_growth_within_limit": true,
+      "stopped_cpu_reduced_within_limit": true,
+      "stopped_thread_count_within_limit": true,
+      "target_cadence_reached": true,
+      "thread_growth_within_limit": true
+    },
+    "maximum_cpu_core_equivalents": 1.0,
+    "maximum_result_age_p95_drift_ms": 2.0,
+    "maximum_rss_growth_bytes": 33554432,
+    "maximum_stopped_cpu_core_equivalents": 0.01,
+    "maximum_thread_growth": 2,
+    "passed": true,
+    "result_age_p95_drift_ms": 0.002334249999999982,
+    "stop_observation_seconds": 1.0
+  }
+}

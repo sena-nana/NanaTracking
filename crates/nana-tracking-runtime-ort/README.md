@@ -30,6 +30,14 @@ cargo run --release -p nana-tracking-runtime-ort \
 Optional trailing arguments override duration seconds, target FPS, and resource-sample seconds.
 Resource sampling currently supports macOS and Linux; Windows validation remains a separate target.
 
+The checked-in Apple M4 CPU smoke ran the release harness for 1,800.003 seconds and completed
+107,997 frames at 59.998 FPS. Capture-to-result P50/P95/P99 was 0.533/0.862/0.976 ms; result-age
+P50/P95/P99 was 0.539/0.870/0.987 ms and first-to-last P95 drift was 0.0023 ms. The process used
+0.0338 CPU core equivalents, stayed at one thread, had no RSS growth, and measured zero CPU after
+session drop. All eight gates passed. See
+artifacts/benchmarks/issue11-rust-ort-face-basic-30m-macos-m4-smoke.json. This fixed-input result is
+runtime smoke evidence, not camera, model-quality, GPU, cross-platform, or production acceptance.
+
 The caller supplies capture and processing-start timestamps from one monotonic clock domain. The
 backend includes pre-inference wait in result age while continuing to report preprocess, inference,
 and readback separately. A Full extension reports the later of the Spatial result and its own
