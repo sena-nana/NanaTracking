@@ -783,6 +783,8 @@ def benchmark_face_basic_command(
     warmup: Annotated[int, typer.Option(min=1)] = 20,
     iterations: Annotated[int, typer.Option(min=1)] = 200,
     tensorrt_fp16: Annotated[bool, typer.Option()] = False,
+    intra_threads: Annotated[int, typer.Option(min=1)] = 1,
+    allow_spinning: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Benchmark a FaceBasic package on explicitly selected target providers."""
 
@@ -793,6 +795,8 @@ def benchmark_face_basic_command(
         warmup=warmup,
         iterations=iterations,
         tensorrt_fp16=tensorrt_fp16,
+        intra_threads=intra_threads,
+        allow_spinning=allow_spinning,
     )
     _print_json(report)
 
@@ -807,6 +811,9 @@ def benchmark_face_stability_command(
     resource_interval_seconds: Annotated[float, typer.Option(min=0.01)] = 60.0,
     warmup: Annotated[int, typer.Option(min=1)] = 100,
     tensorrt_fp16: Annotated[bool, typer.Option()] = False,
+    intra_threads: Annotated[int, typer.Option(min=1)] = 1,
+    allow_spinning: Annotated[bool, typer.Option()] = False,
+    maximum_cpu_core_equivalents: Annotated[float, typer.Option(min=0.01)] = 1.0,
 ) -> None:
     """Run a bounded-memory 30-minute face runtime stability gate by default."""
 
@@ -819,6 +826,9 @@ def benchmark_face_stability_command(
         resource_sample_interval_seconds=resource_interval_seconds,
         warmup=warmup,
         tensorrt_fp16=tensorrt_fp16,
+        intra_threads=intra_threads,
+        allow_spinning=allow_spinning,
+        maximum_cpu_core_equivalents=maximum_cpu_core_equivalents,
     )
     _print_json(report)
     stability = cast(dict[str, object], report["stability"])
@@ -864,6 +874,8 @@ def benchmark_face_spatial_command(
     warmup: Annotated[int, typer.Option(min=1)] = 20,
     iterations: Annotated[int, typer.Option(min=1)] = 200,
     tensorrt_fp16: Annotated[bool, typer.Option()] = False,
+    intra_threads: Annotated[int, typer.Option(min=1)] = 1,
+    allow_spinning: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Benchmark a FaceSpatial package on explicitly selected target providers."""
 
@@ -874,6 +886,8 @@ def benchmark_face_spatial_command(
         warmup=warmup,
         iterations=iterations,
         tensorrt_fp16=tensorrt_fp16,
+        intra_threads=intra_threads,
+        allow_spinning=allow_spinning,
     )
     _print_json(report)
 
@@ -886,6 +900,8 @@ def benchmark_full_set_command(
     warmup: Annotated[int, typer.Option(min=1)] = 20,
     iterations: Annotated[int, typer.Option(min=1)] = 200,
     tensorrt_fp16: Annotated[bool, typer.Option()] = False,
+    intra_threads: Annotated[int, typer.Option(min=1)] = 1,
+    allow_spinning: Annotated[bool, typer.Option()] = False,
 ) -> None:
     """Benchmark the low-cadence FullSet upper-body package."""
 
@@ -896,6 +912,8 @@ def benchmark_full_set_command(
         warmup=warmup,
         iterations=iterations,
         tensorrt_fp16=tensorrt_fp16,
+        intra_threads=intra_threads,
+        allow_spinning=allow_spinning,
     )
     _print_json(report)
 

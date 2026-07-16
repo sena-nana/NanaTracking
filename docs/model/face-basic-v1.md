@@ -108,6 +108,11 @@ state, and lock digest. Fixed test-vector input remains smoke-only and cannot re
 tracking-quality acceptance. For non-CPU providers, session registration alone is not node-assignment
 evidence and must be paired with that backend's fixed-vector/profile gate.
 
+Paced tracking sessions use one intra-op thread, sequential graph execution, and disable ORT
+intra/inter-op idle spinning by default. `--allow-spinning` is an explicit throughput experiment,
+not the low-latency default; adopt it only when the target-workload report proves that its latency
+gain justifies the measured idle CPU cost.
+
 ## Acceptance evidence boundary
 
 Automated tests prove the following functional properties: one shared encoder invocation produces

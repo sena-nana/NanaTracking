@@ -8,6 +8,10 @@ semantically complete in isolation. The crate keeps ORT tensors and session valu
 one NCHW input buffer per session, writes only framework-neutral values into caller-owned output
 storage, and reports the actual provider and stage timings.
 
+CPU and Core ML session options default to one sequential intra/inter-op thread with ORT idle
+spinning disabled. Callers may opt into spinning explicitly only when target-workload evidence
+justifies the extra between-frame CPU residency.
+
 The caller supplies capture and processing-start timestamps from one monotonic clock domain. The
 backend includes pre-inference wait in result age while continuing to report preprocess, inference,
 and readback separately. A Full extension reports the later of the Spatial result and its own

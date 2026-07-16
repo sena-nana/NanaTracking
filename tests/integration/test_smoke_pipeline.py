@@ -87,6 +87,8 @@ def test_face_basic_train_evaluate_export_verify(tmp_path: Path) -> None:
     runtime = benchmark["runtime"]
     assert isinstance(runtime, dict)
     assert runtime["active_providers"] == ["CPUExecutionProvider"]
+    assert runtime["intra_threads"] == 1
+    assert runtime["allow_spinning"] is False
     stability_path = tmp_path / "runtime-stability.json"
     command = CliRunner().invoke(
         app,
@@ -109,12 +111,18 @@ def test_face_basic_train_evaluate_export_verify(tmp_path: Path) -> None:
     assert command.exit_code == 0, command.output
     stability = json.loads(stability_path.read_text(encoding="utf-8"))
     assert stability["smoke_only"] is True
+    stability_runtime = stability["runtime"]
+    assert isinstance(stability_runtime, dict)
+    assert stability_runtime["allow_spinning"] is False
     bounded = stability["bounded_sampling"]
     assert isinstance(bounded, dict)
     assert bounded["retained_samples_including_windows"] <= 65_536 + 8_192
     result = stability["stability"]
     assert isinstance(result, dict)
     assert result["passed"] is True
+    gates = result["gates"]
+    assert isinstance(gates, dict)
+    assert gates["cpu_core_equivalents_within_limit"] is True
 
 
 @pytest.mark.integration
@@ -161,6 +169,10 @@ def test_face_spatial_train_evaluate_export_verify(tmp_path: Path) -> None:
     )
     assert benchmark["schema_version"] == "face-spatial-runtime-benchmark/1.0.0"
     assert benchmark["geometry_topology_revision"] == "ntp-face-canonical/1.0.0-smoke"
+    spatial_runtime = benchmark["runtime"]
+    assert isinstance(spatial_runtime, dict)
+    assert spatial_runtime["intra_threads"] == 1
+    assert spatial_runtime["allow_spinning"] is False
 
 
 @pytest.mark.integration
@@ -208,3 +220,7 @@ def test_full_set_train_evaluate_export_verify(tmp_path: Path) -> None:
     )
     assert benchmark["schema_version"] == "full-set-upper-body-runtime-benchmark/1.0.0"
     assert benchmark["smoke_only"] is True
+    full_runtime = benchmark["runtime"]
+    assert isinstance(full_runtime, dict)
+    assert full_runtime["intra_threads"] == 1
+    assert full_runtime["allow_spinning"] is False

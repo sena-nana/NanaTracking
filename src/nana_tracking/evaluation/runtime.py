@@ -306,6 +306,8 @@ def _load_face_benchmark_context(
     *,
     providers: list[str],
     tensorrt_fp16: bool,
+    intra_threads: int,
+    allow_spinning: bool,
 ) -> tuple[
     ModelPackageMetadata,
     OrtFaceBasicBackend | OrtFaceSpatialBackend,
@@ -326,6 +328,8 @@ def _load_face_benchmark_context(
             package_dir,
             providers=providers,
             tensorrt_fp16=tensorrt_fp16,
+            intra_threads=intra_threads,
+            allow_spinning=allow_spinning,
         )
         producer = FaceBasicProducer(backend)
         profile_name = "face-basic"
@@ -334,6 +338,8 @@ def _load_face_benchmark_context(
             package_dir,
             providers=providers,
             tensorrt_fp16=tensorrt_fp16,
+            intra_threads=intra_threads,
+            allow_spinning=allow_spinning,
         )
         producer = FaceSpatialProducer(backend)
         profile_name = "face-spatial"
@@ -353,6 +359,8 @@ def benchmark_face_package(
     warmup: int = 20,
     iterations: int = 200,
     tensorrt_fp16: bool = False,
+    intra_threads: int = 1,
+    allow_spinning: bool = False,
 ) -> dict[str, object]:
     """Benchmark the packaged fixed ROI on the active provider and hardware."""
 
@@ -360,6 +368,8 @@ def benchmark_face_package(
         package_dir,
         providers=providers,
         tensorrt_fp16=tensorrt_fp16,
+        intra_threads=intra_threads,
+        allow_spinning=allow_spinning,
     )
     sequence = 0
     for _ in range(warmup):
@@ -418,6 +428,8 @@ def benchmark_face_package(
             ),
             "precision_support": metadata.precision_support,
             "tensorrt_fp16": tensorrt_fp16,
+            "intra_threads": backend.intra_threads,
+            "allow_spinning": backend.allow_spinning,
             "input_shape": metadata.input_shape,
             "iterations": iterations,
             "warmup": warmup,
@@ -465,7 +477,10 @@ def benchmark_face_package_stability(
     maximum_result_age_p95_drift_ms: float = 2.0,
     maximum_rss_growth_bytes: int = 32 * 1024 * 1024,
     maximum_thread_growth: int = 2,
+    maximum_cpu_core_equivalents: float = 1.0,
     tensorrt_fp16: bool = False,
+    intra_threads: int = 1,
+    allow_spinning: bool = False,
 ) -> dict[str, object]:
     """Run a paced, bounded-memory stability benchmark on an actual face package backend."""
 
@@ -479,10 +494,14 @@ def benchmark_face_package_stability(
         raise ValueError("result-age drift threshold must be non-negative")
     if maximum_rss_growth_bytes < 0 or maximum_thread_growth < 0:
         raise ValueError("resource growth thresholds must be non-negative")
+    if maximum_cpu_core_equivalents <= 0.0:
+        raise ValueError("CPU core-equivalent threshold must be positive")
     metadata, backend, producer, profile_name, frame = _load_face_benchmark_context(
         package_dir,
         providers=providers,
         tensorrt_fp16=tensorrt_fp16,
+        intra_threads=intra_threads,
+        allow_spinning=allow_spinning,
     )
     sequence = 0
     for _ in range(warmup):
@@ -561,6 +580,7 @@ def benchmark_face_package_stability(
     rss_growth_bytes = rss_values[-1] - rss_values[0] if len(rss_values) >= 2 else None
     thread_growth = thread_values[-1] - thread_values[0] if len(thread_values) >= 2 else None
     delivered_fps = samples.seen / max(wall_seconds, 1e-9)
+    cpu_core_equivalents = cpu_seconds / max(wall_seconds, 1e-9)
     gates = {
         "duration_reached": wall_seconds >= duration_seconds * 0.99,
         "target_cadence_reached": delivered_fps >= target_fps * 0.95,
@@ -573,6 +593,7 @@ def benchmark_face_package_stability(
         "thread_growth_within_limit": (
             thread_growth is not None and thread_growth <= maximum_thread_growth
         ),
+        "cpu_core_equivalents_within_limit": (cpu_core_equivalents <= maximum_cpu_core_equivalents),
     }
     git_commit, git_dirty = git_state()
     report: dict[str, object] = {
@@ -601,6 +622,8 @@ def benchmark_face_package_stability(
             ),
             "precision_support": metadata.precision_support,
             "tensorrt_fp16": tensorrt_fp16,
+            "intra_threads": backend.intra_threads,
+            "allow_spinning": backend.allow_spinning,
             "input_shape": metadata.input_shape,
             "target_fps": target_fps,
             "delivered_fps": delivered_fps,
@@ -622,7 +645,7 @@ def benchmark_face_package_stability(
         "capture_to_result_ms": capture_to_result,
         "result_age_at_consume_ms": result_age,
         "resources": {
-            "cpu_core_equivalents": cpu_seconds / max(wall_seconds, 1e-9),
+            "cpu_core_equivalents": cpu_core_equivalents,
             "samples": resource_samples,
             "rss_growth_bytes": rss_growth_bytes,
             "peak_sampled_rss_bytes": max(rss_values) if rss_values else None,
@@ -636,6 +659,7 @@ def benchmark_face_package_stability(
             "maximum_result_age_p95_drift_ms": maximum_result_age_p95_drift_ms,
             "maximum_rss_growth_bytes": maximum_rss_growth_bytes,
             "maximum_thread_growth": maximum_thread_growth,
+            "maximum_cpu_core_equivalents": maximum_cpu_core_equivalents,
         },
         "provenance": {
             "git_commit": git_commit,
@@ -662,6 +686,8 @@ def benchmark_face_basic_package(
     warmup: int = 20,
     iterations: int = 200,
     tensorrt_fp16: bool = False,
+    intra_threads: int = 1,
+    allow_spinning: bool = False,
 ) -> dict[str, object]:
     report = benchmark_face_package(
         package_dir,
@@ -670,6 +696,8 @@ def benchmark_face_basic_package(
         warmup=warmup,
         iterations=iterations,
         tensorrt_fp16=tensorrt_fp16,
+        intra_threads=intra_threads,
+        allow_spinning=allow_spinning,
     )
     if report["schema_version"] != "face-basic-runtime-benchmark/1.0.0":
         raise ValueError("package is not FaceBasic")
@@ -684,6 +712,8 @@ def benchmark_face_spatial_package(
     warmup: int = 20,
     iterations: int = 200,
     tensorrt_fp16: bool = False,
+    intra_threads: int = 1,
+    allow_spinning: bool = False,
 ) -> dict[str, object]:
     report = benchmark_face_package(
         package_dir,
@@ -692,6 +722,8 @@ def benchmark_face_spatial_package(
         warmup=warmup,
         iterations=iterations,
         tensorrt_fp16=tensorrt_fp16,
+        intra_threads=intra_threads,
+        allow_spinning=allow_spinning,
     )
     if report["schema_version"] != "face-spatial-runtime-benchmark/1.0.0":
         raise ValueError("package is not FaceSpatial")
@@ -706,6 +738,8 @@ def benchmark_full_set_package(
     warmup: int = 20,
     iterations: int = 200,
     tensorrt_fp16: bool = False,
+    intra_threads: int = 1,
+    allow_spinning: bool = False,
 ) -> dict[str, object]:
     """Benchmark the low-cadence upper-body ONNX package on explicit hardware."""
 
@@ -713,7 +747,13 @@ def benchmark_full_set_package(
     metadata = ModelPackageMetadata.model_validate_json(
         (package_dir / "runtime-metadata.json").read_text(encoding="utf-8")
     )
-    backend = OrtFullSetBackend(package_dir, providers=providers, tensorrt_fp16=tensorrt_fp16)
+    backend = OrtFullSetBackend(
+        package_dir,
+        providers=providers,
+        tensorrt_fp16=tensorrt_fp16,
+        intra_threads=intra_threads,
+        allow_spinning=allow_spinning,
+    )
     with np.load(package_dir / "test-vectors" / "input.npz") as vectors:
         image = vectors["image"]
     for _ in range(warmup):
@@ -749,6 +789,8 @@ def benchmark_full_set_package(
             "active_providers": backend.active_providers,
             "precision_support": metadata.precision_support,
             "tensorrt_fp16": tensorrt_fp16,
+            "intra_threads": backend.intra_threads,
+            "allow_spinning": backend.allow_spinning,
             "input_shape": metadata.input_shape,
             "iterations": iterations,
             "warmup": warmup,

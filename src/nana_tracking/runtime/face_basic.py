@@ -12,11 +12,11 @@ from typing import Protocol, cast
 from uuid import UUID, uuid4
 
 import numpy as np
-import onnxruntime as ort
 
 from nana_tracking.contracts import ModelPackageMetadata
 from nana_tracking.export import verify_model_package
 from nana_tracking.personalization import LevelACalibration
+from nana_tracking.runtime.ort_session import create_ort_session
 from nana_tracking.runtime.temporal import CausalTemporalRefiner, TemporalSample, TemporalState
 
 _UNSIGNED_SLOTS = {8, 9, 12, 13, 14, 15, 16, 27, 29, 32, 33, 34, 35}
@@ -214,6 +214,8 @@ class OrtFaceBasicBackend:
         *,
         providers: list[str] | None = None,
         tensorrt_fp16: bool = False,
+        intra_threads: int = 1,
+        allow_spinning: bool = False,
     ) -> None:
         verify_model_package(package_dir)
         self.metadata = ModelPackageMetadata.model_validate_json(
@@ -221,21 +223,14 @@ class OrtFaceBasicBackend:
         )
         if self.metadata.supported_signals != list(range(1, 37)):
             raise ValueError("model package does not declare the complete BasicSet")
-        requested = providers or ["CPUExecutionProvider"]
-        if tensorrt_fp16 and "TensorrtExecutionProvider" not in requested:
-            raise ValueError("TensorRT FP16 requires TensorrtExecutionProvider")
-        available = cast(list[str], ort.get_available_providers())
-        unavailable = set(requested).difference(available)
-        if unavailable:
-            raise RuntimeError(f"requested ONNX Runtime providers are unavailable: {unavailable}")
-        provider_specs: list[str | tuple[str, dict[str, str]]] = [
-            (provider, {"trt_fp16_enable": "1"})
-            if provider == "TensorrtExecutionProvider" and tensorrt_fp16
-            else provider
-            for provider in requested
-        ]
-        self._session = ort.InferenceSession(
-            str(package_dir / "model.onnx"), providers=provider_specs
+        self.intra_threads = intra_threads
+        self.allow_spinning = allow_spinning
+        self._session = create_ort_session(
+            package_dir / "model.onnx",
+            providers=providers,
+            tensorrt_fp16=tensorrt_fp16,
+            intra_threads=intra_threads,
+            allow_spinning=allow_spinning,
         )
         self.input_height = self.metadata.input_shape[2]
         self.input_width = self.metadata.input_shape[3]

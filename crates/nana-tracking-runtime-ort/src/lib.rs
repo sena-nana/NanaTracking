@@ -74,11 +74,15 @@ pub fn initialize_from_dylib(path: &Path) -> Result<(), TrackingRuntimeError> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct OrtCpuOptions {
     pub intra_threads: usize,
+    pub allow_spinning: bool,
 }
 
 impl Default for OrtCpuOptions {
     fn default() -> Self {
-        Self { intra_threads: 1 }
+        Self {
+            intra_threads: 1,
+            allow_spinning: false,
+        }
     }
 }
 
@@ -92,6 +96,7 @@ pub enum CoreMlComputePolicy {
 #[derive(Clone, Debug, PartialEq)]
 pub struct OrtCoreMlOptions {
     pub intra_threads: usize,
+    pub allow_spinning: bool,
     pub compute_policy: CoreMlComputePolicy,
     pub validation_profile_directory: PathBuf,
     pub absolute_tolerance: f32,
@@ -103,6 +108,7 @@ impl OrtCoreMlOptions {
     pub fn new(validation_profile_directory: PathBuf) -> Self {
         Self {
             intra_threads: 1,
+            allow_spinning: false,
             compute_policy: CoreMlComputePolicy::All,
             validation_profile_directory,
             absolute_tolerance: 1.0e-3,
@@ -139,6 +145,13 @@ impl OrtSessionOptions {
         match self {
             Self::Cpu(options) => options.intra_threads,
             Self::CoreMl(options) => options.intra_threads,
+        }
+    }
+
+    const fn allow_spinning(&self) -> bool {
+        match self {
+            Self::Cpu(options) => options.allow_spinning,
+            Self::CoreMl(options) => options.allow_spinning,
         }
     }
 }
@@ -225,6 +238,14 @@ impl OrtPackageSession {
             .with_optimization_level(GraphOptimizationLevel::Level3)
             .map_err(backend_error)?
             .with_intra_threads(options.intra_threads())
+            .map_err(backend_error)?
+            .with_inter_threads(1)
+            .map_err(backend_error)?
+            .with_parallel_execution(false)
+            .map_err(backend_error)?
+            .with_intra_op_spinning(options.allow_spinning())
+            .map_err(backend_error)?
+            .with_inter_op_spinning(options.allow_spinning())
             .map_err(backend_error)?;
         if let OrtSessionOptions::CoreMl(core_ml) = &options {
             let execution_provider = match core_ml.compute_policy {
