@@ -12,6 +12,24 @@ CPU and Core ML session options default to one sequential intra/inter-op thread 
 spinning disabled. Callers may opt into spinning explicitly only when target-workload evidence
 justifies the extra between-frame CPU residency.
 
+The benchmark-face-basic-stability example is the release-mode, paced Rust consumer stability
+harness. It runs the verified CPU session for 30 minutes at 60 FPS by default, skips overdue
+captures instead of queueing them, bounds latency samples, records process and hottest-thread
+CPU/RSS/thread state, and observes resource use after dropping the session. Its JSON gates
+duration, cadence, result-age drift, RSS/thread growth, active CPU, and stopped CPU. Fixed package
+input remains smoke-only.
+
+Run it from the repository root after building the example in release mode:
+
+```text
+cargo run --release -p nana-tracking-runtime-ort \
+  --example benchmark-face-basic-stability -- \
+  <libonnxruntime> <model-package> <output-json>
+```
+
+Optional trailing arguments override duration seconds, target FPS, and resource-sample seconds.
+Resource sampling currently supports macOS and Linux; Windows validation remains a separate target.
+
 The caller supplies capture and processing-start timestamps from one monotonic clock domain. The
 backend includes pre-inference wait in result age while continuing to report preprocess, inference,
 and readback separately. A Full extension reports the later of the Spatial result and its own
