@@ -113,6 +113,19 @@ intra/inter-op idle spinning by default. `--allow-spinning` is an explicit throu
 not the low-latency default; adopt it only when the target-workload report proves that its latency
 gain justifies the measured idle CPU cost.
 
+The local Apple M4 comparison used the same smoke-only package, ORT CPU provider, 60 FPS pacing,
+and 30-minute duration. The pre-policy run at commit `0670a09` used ORT's automatic worker policy:
+it delivered 59.974 FPS but retained five threads and consumed 2.115 CPU core equivalents. The
+one-thread, no-spinning default at commit `1a2ec65` delivered 59.984 FPS over 107,971 frames with
+0.104 CPU core equivalents and one thread, a 95.07% CPU reduction. Result-age P50/P95/P99 was
+1.686/2.782/3.128 ms, first-to-last P95 drift was 0.781 ms, 29 overdue capture periods were skipped,
+RSS did not grow, and all six stability gates passed. The bounded sampler observed 107,971 results
+while retaining at most 73,728 values. See
+`artifacts/benchmarks/issue7-ort-face-basic-30m-macos-m4-smoke.json` for the pre-policy run and
+`artifacts/benchmarks/issue7-ort-face-basic-30m-low-cpu-macos-m4-smoke.json` for the adopted default.
+Both use a fixed package test vector and therefore prove scheduling/resource behavior on this host,
+not camera input, tracking quality, target GPU performance, or production readiness.
+
 ## Acceptance evidence boundary
 
 Automated tests prove the following functional properties: one shared encoder invocation produces

@@ -1,0 +1,281 @@
+{
+  "bounded_sampling": {
+    "algorithm": "deterministic Algorithm R reservoir plus fixed first/last windows",
+    "edge_window_capacity": 4096,
+    "observed_samples": 107971,
+    "reservoir_capacity": 65536,
+    "retained_samples_including_windows": 73728,
+    "seed": 47
+  },
+  "calibration_revision": "ntp-calibration/1.0.0",
+  "capture_to_result_ms": {
+    "all_reservoir": {
+      "mean": 1.6803344663848876,
+      "p50": 1.6560205,
+      "p95": 2.741334,
+      "p99": 3.080416
+    },
+    "first_window": {
+      "mean": 1.4565694255371093,
+      "p50": 1.5869375,
+      "p95": 2.132541,
+      "p99": 2.663958
+    },
+    "last_window": {
+      "mean": 2.0877025568847656,
+      "p50": 2.4074790000000004,
+      "p95": 2.901458,
+      "p99": 3.177042
+    }
+  },
+  "feature_revision": "ntp-features/1.0.0",
+  "hardware": {
+    "machine": "arm64",
+    "platform": "macOS-26.5.2-arm64-arm-64bit-Mach-O",
+    "processor": "arm"
+  },
+  "limitations": "Fixed package test-vector RGB smoke only. This proves runtime scheduling and resource stability on the CPU-only backend/hardware used by this run. Provider registration alone does not prove optimized node assignment. This does not prove camera I/O, tracking quality, or production readiness.",
+  "model_digest": "8f5a9dd44f4f19b6cdb8d12acf5c4f6f7f2a1ca47fb3490fef3ad38da0fec542",
+  "normalization_revision": "ntp-normalization/1.0.0",
+  "ntp_schema_revision": "ntp/1.0",
+  "provenance": {
+    "git_commit": "1a2ec65465df1135151723a7058ce47df250fcfd",
+    "git_dirty": false,
+    "uv_lock_sha256": "968b7e79b8f115b23ab9db182d1576c82fa39485644a7843433800bfe824f7ad"
+  },
+  "resources": {
+    "cpu_core_equivalents": 0.10432371155080661,
+    "nvidia_smi_snapshot": null,
+    "peak_sampled_rss_bytes": 363544576,
+    "rss_growth_bytes": -244400128,
+    "samples": [
+      {
+        "elapsed_seconds": 0.0,
+        "rss_bytes": 360923136,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 60.003420375,
+        "rss_bytes": 361676800,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 120.001318167,
+        "rss_bytes": 362151936,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 180.003035875,
+        "rss_bytes": 362610688,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 240.000923542,
+        "rss_bytes": 363085824,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 300.003114792,
+        "rss_bytes": 363544576,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 360.00194275,
+        "rss_bytes": 243744768,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 420.003170917,
+        "rss_bytes": 244219904,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 480.003439625,
+        "rss_bytes": 158121984,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 540.00377625,
+        "rss_bytes": 158416896,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 600.000079042,
+        "rss_bytes": 158908416,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 660.005127833,
+        "rss_bytes": 159465472,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 720.006501625,
+        "rss_bytes": 159956992,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 780.005679208,
+        "rss_bytes": 160448512,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 840.00608975,
+        "rss_bytes": 160989184,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 900.006819542,
+        "rss_bytes": 161464320,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 960.004727125,
+        "rss_bytes": 161955840,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1020.00292175,
+        "rss_bytes": 162414592,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1080.0045085,
+        "rss_bytes": 161611776,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1140.005173958,
+        "rss_bytes": 163102720,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1200.003533875,
+        "rss_bytes": 163135488,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1260.003717708,
+        "rss_bytes": 163250176,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1320.003763583,
+        "rss_bytes": 116080640,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1380.004876917,
+        "rss_bytes": 116146176,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1440.004085375,
+        "rss_bytes": 116195328,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1500.00499725,
+        "rss_bytes": 116244480,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1560.006836875,
+        "rss_bytes": 116277248,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1620.001455333,
+        "rss_bytes": 116342784,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1680.004765542,
+        "rss_bytes": 116441088,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1740.004793167,
+        "rss_bytes": 116473856,
+        "thread_count": 1
+      },
+      {
+        "elapsed_seconds": 1800.0032515,
+        "rss_bytes": 116523008,
+        "thread_count": 1
+      }
+    ],
+    "thread_growth": 0
+  },
+  "result_age_at_consume_ms": {
+    "all_reservoir": {
+      "mean": 1.7069940369415284,
+      "p50": 1.685917,
+      "p95": 2.78175,
+      "p99": 3.127667
+    },
+    "first_window": {
+      "mean": 1.4825531142578126,
+      "p50": 1.617521,
+      "p95": 2.165791,
+      "p99": 2.700208
+    },
+    "last_window": {
+      "mean": 2.117078472167969,
+      "p50": 2.4370835,
+      "p95": 2.946791,
+      "p99": 3.223209
+    }
+  },
+  "runtime": {
+    "active_providers": [
+      "CPUExecutionProvider"
+    ],
+    "allow_spinning": false,
+    "completed_frames": 107971,
+    "delivered_fps": 59.98378053485422,
+    "duration_seconds_measured": 1800.0032515,
+    "duration_seconds_requested": 1800.0,
+    "input_shape": [
+      1,
+      3,
+      64,
+      64
+    ],
+    "intra_threads": 1,
+    "onnxruntime_version": "1.27.0",
+    "precision_support": [
+      "fp32"
+    ],
+    "provider_evidence": "ORT session provider registration; optimized provider node assignment requires its separate profile and fixed-vector parity gate",
+    "python": "3.14.3",
+    "requested_providers": [
+      "CPUExecutionProvider"
+    ],
+    "scheduling": "paced latest-capture; overdue capture periods are skipped, never queued",
+    "skipped_capture_periods": 29,
+    "target_fps": 60.0,
+    "tensorrt_fp16": false,
+    "warmup": 100
+  },
+  "schema_version": "face-basic-runtime-stability/1.0.0",
+  "signal_registry_revision": "ntp-signals/1.0.0",
+  "smoke_only": true,
+  "source_checkpoint_digest": "27f11926ace11da026340fa54fb964c83e8725e3986532bb42f4b3cd77ee5815",
+  "stability": {
+    "gates": {
+      "cpu_core_equivalents_within_limit": true,
+      "duration_reached": true,
+      "result_age_p95_drift_within_limit": true,
+      "rss_growth_within_limit": true,
+      "target_cadence_reached": true,
+      "thread_growth_within_limit": true
+    },
+    "maximum_cpu_core_equivalents": 1.0,
+    "maximum_result_age_p95_drift_ms": 2.0,
+    "maximum_rss_growth_bytes": 33554432,
+    "maximum_thread_growth": 2,
+    "passed": true,
+    "result_age_p95_drift_ms": 0.7810000000000001
+  }
+}
