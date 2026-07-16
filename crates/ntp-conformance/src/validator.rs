@@ -182,19 +182,20 @@ impl ConformanceValidator {
                 return false;
             }
         }
-        if let Some(last) = last_capture
-            && result.capture_timestamp_ns < last
-        {
-            self.report.push(Finding::error(
-                FailureCode::CaptureTimestampNotMonotonic,
-                Some(frame_index),
-                None,
-                format!(
-                    "capture timestamp {} is older than {last}",
-                    result.capture_timestamp_ns
-                ),
-            ));
-            return false;
+        match last_capture {
+            Some(last) if result.capture_timestamp_ns < last => {
+                self.report.push(Finding::error(
+                    FailureCode::CaptureTimestampNotMonotonic,
+                    Some(frame_index),
+                    None,
+                    format!(
+                        "capture timestamp {} is older than {last}",
+                        result.capture_timestamp_ns
+                    ),
+                ));
+                return false;
+            }
+            _ => {}
         }
 
         if generation_changed {
@@ -248,12 +249,13 @@ impl ConformanceValidator {
                 ));
             }
         }
-        if contract_valid
-            && self.descriptor_valid
-            && let Err(error) = self.descriptor.validate_result(result)
-            && !matches!(error, ContractError::CapabilityMismatch(_))
-        {
-            self.report.push(contract_finding(error, Some(frame_index)));
+        if contract_valid && self.descriptor_valid {
+            match self.descriptor.validate_result(result) {
+                Err(error) if !matches!(error, ContractError::CapabilityMismatch(_)) => {
+                    self.report.push(contract_finding(error, Some(frame_index)));
+                }
+                _ => {}
+            }
         }
     }
 
@@ -301,23 +303,29 @@ impl ConformanceValidator {
             let slot = id
                 .stable_slot()
                 .expect("rig iterator only returns stable IDs");
-            if let Some(previous) = self.last_samples[slot]
-                && previous.sample_capture_timestamp_ns == sample.sample_capture_timestamp_ns
-            {
-                let prediction_increased = sample.state == SignalState::Predicted
-                    && previous.state == SignalState::Predicted
-                    && sample.prediction_horizon_ns >= previous.prediction_horizon_ns
-                    && sample.confidence > previous.confidence + self.options.semantic_tolerance;
-                let occlusion_increased = sample.state == SignalState::Occluded
-                    && sample.confidence > previous.confidence + self.options.semantic_tolerance;
-                if prediction_increased || occlusion_increased {
-                    self.report.push(Finding::error(
+            match self.last_samples[slot] {
+                Some(previous)
+                    if previous.sample_capture_timestamp_ns
+                        == sample.sample_capture_timestamp_ns =>
+                {
+                    let prediction_increased = sample.state == SignalState::Predicted
+                        && previous.state == SignalState::Predicted
+                        && sample.prediction_horizon_ns >= previous.prediction_horizon_ns
+                        && sample.confidence
+                            > previous.confidence + self.options.semantic_tolerance;
+                    let occlusion_increased = sample.state == SignalState::Occluded
+                        && sample.confidence
+                            > previous.confidence + self.options.semantic_tolerance;
+                    if prediction_increased || occlusion_increased {
+                        self.report.push(Finding::error(
                         FailureCode::PredictionConfidenceIncreased,
                         Some(frame_index),
                         Some(id),
                         "confidence increased for the same source sample during prediction/occlusion",
                     ));
+                    }
                 }
+                _ => {}
             }
             self.last_samples[slot] = Some(TemporalSample {
                 state: sample.state,
@@ -560,31 +568,39 @@ impl ConformanceValidator {
                 "right auricle flatten/flare",
             ),
         ] {
-            if let (Some(left), Some(right)) = (semantic.get(left), semantic.get(right))
-                && left.value > self.options.semantic_tolerance
-                && right.value > self.options.semantic_tolerance
+            match (semantic.get(left), semantic.get(right)) {
+                (Some(left), Some(right))
+                    if left.value > self.options.semantic_tolerance
+                        && right.value > self.options.semantic_tolerance =>
+                {
+                    self.report.push(Finding::error(
+                        FailureCode::DerivedOrthogonality,
+                        Some(frame_index),
+                        None,
+                        format!("{name} were simultaneously positive"),
+                    ));
+                }
+                _ => {}
+            }
+        }
+
+        match (
+            semantic.get(SemanticId::MouthPucker),
+            semantic.get(SemanticId::MouthFunnel),
+            signal_value(result, 29),
+        ) {
+            (Some(pucker), Some(funnel), Some(protrusion))
+                if pucker.value + funnel.value
+                    > protrusion.max(0.0) + self.options.semantic_tolerance =>
             {
                 self.report.push(Finding::error(
                     FailureCode::DerivedOrthogonality,
                     Some(frame_index),
-                    None,
-                    format!("{name} were simultaneously positive"),
+                    Some(SignalId::new(29).expect("non-zero signal")),
+                    "mouth pucker and funnel exceed their shared protrusion axis",
                 ));
             }
-        }
-
-        if let (Some(pucker), Some(funnel), Some(protrusion)) = (
-            semantic.get(SemanticId::MouthPucker),
-            semantic.get(SemanticId::MouthFunnel),
-            signal_value(result, 29),
-        ) && pucker.value + funnel.value > protrusion.max(0.0) + self.options.semantic_tolerance
-        {
-            self.report.push(Finding::error(
-                FailureCode::DerivedOrthogonality,
-                Some(frame_index),
-                Some(SignalId::new(29).expect("non-zero signal")),
-                "mouth pucker and funnel exceed their shared protrusion axis",
-            ));
+            _ => {}
         }
 
         for side in [Side::Left, Side::Right] {
@@ -688,15 +704,16 @@ fn compare_rig_scalar(
     report: &mut CertificationReport,
     message: &str,
 ) {
-    if let Some(actual) = signal_value(result, raw_id)
-        && (actual - expected).abs() > tolerance
-    {
-        report.push(Finding::error(
-            FailureCode::SkeletonScalarMismatch,
-            Some(frame_index),
-            SignalId::new(raw_id),
-            format!("{message}: expected {expected}, got {actual}"),
-        ));
+    match signal_value(result, raw_id) {
+        Some(actual) if (actual - expected).abs() > tolerance => {
+            report.push(Finding::error(
+                FailureCode::SkeletonScalarMismatch,
+                Some(frame_index),
+                SignalId::new(raw_id),
+                format!("{message}: expected {expected}, got {actual}"),
+            ));
+        }
+        _ => {}
     }
 }
 
@@ -709,15 +726,16 @@ fn compare_rig_angle(
     report: &mut CertificationReport,
     message: &str,
 ) {
-    if let Some(actual) = signal_value(result, raw_id)
-        && angle_distance(actual, expected) > tolerance
-    {
-        report.push(Finding::error(
-            FailureCode::SkeletonScalarMismatch,
-            Some(frame_index),
-            SignalId::new(raw_id),
-            format!("{message}: expected {expected}, got {actual}"),
-        ));
+    match signal_value(result, raw_id) {
+        Some(actual) if angle_distance(actual, expected) > tolerance => {
+            report.push(Finding::error(
+                FailureCode::SkeletonScalarMismatch,
+                Some(frame_index),
+                SignalId::new(raw_id),
+                format!("{message}: expected {expected}, got {actual}"),
+            ));
+        }
+        _ => {}
     }
 }
 

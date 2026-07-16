@@ -18,6 +18,11 @@ Implemented behavior:
   command acknowledgement, and received-chunk progress;
 - localhost-by-default binding and mandatory bearer authentication plus TLS for a non-loopback bind.
 
+`crates/nana-capture-link` supplies the authenticated MutsukiLink control/preview/reliable-sync
+owner boundary, including bounded backpressure and Link-session replay protection. The CPython
+Studio does not yet bind that Rust crate; its implemented HTTP API remains the executable transport.
+This distinction prevents the operator surface from implying an unconnected native transport.
+
 See `docs/data/capture-archive-v1.md` for commands and recovery rules. Manual label annotation, an
 installer, Windows integration tests, and RTX performance remain external acceptance.
 The UI never treats preview bytes as training input and never shows a control that lacks a backend

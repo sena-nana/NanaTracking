@@ -72,6 +72,29 @@ HTTP transport: raw file upload, bearer authentication, TLS for non-loopback bin
 sizes, and exact receiver ACKs. The iOS client performs retry from the local pending journal. A
 deployment still owns certificate/token provisioning and network retry policy.
 
+`crates/nana-capture-link` implements the preferred MutsukiLink owner adapter without changing the
+archive contract. It derives one-use capture authorization from an active trust record and an
+authenticated Link session; binds all envelopes to that session; keeps control on its independent
+reliable stream; sends preview through the existing prioritized latest-only Datagram path or one
+replaceable reliable slot (Datagram also requires its explicit MutsukiLink trust permission); and
+sends dataset segments, durable ACKs, and missing ranges only through bounded reliable delivery.
+Segment SHA-256 is checked before an event reaches the owner. Reconnect
+requires a different authenticated Link session so replay state cannot be reset in place.
+Hello exchanges the device/studio role and preview mode; Datagram is used only when both peers
+advertise it, so asymmetric trust permissions fail closed to reliable latest-only delivery.
+
+The adapter is intentionally runtime-neutral Rust. It is not yet a Swift or CPython binding, and the
+functional HTTP path above remains the current cross-language deployment. Local memory-transport
+tests prove the owner scheduling, security, and recovery envelopes; they do not prove discovery,
+pairing UI, iOS lifecycle, Windows installation, or device networking.
+
+The checked-in release smoke forces reliable transport backpressure for 200,000 preview submissions
+and then performs 64 MiB of reliable segment encode/receive/decode/SHA-256 work. Five Apple M4 runs
+measured a median 18.872 ns per owned single-slot preview submission and 192.187 MiB/s verified
+segment throughput. See
+`artifacts/benchmarks/issue16-capture-link-macos-m4-smoke.json`. These are synthetic in-memory
+numbers only, not Wi-Fi, USB, iPhone, Windows, thermal, or production evidence.
+
 ## Studio CLI
 
 Create and run a Studio session:

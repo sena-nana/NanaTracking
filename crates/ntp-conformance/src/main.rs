@@ -83,13 +83,14 @@ impl CertificationStream {
     fn accept(&mut self, event: Event) -> Result<(), String> {
         match event {
             Event::Descriptor(value) => {
-                if let Some(previous) = &self.descriptor
-                    && previous != &value
-                {
-                    return Err(
-                        "descriptor changed inside one certification stream; start a new run"
-                            .into(),
-                    );
+                match &self.descriptor {
+                    Some(previous) if previous != &value => {
+                        return Err(
+                            "descriptor changed inside one certification stream; start a new run"
+                                .into(),
+                        );
+                    }
+                    _ => {}
                 }
                 self.descriptor = Some(value.clone());
                 if self.validator.is_none() {

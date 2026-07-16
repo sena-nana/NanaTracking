@@ -175,6 +175,34 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 
 [[package]]
+name = "mutsuki-link-core"
+version = "0.1.0"
+source = "git+https://github.com/sena-nana/MutsukiLink.git?rev=024311f78f48e41cb286855d87cfd8542808e87f#024311f78f48e41cb286855d87cfd8542808e87f"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
+name = "mutsuki-link-pairing"
+version = "0.1.0"
+source = "git+https://github.com/sena-nana/MutsukiLink.git?rev=024311f78f48e41cb286855d87cfd8542808e87f#024311f78f48e41cb286855d87cfd8542808e87f"
+dependencies = [
+ "mutsuki-link-core",
+ "serde",
+ "serde_json",
+ "sha2",
+]
+
+[[package]]
+name = "nana-capture-link"
+version = "0.1.0"
+dependencies = [
+ "mutsuki-link-core",
+ "mutsuki-link-pairing",
+ "sha2",
+]
+
+[[package]]
 name = "nana-tracking-fusion"
 version = "0.1.0"
 dependencies = [

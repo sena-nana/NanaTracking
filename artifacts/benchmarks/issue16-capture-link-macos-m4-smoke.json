@@ -1,0 +1,43 @@
+{
+  "schema_version": "nana-capture-link-smoke/1.0.0",
+  "smoke_only": true,
+  "command": "cargo test --release -p nana-capture-link --test capture_link capture_link_performance_smoke -- --ignored --nocapture",
+  "contract": {
+    "control_lane": "independent reliable control stream",
+    "preview_mode": "reliable latest-only fallback under forced backpressure",
+    "preview_pending_slots": 1,
+    "preview_submissions": 200000,
+    "preview_payload_bytes": 256,
+    "verified_preview_replacements": 199999,
+    "verified_final_preview_sequence": 200000,
+    "sync_mode": "reliable memory transport with encode, receive, decode, and SHA-256 verification",
+    "sync_messages_per_run": 1024,
+    "sync_payload_bytes_per_message": 65536,
+    "sync_mebibytes_per_run": 64
+  },
+  "measurement": {
+    "runs": 5,
+    "preview_nanoseconds_per_submit": {
+      "minimum": 17.269,
+      "median": 18.872,
+      "maximum": 28.111
+    },
+    "sync_mebibytes_per_second": {
+      "minimum": 188.196,
+      "median": 192.187,
+      "maximum": 194.695
+    }
+  },
+  "implementation": {
+    "nana_tracking_base_commit": "919f7f23c246c64c0ea36742a5813899903dadb4",
+    "mutsuki_link_revision": "024311f78f48e41cb286855d87cfd8542808e87f",
+    "working_tree_dirty_during_measurement": true
+  },
+  "hardware": {
+    "cpu": "Apple M4",
+    "architecture": "arm64",
+    "os": "macOS 26.5.2",
+    "rustc": "1.97.0 (2d8144b78 2026-07-07)"
+  },
+  "note": "Synthetic macOS in-memory transport smoke only. It validates bounded preview replacement and reliable segment envelope/hash cost on this host; it does not represent Wi-Fi, USB, iPhone, TrueDepth, Windows, RTX, thermal, battery, discovery, pairing UI, or production performance."
+}

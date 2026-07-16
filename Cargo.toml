@@ -1,5 +1,6 @@
 [workspace]
 members = [
+    "crates/nana-capture-link",
     "crates/nana-tracking-fusion",
     "crates/nana-tracking-protocol",
     "crates/nana-tracking-runtime-api",

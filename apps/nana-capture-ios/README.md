@@ -30,6 +30,10 @@ and does not display unsupported controls.
   samples, publishes latest-only previews, and uploads durable chunk files without base64 expansion.
   `LocalChunkRecorder.synchronizePending` records the Studio ACK only after the returned ID and digest
   match the local descriptor.
+- `crates/nana-capture-link` now defines the authenticated MutsukiLink owner boundary for control,
+  latest-only preview, and reliable dataset sync. It is runtime-neutral Rust and is not presented as
+  an iOS binding: this Swift package continues to use its functional HTTP client until a reviewed
+  Swift/native binding and device deployment are added.
 
 Run the portable local persistence self-test on macOS. The command-line Swift bundle on the
 repository host does not ship XCTest or Swift Testing, so this executable performs the same

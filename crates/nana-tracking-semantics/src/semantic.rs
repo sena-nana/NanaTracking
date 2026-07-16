@@ -464,13 +464,14 @@ impl SemanticDeriver {
             self.session_id = Some(result.session_id);
             self.generation = Some(result.generation);
         }
-        if let Some(previous) = self.last_capture_timestamp_ns
-            && result.capture_timestamp_ns < previous
-        {
-            return Err(SemanticError::OutOfOrderCaptureTimestamp {
-                previous,
-                actual: result.capture_timestamp_ns,
-            });
+        match self.last_capture_timestamp_ns {
+            Some(previous) if result.capture_timestamp_ns < previous => {
+                return Err(SemanticError::OutOfOrderCaptureTimestamp {
+                    previous,
+                    actual: result.capture_timestamp_ns,
+                });
+            }
+            _ => {}
         }
 
         let mut inputs = [None; STABLE_SIGNAL_COUNT];
@@ -844,17 +845,18 @@ impl SemanticDeriver {
                 .sqrt()
                 .clamp(0.0, 1.0);
             let mut velocity = 0.0;
-            if let Some(previous) = self.auricle_motion[side.slot()]
-                && combined.timestamp_ns > previous.timestamp_ns
-            {
-                let dt = Duration::from_nanos(combined.timestamp_ns - previous.timestamp_ns)
-                    .as_secs_f32();
-                let delta = ((axes[0] - previous.axes[0]).powi(2)
-                    + (axes[1] - previous.axes[1]).powi(2)
-                    + (axes[2] - previous.axes[2]).powi(2))
-                .sqrt();
-                velocity = (delta / dt / self.config.wiggle_velocity_full_scale_per_second)
-                    .clamp(0.0, 1.0);
+            match self.auricle_motion[side.slot()] {
+                Some(previous) if combined.timestamp_ns > previous.timestamp_ns => {
+                    let dt = Duration::from_nanos(combined.timestamp_ns - previous.timestamp_ns)
+                        .as_secs_f32();
+                    let delta = ((axes[0] - previous.axes[0]).powi(2)
+                        + (axes[1] - previous.axes[1]).powi(2)
+                        + (axes[2] - previous.axes[2]).powi(2))
+                    .sqrt();
+                    velocity = (delta / dt / self.config.wiggle_velocity_full_scale_per_second)
+                        .clamp(0.0, 1.0);
+                }
+                _ => {}
             }
             let energy = (amplitude * velocity).clamp(0.0, 1.0);
             let phase = protraction.value.atan2(elevation.value) / std::f32::consts::PI;

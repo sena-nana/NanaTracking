@@ -1,0 +1,17 @@
+[package]
+name = "nana-capture-link"
+description = "Authenticated MutsukiLink transport adapter for NanaTracking capture control, preview, and durable sync"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository = "https://github.com/sena-nana/NanaTracking"
+publish = false
+
+[dependencies]
+mutsuki-link-core = { git = "https://github.com/sena-nana/MutsukiLink.git", rev = "024311f78f48e41cb286855d87cfd8542808e87f", version = "0.1.0" }
+mutsuki-link-pairing = { git = "https://github.com/sena-nana/MutsukiLink.git", rev = "024311f78f48e41cb286855d87cfd8542808e87f", version = "0.1.0" }
+sha2 = "0.10.9"
+
+[lints]
+workspace = true
