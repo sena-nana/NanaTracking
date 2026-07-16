@@ -3,7 +3,7 @@
 import json
 import time
 from pathlib import Path
-from typing import Annotated, Literal
+from typing import Annotated, Literal, cast
 
 import numpy as np
 import typer
@@ -52,6 +52,7 @@ from nana_tracking.evaluation import (
     ExpressionAblationConfig,
     FailureSample,
     benchmark_face_basic_package,
+    benchmark_face_package_stability,
     benchmark_face_spatial_package,
     benchmark_full_set_package,
     benchmark_rgb_roi_preprocessor,
@@ -794,6 +795,35 @@ def benchmark_face_basic_command(
         tensorrt_fp16=tensorrt_fp16,
     )
     _print_json(report)
+
+
+@app.command("benchmark-face-stability")
+def benchmark_face_stability_command(
+    package: Annotated[Path, typer.Option(exists=True, file_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+    providers: Annotated[str, typer.Option()] = "CPUExecutionProvider",
+    duration_seconds: Annotated[float, typer.Option(min=0.01, max=7_200.0)] = 1_800.0,
+    target_fps: Annotated[float, typer.Option(min=1.0, max=240.0)] = 60.0,
+    resource_interval_seconds: Annotated[float, typer.Option(min=0.01)] = 60.0,
+    warmup: Annotated[int, typer.Option(min=1)] = 100,
+    tensorrt_fp16: Annotated[bool, typer.Option()] = False,
+) -> None:
+    """Run a bounded-memory 30-minute face runtime stability gate by default."""
+
+    report = benchmark_face_package_stability(
+        package,
+        output,
+        providers=[provider.strip() for provider in providers.split(",") if provider.strip()],
+        duration_seconds=duration_seconds,
+        target_fps=target_fps,
+        resource_sample_interval_seconds=resource_interval_seconds,
+        warmup=warmup,
+        tensorrt_fp16=tensorrt_fp16,
+    )
+    _print_json(report)
+    stability = cast(dict[str, object], report["stability"])
+    if stability["passed"] is not True:
+        raise typer.Exit(code=1)
 
 
 @app.command("benchmark-roi-preprocess")

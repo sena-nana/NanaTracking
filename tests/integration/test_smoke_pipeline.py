@@ -1,8 +1,11 @@
+import json
 import subprocess
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
+from nana_tracking.cli import app
 from nana_tracking.config import load_config
 from nana_tracking.evaluation import evaluate
 from nana_tracking.evaluation.runtime import (
@@ -84,6 +87,34 @@ def test_face_basic_train_evaluate_export_verify(tmp_path: Path) -> None:
     runtime = benchmark["runtime"]
     assert isinstance(runtime, dict)
     assert runtime["active_providers"] == ["CPUExecutionProvider"]
+    stability_path = tmp_path / "runtime-stability.json"
+    command = CliRunner().invoke(
+        app,
+        [
+            "benchmark-face-stability",
+            "--package",
+            str(package),
+            "--output",
+            str(stability_path),
+            "--duration-seconds",
+            "0.25",
+            "--target-fps",
+            "20",
+            "--resource-interval-seconds",
+            "0.1",
+            "--warmup",
+            "1",
+        ],
+    )
+    assert command.exit_code == 0, command.output
+    stability = json.loads(stability_path.read_text(encoding="utf-8"))
+    assert stability["smoke_only"] is True
+    bounded = stability["bounded_sampling"]
+    assert isinstance(bounded, dict)
+    assert bounded["retained_samples_including_windows"] <= 65_536 + 8_192
+    result = stability["stability"]
+    assert isinstance(result, dict)
+    assert result["passed"] is True
 
 
 @pytest.mark.integration

@@ -16,6 +16,7 @@ from nana_tracking.evaluation.failures import FailureSample, render_failure_repo
 from nana_tracking.evaluation.runtime import (
     benchmark_face_basic_package,
     benchmark_face_package,
+    benchmark_face_package_stability,
     benchmark_face_spatial_package,
     benchmark_full_set_package,
     benchmark_rgb_roi_preprocessor,
@@ -32,6 +33,7 @@ __all__ = [
     "ParameterExpressionModel",
     "benchmark_face_basic_package",
     "benchmark_face_package",
+    "benchmark_face_package_stability",
     "benchmark_face_spatial_package",
     "benchmark_full_set_package",
     "benchmark_rgb_roi_preprocessor",

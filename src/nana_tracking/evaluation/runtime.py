@@ -1,12 +1,15 @@
 """Target-hardware ONNX runtime benchmark with machine-readable provenance."""
 
 import json
+import os
 import platform
+import random
 import statistics
 import subprocess
 import sys
 import time
 import tracemalloc
+from collections import deque
 from pathlib import Path
 from typing import cast
 
@@ -70,6 +73,100 @@ def _nvidia_telemetry() -> dict[str, object] | None:
         "vram_used_mib": float(first[3]),
         "vram_total_mib": float(first[4]),
     }
+
+
+def _current_process_resources(elapsed_seconds: float) -> dict[str, object]:
+    rss_bytes: int | None = None
+    thread_count: int | None = None
+    if sys.platform == "linux":
+        try:
+            page_size = os.sysconf("SC_PAGE_SIZE")
+            resident_pages = int(Path("/proc/self/statm").read_text(encoding="utf-8").split()[1])
+            rss_bytes = resident_pages * page_size
+            for line in Path("/proc/self/status").read_text(encoding="utf-8").splitlines():
+                if line.startswith("Threads:"):
+                    thread_count = int(line.split()[1])
+                    break
+        except OSError, ValueError, IndexError:
+            pass
+    elif sys.platform == "darwin":
+        try:
+            rss = subprocess.run(
+                ["ps", "-o", "rss=", "-p", str(os.getpid())],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            threads = subprocess.run(
+                ["ps", "-M", "-p", str(os.getpid())],
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            rss_bytes = int(rss.stdout.strip()) * 1024
+            thread_count = max(0, len(threads.stdout.splitlines()) - 1)
+        except OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError:
+            pass
+    return {
+        "elapsed_seconds": elapsed_seconds,
+        "rss_bytes": rss_bytes,
+        "thread_count": thread_count,
+    }
+
+
+class _BoundedLatencySamples:
+    def __init__(self, *, capacity: int, edge_capacity: int, seed: int) -> None:
+        if capacity < 1 or edge_capacity < 1:
+            raise ValueError("latency sample capacities must be positive")
+        self._capacity = capacity
+        self._edge_capacity = edge_capacity
+        self._random = random.Random(seed)
+        self._reservoir: list[tuple[float, float]] = []
+        self._first: list[tuple[float, float]] = []
+        self._last: deque[tuple[float, float]] = deque(maxlen=edge_capacity)
+        self._seen = 0
+
+    def add(self, capture_to_result_ms: float, result_age_ms: float) -> None:
+        sample = (capture_to_result_ms, result_age_ms)
+        self._seen += 1
+        if len(self._first) < self._edge_capacity:
+            self._first.append(sample)
+        self._last.append(sample)
+        if len(self._reservoir) < self._capacity:
+            self._reservoir.append(sample)
+            return
+        replacement = self._random.randrange(self._seen)
+        if replacement < self._capacity:
+            self._reservoir[replacement] = sample
+
+    @property
+    def seen(self) -> int:
+        return self._seen
+
+    @property
+    def retained(self) -> int:
+        return len(self._reservoir) + len(self._first) + len(self._last)
+
+    @staticmethod
+    def _summary(samples: list[tuple[float, float]], index: int) -> dict[str, float]:
+        values = [sample[index] for sample in samples]
+        return {
+            "p50": statistics.median(values),
+            "p95": _percentile(values, 0.95),
+            "p99": _percentile(values, 0.99),
+            "mean": statistics.fmean(values),
+        }
+
+    def summary(self, index: int) -> dict[str, object]:
+        if not self._reservoir:
+            raise ValueError("stability benchmark produced no latency samples")
+        return {
+            "all_reservoir": self._summary(self._reservoir, index),
+            "first_window": self._summary(self._first, index),
+            "last_window": self._summary(list(self._last), index),
+        }
 
 
 def benchmark_rgb_roi_preprocessor(
@@ -204,17 +301,18 @@ def benchmark_rgb_roi_preprocessor(
     return report
 
 
-def benchmark_face_package(
+def _load_face_benchmark_context(
     package_dir: Path,
-    output: Path,
     *,
     providers: list[str],
-    warmup: int = 20,
-    iterations: int = 200,
-    tensorrt_fp16: bool = False,
-) -> dict[str, object]:
-    """Benchmark the packaged fixed ROI on the active provider and hardware."""
-
+    tensorrt_fp16: bool,
+) -> tuple[
+    ModelPackageMetadata,
+    OrtFaceBasicBackend | OrtFaceSpatialBackend,
+    FaceBasicProducer | FaceSpatialProducer,
+    str,
+    np.ndarray,
+]:
     verify_model_package(package_dir)
     metadata = ModelPackageMetadata.model_validate_json(
         (package_dir / "runtime-metadata.json").read_text(encoding="utf-8")
@@ -244,6 +342,25 @@ def benchmark_face_package(
     with np.load(package_dir / "test-vectors" / "input.npz") as vectors:
         image = vectors["image"]
     frame = np.rint(np.transpose(image[0], (1, 2, 0)) * 255.0).astype(np.uint8)
+    return metadata, backend, producer, profile_name, frame
+
+
+def benchmark_face_package(
+    package_dir: Path,
+    output: Path,
+    *,
+    providers: list[str],
+    warmup: int = 20,
+    iterations: int = 200,
+    tensorrt_fp16: bool = False,
+) -> dict[str, object]:
+    """Benchmark the packaged fixed ROI on the active provider and hardware."""
+
+    metadata, backend, producer, profile_name, frame = _load_face_benchmark_context(
+        package_dir,
+        providers=providers,
+        tensorrt_fp16=tensorrt_fp16,
+    )
     sequence = 0
     for _ in range(warmup):
         sequence += 1
@@ -295,6 +412,10 @@ def benchmark_face_package(
             "onnxruntime_version": ort.__version__,
             "requested_providers": providers,
             "active_providers": backend.active_providers,
+            "provider_evidence": (
+                "ORT session provider registration; optimized provider node assignment requires "
+                "its separate profile and fixed-vector parity gate"
+            ),
             "precision_support": metadata.precision_support,
             "tensorrt_fp16": tensorrt_fp16,
             "input_shape": metadata.input_shape,
@@ -323,6 +444,210 @@ def benchmark_face_package(
                 else "NVIDIA telemetry unavailable; GPU and VRAM are not inferred."
             ),
         },
+    }
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return report
+
+
+def benchmark_face_package_stability(
+    package_dir: Path,
+    output: Path,
+    *,
+    providers: list[str],
+    duration_seconds: float = 1_800.0,
+    target_fps: float = 60.0,
+    resource_sample_interval_seconds: float = 60.0,
+    warmup: int = 100,
+    reservoir_capacity: int = 65_536,
+    edge_window_capacity: int = 4_096,
+    seed: int = 47,
+    maximum_result_age_p95_drift_ms: float = 2.0,
+    maximum_rss_growth_bytes: int = 32 * 1024 * 1024,
+    maximum_thread_growth: int = 2,
+    tensorrt_fp16: bool = False,
+) -> dict[str, object]:
+    """Run a paced, bounded-memory stability benchmark on an actual face package backend."""
+
+    if not 0.0 < duration_seconds <= 7_200.0:
+        raise ValueError("stability duration must be in (0, 7200] seconds")
+    if not 0.0 < target_fps <= 240.0:
+        raise ValueError("target FPS must be in (0, 240]")
+    if resource_sample_interval_seconds <= 0.0 or warmup < 1:
+        raise ValueError("resource interval and warmup must be positive")
+    if maximum_result_age_p95_drift_ms < 0.0:
+        raise ValueError("result-age drift threshold must be non-negative")
+    if maximum_rss_growth_bytes < 0 or maximum_thread_growth < 0:
+        raise ValueError("resource growth thresholds must be non-negative")
+    metadata, backend, producer, profile_name, frame = _load_face_benchmark_context(
+        package_dir,
+        providers=providers,
+        tensorrt_fp16=tensorrt_fp16,
+    )
+    sequence = 0
+    for _ in range(warmup):
+        sequence += 1
+        producer.produce(
+            frame,
+            roi=None,
+            capture_timestamp_ns=time.monotonic_ns(),
+            sequence=sequence,
+        )
+
+    period_ns = max(1, round(1_000_000_000 / target_fps))
+    resource_interval_ns = max(1, round(resource_sample_interval_seconds * 1_000_000_000))
+    samples = _BoundedLatencySamples(
+        capacity=reservoir_capacity,
+        edge_capacity=edge_window_capacity,
+        seed=seed,
+    )
+    wall_started = time.perf_counter_ns()
+    cpu_started = time.process_time_ns()
+    deadline = wall_started
+    end = wall_started + round(duration_seconds * 1_000_000_000)
+    next_resource_sample = wall_started + resource_interval_ns
+    resource_samples = [_current_process_resources(0.0)]
+    skipped_capture_periods = 0
+    while True:
+        now = time.perf_counter_ns()
+        if now < deadline:
+            time.sleep((deadline - now) / 1_000_000_000.0)
+            now = time.perf_counter_ns()
+        if now >= end and samples.seen:
+            break
+        if now - deadline >= period_ns:
+            skipped = (now - deadline) // period_ns
+            skipped_capture_periods += skipped
+            deadline += skipped * period_ns
+        sequence += 1
+        captured = time.monotonic_ns()
+        event = producer.produce(
+            frame,
+            roi=None,
+            capture_timestamp_ns=captured,
+            sequence=sequence,
+        )
+        consumed = time.monotonic_ns()
+        value = cast(dict[str, object], event["value"])
+        produced = cast(int, value["produced_timestamp_ns"])
+        samples.add(
+            (produced - captured) / 1_000_000.0,
+            (consumed - captured) / 1_000_000.0,
+        )
+        deadline += period_ns
+        if now >= next_resource_sample:
+            elapsed = (now - wall_started) / 1_000_000_000.0
+            resource_samples.append(_current_process_resources(elapsed))
+            next_resource_sample += resource_interval_ns
+
+    wall_seconds = (time.perf_counter_ns() - wall_started) / 1_000_000_000.0
+    cpu_seconds = (time.process_time_ns() - cpu_started) / 1_000_000_000.0
+    resource_samples.append(_current_process_resources(wall_seconds))
+    capture_to_result = samples.summary(0)
+    result_age = samples.summary(1)
+    first_age = cast(dict[str, float], result_age["first_window"])
+    last_age = cast(dict[str, float], result_age["last_window"])
+    result_age_p95_drift_ms = last_age["p95"] - first_age["p95"]
+    rss_values = [
+        cast(int, sample["rss_bytes"])
+        for sample in resource_samples
+        if sample["rss_bytes"] is not None
+    ]
+    thread_values = [
+        cast(int, sample["thread_count"])
+        for sample in resource_samples
+        if sample["thread_count"] is not None
+    ]
+    rss_growth_bytes = rss_values[-1] - rss_values[0] if len(rss_values) >= 2 else None
+    thread_growth = thread_values[-1] - thread_values[0] if len(thread_values) >= 2 else None
+    delivered_fps = samples.seen / max(wall_seconds, 1e-9)
+    gates = {
+        "duration_reached": wall_seconds >= duration_seconds * 0.99,
+        "target_cadence_reached": delivered_fps >= target_fps * 0.95,
+        "result_age_p95_drift_within_limit": (
+            result_age_p95_drift_ms <= maximum_result_age_p95_drift_ms
+        ),
+        "rss_growth_within_limit": (
+            rss_growth_bytes is not None and rss_growth_bytes <= maximum_rss_growth_bytes
+        ),
+        "thread_growth_within_limit": (
+            thread_growth is not None and thread_growth <= maximum_thread_growth
+        ),
+    }
+    git_commit, git_dirty = git_state()
+    report: dict[str, object] = {
+        "schema_version": f"{profile_name}-runtime-stability/1.0.0",
+        "smoke_only": metadata.smoke_only,
+        "model_digest": metadata.model_digest,
+        "source_checkpoint_digest": metadata.source_checkpoint_digest,
+        "ntp_schema_revision": metadata.ntp_schema_revision,
+        "signal_registry_revision": metadata.signal_registry_revision,
+        "normalization_revision": metadata.normalization_revision,
+        "calibration_revision": metadata.calibration_revision,
+        "feature_revision": metadata.feature_revision,
+        "hardware": {
+            "platform": platform.platform(),
+            "machine": platform.machine(),
+            "processor": platform.processor() or "unknown",
+        },
+        "runtime": {
+            "python": platform.python_version(),
+            "onnxruntime_version": ort.__version__,
+            "requested_providers": providers,
+            "active_providers": backend.active_providers,
+            "provider_evidence": (
+                "ORT session provider registration; optimized provider node assignment requires "
+                "its separate profile and fixed-vector parity gate"
+            ),
+            "precision_support": metadata.precision_support,
+            "tensorrt_fp16": tensorrt_fp16,
+            "input_shape": metadata.input_shape,
+            "target_fps": target_fps,
+            "delivered_fps": delivered_fps,
+            "completed_frames": samples.seen,
+            "skipped_capture_periods": skipped_capture_periods,
+            "warmup": warmup,
+            "duration_seconds_requested": duration_seconds,
+            "duration_seconds_measured": wall_seconds,
+            "scheduling": "paced latest-capture; overdue capture periods are skipped, never queued",
+        },
+        "bounded_sampling": {
+            "algorithm": "deterministic Algorithm R reservoir plus fixed first/last windows",
+            "seed": seed,
+            "observed_samples": samples.seen,
+            "retained_samples_including_windows": samples.retained,
+            "reservoir_capacity": reservoir_capacity,
+            "edge_window_capacity": edge_window_capacity,
+        },
+        "capture_to_result_ms": capture_to_result,
+        "result_age_at_consume_ms": result_age,
+        "resources": {
+            "cpu_core_equivalents": cpu_seconds / max(wall_seconds, 1e-9),
+            "samples": resource_samples,
+            "rss_growth_bytes": rss_growth_bytes,
+            "peak_sampled_rss_bytes": max(rss_values) if rss_values else None,
+            "thread_growth": thread_growth,
+            "nvidia_smi_snapshot": _nvidia_telemetry(),
+        },
+        "stability": {
+            "passed": all(gates.values()),
+            "gates": gates,
+            "result_age_p95_drift_ms": result_age_p95_drift_ms,
+            "maximum_result_age_p95_drift_ms": maximum_result_age_p95_drift_ms,
+            "maximum_rss_growth_bytes": maximum_rss_growth_bytes,
+            "maximum_thread_growth": maximum_thread_growth,
+        },
+        "provenance": {
+            "git_commit": git_commit,
+            "git_dirty": git_dirty,
+            "uv_lock_sha256": sha256_file(Path("uv.lock")),
+        },
+        "limitations": (
+            "Fixed package test-vector RGB smoke only. This proves runtime scheduling and resource "
+            "stability on the CPU-only backend/hardware used by this run. Provider registration "
+            "alone does not prove optimized node assignment. This does not prove camera I/O, "
+            "tracking quality, or production readiness."
+        ),
     }
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")

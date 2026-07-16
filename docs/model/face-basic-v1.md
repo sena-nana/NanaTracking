@@ -74,6 +74,9 @@ uv run --extra cpu nana-tracking calibrate-level-a --capture <calibration.npz> \
   --package <package-directory> --user-slot <slot> --output <profile.json>
 uv run --extra cpu nana-tracking benchmark-face-basic --package <package-directory> \
   --providers CPUExecutionProvider --output <report.json>
+uv run --extra cpu nana-tracking benchmark-face-stability --package <package-directory> \
+  --providers CPUExecutionProvider --duration-seconds 1800 --target-fps 60 \
+  --output <stability-report.json>
 uv run --extra cpu nana-tracking benchmark-roi-preprocess \
   --output artifacts/benchmarks/issue7-roi-preprocess-macos-m4-smoke.json
 uv run --extra cpu nana-tracking evaluation render-failures <failures.jsonl> \
@@ -95,6 +98,15 @@ the local Apple M4, the 64/96/128 inputs measured P50 0.089/0.138/0.193 ms and P
 peak stayed below 4.7 KiB, rather than creating an ROI- or frame-sized temporary. See
 `artifacts/benchmarks/issue7-roi-preprocess-macos-m4-smoke.json`. This is synthetic preprocessing
 evidence only, not camera, model-quality, GPU, or 720p60 end-to-end acceptance.
+
+The stability command runs the actual packaged ORT face backend on a 60 FPS paced latest-capture
+schedule for 30 minutes by default. Overdue capture periods are skipped instead of queued. Latency
+uses a fixed-capacity deterministic reservoir plus bounded first/last windows; process RSS and
+thread count are sampled once per minute. The gate reports delivered cadence, capture-to-result,
+result-age P50/P95/P99 and P95 drift, CPU core equivalents, RSS/thread growth, provider state, Git
+state, and lock digest. Fixed test-vector input remains smoke-only and cannot replace camera or
+tracking-quality acceptance. For non-CPU providers, session registration alone is not node-assignment
+evidence and must be paired with that backend's fixed-vector/profile gate.
 
 ## Acceptance evidence boundary
 
