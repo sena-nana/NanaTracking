@@ -1,0 +1,87 @@
+{
+  "schema_version": "rust-ort-coreml-smoke-benchmark/1.0.0",
+  "smoke_only": true,
+  "backend": {
+    "crate": "ort 2.0.0-rc.9",
+    "onnx_runtime": "1.27.0",
+    "requested_execution_provider": "CoreMLExecutionProvider",
+    "active_provider": "OnnxRuntimeCoreMl",
+    "cpu_fallback_nodes_present": true,
+    "requested_compute_policy": "all",
+    "actual_coreml_internal_compute_units": "unavailable-from-onnx-runtime-api",
+    "precision": "fp32",
+    "intra_threads": 1
+  },
+  "provider_gate": {
+    "registration_failure_is_fatal": true,
+    "fixed_vectors_run_before_session_is_returned": true,
+    "profile_requires_executed_coreml_nodes": true,
+    "profile_is_removed_after_validation": true,
+    "silent_cpu_only_fallback_is_rejected": true
+  },
+  "fixed_vector": {
+    "absolute_tolerance": 0.001,
+    "relative_tolerance": 0.001,
+    "face_basic_outputs_checked": 5,
+    "face_basic_maximum_absolute_error": 0.00071175396,
+    "face_spatial_outputs_checked": 9,
+    "face_spatial_maximum_absolute_error": 0.0007928908,
+    "full_set_outputs_checked": 9,
+    "full_set_maximum_absolute_error": 0.0006862879,
+    "passed": true
+  },
+  "measurement": {
+    "runs": 5,
+    "warmup_iterations_per_run": 100,
+    "measured_iterations_per_run": 2000,
+    "aggregation": "median of each run's reported percentile",
+    "synthetic_pre_backend_wait_ns": 50000000,
+    "face_basic": {
+      "input_shape": [1, 3, 64, 64],
+      "preprocess_ns": {"p50": 3708, "p95": 4584, "p99": 5750},
+      "session_inference_ns": {"p50": 296542, "p95": 331209, "p99": 370333},
+      "readback_ns": {"p50": 417, "p95": 500, "p99": 625},
+      "result_age_ns": {"p50": 50300708, "p95": 50336209, "p99": 50378000}
+    },
+    "face_spatial": {
+      "input_shape": [1, 3, 64, 64],
+      "stage_total_ns": {"p50": 250918, "p95": 387875, "p99": 658418}
+    },
+    "full_extension": {
+      "input_shape": [1, 3, 96, 96],
+      "stage_total_ns": {"p50": 288126, "p95": 421668, "p99": 600833}
+    },
+    "fused_result_age_ns": {"p50": 50542543, "p95": 50676085, "p99": 50855250}
+  },
+  "selection": {
+    "default_backend_changed": false,
+    "selected_default_for_these_smoke_models": "OnnxRuntimeCpu",
+    "reason": "Core ML was slower than the checked-in ORT CPU baseline for these tiny synthetic models and had CPU fallback nodes."
+  },
+  "models": {
+    "face_basic": {
+      "model_digest": "8f5a9dd44f4f19b6cdb8d12acf5c4f6f7f2a1ca47fb3490fef3ad38da0fec542",
+      "source_checkpoint_digest": "27f11926ace11da026340fa54fb964c83e8725e3986532bb42f4b3cd77ee5815"
+    },
+    "face_spatial": {
+      "model_digest": "b22b229e284ee22a33e1e5167c0ffc6a49478ab6629ea572c71afddb93f3d82e",
+      "source_checkpoint_digest": "d851b024e85bf67c673fe12e880fa6c523918768ff5e42edc2cf071b77aeb7a7"
+    },
+    "full_set": {
+      "model_digest": "726b1ecdceb5edd6b78d0c64a3b896d177243bdf305fa3ef9fa0bf0e60a90777",
+      "source_checkpoint_digest": "fcecd849bca83a2481af5a6130fc5584e7313054de658c7334b1192aa0d10d25"
+    }
+  },
+  "git": {
+    "base_commit": "f170667febe8f5b2dd8bf97e12e998584f08c4de",
+    "working_tree_dirty_during_measurement": true,
+    "uv_lock_sha256": "968b7e79b8f115b23ab9db182d1576c82fa39485644a7843433800bfe824f7ad"
+  },
+  "hardware": {
+    "cpu": "Apple M4",
+    "architecture": "arm64",
+    "os": "macOS 26.5.2",
+    "rustc": "1.97.0 (2d8144b78 2026-07-07)"
+  },
+  "note": "Synthetic fixed-input macOS smoke only. It proves Rust ORT Core ML registration, executed Core ML nodes, fixed-vector parity, framework-neutral output, and measured fallback behavior. It does not prove real tracking quality, iOS lifecycle, a specific CPU/GPU/ANE assignment inside Core ML, thermal behavior, 30-60 minute stability, or production readiness."
+}

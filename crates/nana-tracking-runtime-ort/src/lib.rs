@@ -4,8 +4,9 @@
 use std::{
     collections::BTreeMap,
     f32::consts::PI,
-    fs::File,
+    fs::{self, File},
     path::{Path, PathBuf},
+    sync::atomic::{AtomicU64, Ordering},
     time::Instant,
 };
 
@@ -16,7 +17,11 @@ use nana_tracking_runtime_api::{
 };
 use ndarray::{Array4, ArrayD, ArrayViewD, Ix4};
 use ndarray_npy::NpzReader;
-use ort::session::{Session, SessionOutputs, builder::GraphOptimizationLevel};
+use ort::{
+    execution_providers::CoreMLExecutionProvider,
+    session::{Session, SessionOutputs, builder::GraphOptimizationLevel},
+};
+use serde_json::Value;
 
 const BASIC_SIGNAL_COUNT: usize = 36;
 const SPATIAL_SIGNAL_COUNT: usize = 41;
@@ -46,6 +51,9 @@ const FULL_OUTPUTS: [&str; 9] = [
     "visibility",
     "confidence",
 ];
+const CORE_ML_PROVIDER: &str = "CoreMLExecutionProvider";
+const CPU_PROVIDER: &str = "CPUExecutionProvider";
+static PROFILE_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 /// Initialize `ort` from an application-provided ONNX Runtime dynamic library.
 ///
@@ -74,6 +82,67 @@ impl Default for OrtCpuOptions {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CoreMlComputePolicy {
+    All,
+    CpuOnly,
+    RequireAneCapableDevice,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct OrtCoreMlOptions {
+    pub intra_threads: usize,
+    pub compute_policy: CoreMlComputePolicy,
+    pub validation_profile_directory: PathBuf,
+    pub absolute_tolerance: f32,
+    pub relative_tolerance: f32,
+}
+
+impl OrtCoreMlOptions {
+    #[must_use]
+    pub fn new(validation_profile_directory: PathBuf) -> Self {
+        Self {
+            intra_threads: 1,
+            compute_policy: CoreMlComputePolicy::All,
+            validation_profile_directory,
+            absolute_tolerance: 1.0e-3,
+            relative_tolerance: 1.0e-3,
+        }
+    }
+
+    fn validate(&self) -> Result<(), TrackingRuntimeError> {
+        if self.intra_threads == 0
+            || !self.validation_profile_directory.is_dir()
+            || !self.absolute_tolerance.is_finite()
+            || !self.relative_tolerance.is_finite()
+            || self.absolute_tolerance < 0.0
+            || self.relative_tolerance < 0.0
+        {
+            return Err(TrackingRuntimeError::InvalidInput);
+        }
+        if !cfg!(any(target_os = "macos", target_os = "ios")) {
+            return Err(TrackingRuntimeError::UnsupportedProvider(
+                CORE_ML_PROVIDER.to_owned(),
+            ));
+        }
+        Ok(())
+    }
+}
+
+enum OrtSessionOptions {
+    Cpu(OrtCpuOptions),
+    CoreMl(OrtCoreMlOptions),
+}
+
+impl OrtSessionOptions {
+    const fn intra_threads(&self) -> usize {
+        match self {
+            Self::Cpu(options) => options.intra_threads,
+            Self::CoreMl(options) => options.intra_threads,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct OutputParity {
     pub mean_absolute_error: f32,
@@ -93,16 +162,21 @@ struct OrtPackageSession {
     session: Session,
     input: Array4<f32>,
     package_root: PathBuf,
+    active_provider: ActiveProvider,
 }
 
 impl OrtPackageSession {
     fn load(
         root: &Path,
-        options: OrtCpuOptions,
+        options: OrtSessionOptions,
         contract: PackageContract<'_>,
     ) -> Result<Self, TrackingRuntimeError> {
-        if options.intra_threads == 0 {
-            return Err(TrackingRuntimeError::InvalidInput);
+        match &options {
+            OrtSessionOptions::Cpu(options) if options.intra_threads == 0 => {
+                return Err(TrackingRuntimeError::InvalidInput);
+            }
+            OrtSessionOptions::CoreMl(options) => options.validate()?,
+            OrtSessionOptions::Cpu(_) => {}
         }
         let package = verify_model_package(root)?;
         let metadata = package.metadata;
@@ -146,23 +220,44 @@ impl OrtPackageSession {
         {
             return Err(TrackingRuntimeError::InvalidMetadata);
         }
-        let session = Session::builder()
+        let mut builder = Session::builder()
             .map_err(backend_error)?
             .with_optimization_level(GraphOptimizationLevel::Level3)
             .map_err(backend_error)?
-            .with_intra_threads(options.intra_threads)
-            .map_err(backend_error)?
+            .with_intra_threads(options.intra_threads())
+            .map_err(backend_error)?;
+        if let OrtSessionOptions::CoreMl(core_ml) = &options {
+            let execution_provider = match core_ml.compute_policy {
+                CoreMlComputePolicy::All => CoreMLExecutionProvider::default(),
+                CoreMlComputePolicy::CpuOnly => CoreMLExecutionProvider::default().with_cpu_only(),
+                CoreMlComputePolicy::RequireAneCapableDevice => {
+                    CoreMLExecutionProvider::default().with_ane_only()
+                }
+            };
+            builder = builder
+                .with_execution_providers([execution_provider.build().error_on_failure()])
+                .map_err(backend_error)?
+                .with_profiling(core_ml_profile_prefix(core_ml))
+                .map_err(backend_error)?;
+        }
+        let session = builder
             .commit_from_file(&package.model_path)
             .map_err(backend_error)?;
         if session.inputs.len() != 1 || session.inputs[0].name != "image" {
             return Err(TrackingRuntimeError::InvalidMetadata);
         }
-        Ok(Self {
+        let mut loaded = Self {
             metadata,
             session,
             input: Array4::zeros((1, 3, height, width)),
             package_root: package.root,
-        })
+            active_provider: ActiveProvider::OnnxRuntimeCpu,
+        };
+        if let OrtSessionOptions::CoreMl(core_ml) = options {
+            let cpu_fallback = loaded.validate_core_ml_provider(&core_ml)?;
+            loaded.active_provider = ActiveProvider::OnnxRuntimeCoreMl { cpu_fallback };
+        }
+        Ok(loaded)
     }
 
     fn verify_fixed_vector(
@@ -257,6 +352,55 @@ impl OrtPackageSession {
             }
         }
     }
+
+    fn validate_core_ml_provider(
+        &mut self,
+        options: &OrtCoreMlOptions,
+    ) -> Result<bool, TrackingRuntimeError> {
+        let parity =
+            self.verify_fixed_vector(options.absolute_tolerance, options.relative_tolerance);
+        let profile_path = self.session.end_profiling().map_err(backend_error)?;
+        let profile = fs::read_to_string(&profile_path).map_err(TrackingRuntimeError::Io);
+        let cleanup = fs::remove_file(&profile_path).map_err(TrackingRuntimeError::Io);
+        parity?;
+        let cpu_fallback = core_ml_cpu_fallback(&profile?)?;
+        cleanup?;
+        Ok(cpu_fallback)
+    }
+}
+
+fn core_ml_profile_prefix(options: &OrtCoreMlOptions) -> PathBuf {
+    let sequence = PROFILE_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+    options.validation_profile_directory.join(format!(
+        "nana-tracking-coreml-{}-{sequence}",
+        std::process::id()
+    ))
+}
+
+fn core_ml_cpu_fallback(profile: &str) -> Result<bool, TrackingRuntimeError> {
+    let events: Vec<Value> = serde_json::from_str(profile).map_err(TrackingRuntimeError::Json)?;
+    let mut core_ml_nodes = 0_usize;
+    let mut cpu_nodes = 0_usize;
+    for event in events {
+        if event.get("cat").and_then(Value::as_str) != Some("Node") {
+            continue;
+        }
+        match event
+            .get("args")
+            .and_then(|args| args.get("provider"))
+            .and_then(Value::as_str)
+        {
+            Some(CORE_ML_PROVIDER) => core_ml_nodes = core_ml_nodes.saturating_add(1),
+            Some(CPU_PROVIDER) => cpu_nodes = cpu_nodes.saturating_add(1),
+            _ => {}
+        }
+    }
+    if core_ml_nodes == 0 {
+        return Err(TrackingRuntimeError::UnsupportedProvider(
+            "CoreMLExecutionProvider did not execute any graph nodes".to_owned(),
+        ));
+    }
+    Ok(cpu_nodes > 0)
 }
 
 pub struct OrtFaceBasicSession {
@@ -270,6 +414,26 @@ impl OrtFaceBasicSession {
     ///
     /// Fails closed on package, capability, graph I/O, provider, or session errors.
     pub fn load(root: &Path, options: OrtCpuOptions) -> Result<Self, TrackingRuntimeError> {
+        Self::load_with_options(root, OrtSessionOptions::Cpu(options))
+    }
+
+    /// Create a Core ML execution-provider session and prove fixed-vector parity and actual node
+    /// assignment before returning it to the application.
+    ///
+    /// # Errors
+    ///
+    /// Fails closed when Core ML registration, parity, profiling, or node assignment fails.
+    pub fn load_core_ml(
+        root: &Path,
+        options: OrtCoreMlOptions,
+    ) -> Result<Self, TrackingRuntimeError> {
+        Self::load_with_options(root, OrtSessionOptions::CoreMl(options))
+    }
+
+    fn load_with_options(
+        root: &Path,
+        options: OrtSessionOptions,
+    ) -> Result<Self, TrackingRuntimeError> {
         Ok(Self {
             inner: OrtPackageSession::load(
                 root,
@@ -312,7 +476,7 @@ impl TrackingModelSession for OrtFaceBasicSession {
     ) -> Result<(), TrackingRuntimeError> {
         input.validate()?;
         output.clear();
-        output.provider = ActiveProvider::OnnxRuntimeCpu;
+        output.provider.clone_from(&self.inner.active_provider);
 
         let preprocess_started = Instant::now();
         self.inner.preprocess(&input);
@@ -350,6 +514,26 @@ impl OrtFaceSpatialSession {
     ///
     /// Fails closed unless all Spatial signals, structures, topology, and outputs are declared.
     pub fn load(root: &Path, options: OrtCpuOptions) -> Result<Self, TrackingRuntimeError> {
+        Self::load_with_options(root, OrtSessionOptions::Cpu(options))
+    }
+
+    /// Create a Core ML execution-provider session and prove fixed-vector parity and actual node
+    /// assignment before returning it to the application.
+    ///
+    /// # Errors
+    ///
+    /// Fails closed when Core ML registration, parity, profiling, or node assignment fails.
+    pub fn load_core_ml(
+        root: &Path,
+        options: OrtCoreMlOptions,
+    ) -> Result<Self, TrackingRuntimeError> {
+        Self::load_with_options(root, OrtSessionOptions::CoreMl(options))
+    }
+
+    fn load_with_options(
+        root: &Path,
+        options: OrtSessionOptions,
+    ) -> Result<Self, TrackingRuntimeError> {
         Ok(Self {
             inner: OrtPackageSession::load(
                 root,
@@ -397,7 +581,7 @@ impl TrackingModelSession for OrtFaceSpatialSession {
     ) -> Result<(), TrackingRuntimeError> {
         input.validate()?;
         output.clear();
-        output.provider = ActiveProvider::OnnxRuntimeCpu;
+        output.provider.clone_from(&self.inner.active_provider);
 
         let preprocess_started = Instant::now();
         self.inner.preprocess(&input);
@@ -444,6 +628,26 @@ impl OrtFullSetSession {
     ///
     /// Fails closed unless the package declares exactly signals 42..76 and body skeleton outputs.
     pub fn load(root: &Path, options: OrtCpuOptions) -> Result<Self, TrackingRuntimeError> {
+        Self::load_with_options(root, OrtSessionOptions::Cpu(options))
+    }
+
+    /// Create a Core ML execution-provider session and prove fixed-vector parity and actual node
+    /// assignment before returning it to the application.
+    ///
+    /// # Errors
+    ///
+    /// Fails closed when Core ML registration, parity, profiling, or node assignment fails.
+    pub fn load_core_ml(
+        root: &Path,
+        options: OrtCoreMlOptions,
+    ) -> Result<Self, TrackingRuntimeError> {
+        Self::load_with_options(root, OrtSessionOptions::CoreMl(options))
+    }
+
+    fn load_with_options(
+        root: &Path,
+        options: OrtSessionOptions,
+    ) -> Result<Self, TrackingRuntimeError> {
         Ok(Self {
             inner: OrtPackageSession::load(
                 root,
@@ -495,7 +699,11 @@ impl OrtFullSetSession {
     ) -> Result<(), TrackingRuntimeError> {
         input.validate()?;
         validate_spatial_fusion_input(input.capture_timestamp_ns, output)?;
-        output.provider = ActiveProvider::OnnxRuntimeCpu;
+        if output.provider != self.inner.active_provider {
+            return Err(TrackingRuntimeError::UnsupportedProvider(
+                "Spatial and Full stages must use the same active provider".to_owned(),
+            ));
+        }
         let prior_preprocess_ns = output.preprocess_ns;
         let prior_inference_ns = output.inference_ns;
         let prior_readback_ns = output.readback_ns;
@@ -1340,6 +1548,23 @@ fn shape_error(model: &str) -> TrackingRuntimeError {
 mod tests {
     use super::*;
     use ndarray::{Array1, ArrayD};
+
+    #[test]
+    fn core_ml_profile_requires_executed_nodes_and_reports_cpu_fallback() {
+        let mixed = r#"[
+            {"cat":"Node","args":{"provider":"CoreMLExecutionProvider"}},
+            {"cat":"Node","args":{"provider":"CPUExecutionProvider"}}
+        ]"#;
+        assert!(core_ml_cpu_fallback(mixed).expect("Core ML node is present"));
+
+        let cpu_only = r#"[
+            {"cat":"Node","args":{"provider":"CPUExecutionProvider"}}
+        ]"#;
+        assert!(matches!(
+            core_ml_cpu_fallback(cpu_only),
+            Err(TrackingRuntimeError::UnsupportedProvider(_))
+        ));
+    }
 
     #[test]
     fn completion_time_includes_queue_delay_without_double_counting_prior_stage() {

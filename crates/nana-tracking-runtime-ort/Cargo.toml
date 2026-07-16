@@ -15,6 +15,7 @@ ort = { version = "=2.0.0-rc.9", default-features = false, features = ["load-dyn
 # `ort` rc.9 declared a semver range for its prerelease sys crate; pin both halves so Cargo cannot
 # combine an rc.9 wrapper with a newer incompatible generated C API.
 ort-sys = { version = "=2.0.0-rc.9", default-features = false, features = ["load-dynamic"] }
+serde_json = "1.0.149"
 
 [lints]
 workspace = true

@@ -4,7 +4,8 @@ use nana_tracking_runtime_api::{
     ActiveProvider, TrackingModelInput, TrackingModelOutput, TrackingModelSession,
 };
 use nana_tracking_runtime_ort::{
-    OrtCpuOptions, OrtFaceSpatialSession, OrtFullSetSession, initialize_from_dylib,
+    OrtCoreMlOptions, OrtCpuOptions, OrtFaceSpatialSession, OrtFullSetSession,
+    initialize_from_dylib,
 };
 
 const WARMUP_ITERATIONS: usize = 100;
@@ -16,24 +17,45 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut arguments = env::args().skip(1);
     let dylib = arguments
         .next()
-        .ok_or("usage: infer-spatial-full <libonnxruntime> <spatial-package> <full-package>")?;
+        .ok_or("usage: infer-spatial-full <libonnxruntime> <spatial-package> <full-package> [coreml-profile-directory]")?;
     let spatial_package = arguments
         .next()
-        .ok_or("usage: infer-spatial-full <libonnxruntime> <spatial-package> <full-package>")?;
+        .ok_or("usage: infer-spatial-full <libonnxruntime> <spatial-package> <full-package> [coreml-profile-directory]")?;
     let full_package = arguments
         .next()
-        .ok_or("usage: infer-spatial-full <libonnxruntime> <spatial-package> <full-package>")?;
+        .ok_or("usage: infer-spatial-full <libonnxruntime> <spatial-package> <full-package> [coreml-profile-directory]")?;
+    let core_ml_profile_directory = arguments.next();
     if arguments.next().is_some() {
-        return Err(
-            "usage: infer-spatial-full <libonnxruntime> <spatial-package> <full-package>".into(),
-        );
+        return Err("usage: infer-spatial-full <libonnxruntime> <spatial-package> <full-package> [coreml-profile-directory]".into());
     }
     initialize_from_dylib(Path::new(&dylib))?;
-    let options = OrtCpuOptions::default();
-    let mut spatial = OrtFaceSpatialSession::load(Path::new(&spatial_package), options)?;
-    let mut full = OrtFullSetSession::load(Path::new(&full_package), options)?;
-    let spatial_parity = spatial.verify_fixed_vector(1.0e-5, 1.0e-4)?;
-    let full_parity = full.verify_fixed_vector(1.0e-5, 1.0e-4)?;
+    let core_ml = core_ml_profile_directory.is_some();
+    let (mut spatial, mut full) = if let Some(directory) = core_ml_profile_directory {
+        let directory = Path::new(&directory);
+        (
+            OrtFaceSpatialSession::load_core_ml(
+                Path::new(&spatial_package),
+                OrtCoreMlOptions::new(directory.to_path_buf()),
+            )?,
+            OrtFullSetSession::load_core_ml(
+                Path::new(&full_package),
+                OrtCoreMlOptions::new(directory.to_path_buf()),
+            )?,
+        )
+    } else {
+        let options = OrtCpuOptions::default();
+        (
+            OrtFaceSpatialSession::load(Path::new(&spatial_package), options)?,
+            OrtFullSetSession::load(Path::new(&full_package), options)?,
+        )
+    };
+    let (absolute_tolerance, relative_tolerance) = if core_ml {
+        (1.0e-3, 1.0e-3)
+    } else {
+        (1.0e-5, 1.0e-4)
+    };
+    let spatial_parity = spatial.verify_fixed_vector(absolute_tolerance, relative_tolerance)?;
+    let full_parity = full.verify_fixed_vector(absolute_tolerance, relative_tolerance)?;
 
     let spatial_height = spatial.metadata().input_shape[2];
     let spatial_width = spatial.metadata().input_shape[3];
@@ -110,10 +132,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("fused runtime output did not contain signals 1..76 and geometry state".into());
     }
     println!(
-        "provider={:?} signals={supported} spatial_parity_outputs={} full_parity_outputs={} spatial_preprocess_ns={:?} spatial_inference_ns={:?} spatial_readback_ns={:?} spatial_total_ns={:?} spatial_result_age_ns={:?} full_preprocess_ns={:?} full_inference_ns={:?} full_readback_ns={:?} full_total_ns={:?} fused_result_age_ns={:?}",
+        "provider={:?} signals={supported} spatial_parity_outputs={} spatial_parity_max_abs={} full_parity_outputs={} full_parity_max_abs={} spatial_preprocess_ns={:?} spatial_inference_ns={:?} spatial_readback_ns={:?} spatial_total_ns={:?} spatial_result_age_ns={:?} full_preprocess_ns={:?} full_inference_ns={:?} full_readback_ns={:?} full_total_ns={:?} fused_result_age_ns={:?}",
         output.provider,
         spatial_parity.len(),
+        spatial_parity
+            .values()
+            .map(|output| output.maximum_absolute_error)
+            .fold(0.0_f32, f32::max),
         full_parity.len(),
+        full_parity
+            .values()
+            .map(|output| output.maximum_absolute_error)
+            .fold(0.0_f32, f32::max),
         percentiles(spatial_preprocess),
         percentiles(spatial_inference),
         percentiles(spatial_readback),

@@ -20,9 +20,12 @@ Backend crates alone own sessions, devices, streams, command queues,
 bindings, engine caches, and small-result readback.
 
 `nana-tracking-runtime-ort` is the first real backend implementation. It verifies the portable
-package before loading, supports the FaceBasic CPU baseline, reuses one fixed NCHW preprocessing
-buffer, compares every named output against the package NPZ vector, and copies only plain values
-into caller-owned output storage. The application supplies and initializes its packaged ONNX
+package before loading, supports the FaceBasic/Spatial/Full CPU baseline and an explicit Apple
+Core ML execution-provider path, reuses one fixed NCHW preprocessing buffer, compares every named
+output against the package NPZ vector, and copies only plain values into caller-owned output
+storage. A Core ML session is returned only after profiling proves that Core ML executed graph
+nodes; CPU fallback nodes remain visible in the framework-neutral provider status. The application
+supplies and initializes its packaged ONNX
 Runtime dynamic library; the backend never discovers a Python environment or downloads a runtime
 at application startup. The runtime API represents value, confidence, state, capture timestamp,
 and prediction horizon independently, so unavailable observations never require a fabricated zero.
@@ -61,8 +64,10 @@ learned adapters by default; a patch-compatible base model may reuse them only a
 Platform optimization work stays local to backend crates and cannot make protocol or consumer
 interfaces backend-specific.
 
-Real TensorRT, DirectML, Core ML, Metal, and optional Burn acceptance remains device-specific.
-CPU or synthetic evidence cannot certify those paths.
+Real TensorRT, DirectML, native Core ML conversion, specific Apple compute-unit assignment, iOS,
+and optional Burn acceptance remains device-specific. ORT does not reveal whether Core ML chose
+CPU, GPU, or ANE internally, so the macOS adapter records the requested policy without claiming an
+unobservable unit. CPU or synthetic evidence cannot certify those paths.
 
 The checked-in macOS CPU measurements are
 `artifacts/benchmarks/issue11-rust-ort-face-basic-macos-m4-smoke.json` and
@@ -71,3 +76,9 @@ fields include an explicit synthetic 50 ms pre-backend wait; Spatial plus Full u
 processing-start timestamps so the second stage is not hidden or counted twice. These are synthetic
 fixed-input smoke evidence for the Rust adapter and are not tracking-quality or target-device
 acceptance.
+
+The opt-in macOS Core ML execution-provider smoke is
+`artifacts/benchmarks/issue11-rust-ort-coreml-macos-m4-smoke.json`. It verifies actual profiled Core
+ML nodes plus fixed-vector parity for Basic, Spatial, and Full, and reports CPU fallback. These tiny
+smoke models were slower than the ORT CPU baseline, so CPU remains the measured default rather than
+enabling Core ML solely because it is available.

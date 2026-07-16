@@ -25,6 +25,7 @@ pub enum ActiveProvider {
     OnnxRuntimeCuda,
     OnnxRuntimeTensorRt,
     OnnxRuntimeDirectMl,
+    OnnxRuntimeCoreMl { cpu_fallback: bool },
     CoreMl,
     Other(String),
 }

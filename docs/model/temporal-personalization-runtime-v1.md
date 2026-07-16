@@ -57,9 +57,13 @@ result age. Closing joins the worker; no busy polling or unbounded telemetry que
 
 Model metadata now declares guaranteed profile, signals, structures, features, temporal
 compatibility, allowed backend family, runtime mode scheduling, precision, and adapter schema.
-Current portable artifacts are verified for ONNX Runtime FP32. TensorRT FP16, DirectML, Core ML,
-Metal, and INT8 remain target-specific acceptance work; absent execution evidence is not advertised
-as validated support.
+Current portable artifacts are verified for ONNX Runtime FP32. The Rust ORT adapter also has an
+explicit macOS Core ML execution-provider path: fixed-vector parity and an ORT profile proving
+executed Core ML nodes are mandatory before the session is returned, and CPU fallback remains
+visible. The tiny synthetic models were slower than ORT CPU, so Core ML is not the default. Native
+Core ML conversion, specific CPU/GPU/ANE assignment, iOS, TensorRT FP16, DirectML, Metal, and INT8
+remain target-specific acceptance work; absent execution evidence is not advertised as validated
+support.
 
 ## Local smoke evidence
 

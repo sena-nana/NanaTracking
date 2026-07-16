@@ -3,22 +3,41 @@ use std::{env, path::Path};
 use nana_tracking_runtime_api::{
     ActiveProvider, TrackingModelInput, TrackingModelOutput, TrackingModelSession,
 };
-use nana_tracking_runtime_ort::{OrtCpuOptions, OrtFaceBasicSession, initialize_from_dylib};
+use nana_tracking_runtime_ort::{
+    OrtCoreMlOptions, OrtCpuOptions, OrtFaceBasicSession, initialize_from_dylib,
+};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut arguments = env::args().skip(1);
-    let dylib = arguments
-        .next()
-        .ok_or("usage: infer-face-basic <libonnxruntime> <model-package>")?;
-    let package = arguments
-        .next()
-        .ok_or("usage: infer-face-basic <libonnxruntime> <model-package>")?;
+    let dylib = arguments.next().ok_or(
+        "usage: infer-face-basic <libonnxruntime> <model-package> [coreml-profile-directory]",
+    )?;
+    let package = arguments.next().ok_or(
+        "usage: infer-face-basic <libonnxruntime> <model-package> [coreml-profile-directory]",
+    )?;
+    let core_ml_profile_directory = arguments.next();
     if arguments.next().is_some() {
-        return Err("usage: infer-face-basic <libonnxruntime> <model-package>".into());
+        return Err(
+            "usage: infer-face-basic <libonnxruntime> <model-package> [coreml-profile-directory]"
+                .into(),
+        );
     }
     initialize_from_dylib(Path::new(&dylib))?;
-    let mut session = OrtFaceBasicSession::load(Path::new(&package), OrtCpuOptions::default())?;
-    let parity = session.verify_fixed_vector(1.0e-5, 1.0e-4)?;
+    let core_ml = core_ml_profile_directory.is_some();
+    let mut session = if let Some(directory) = core_ml_profile_directory {
+        OrtFaceBasicSession::load_core_ml(
+            Path::new(&package),
+            OrtCoreMlOptions::new(directory.into()),
+        )?
+    } else {
+        OrtFaceBasicSession::load(Path::new(&package), OrtCpuOptions::default())?
+    };
+    let (absolute_tolerance, relative_tolerance) = if core_ml {
+        (1.0e-3, 1.0e-3)
+    } else {
+        (1.0e-5, 1.0e-4)
+    };
+    let parity = session.verify_fixed_vector(absolute_tolerance, relative_tolerance)?;
     let height = session.metadata().input_shape[2];
     let width = session.metadata().input_shape[3];
     let rgb = vec![127_u8; width * height * 3];
@@ -42,9 +61,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         return Err("runtime output did not contain a complete FaceBasic result".into());
     }
     println!(
-        "provider={:?} signals={supported} parity_outputs={} preprocess_ns={:?} inference_ns={:?} readback_ns={:?} result_age_ns={:?}",
+        "provider={:?} signals={supported} parity_outputs={} parity_max_abs={} preprocess_ns={:?} inference_ns={:?} readback_ns={:?} result_age_ns={:?}",
         output.provider,
         parity.len(),
+        parity
+            .values()
+            .map(|output| output.maximum_absolute_error)
+            .fold(0.0_f32, f32::max),
         percentiles(preprocess),
         percentiles(inference),
         percentiles(readback),
