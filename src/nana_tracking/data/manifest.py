@@ -7,6 +7,8 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from nana_tracking.governance import ArtifactUsageTier, PipelineStage
+
 
 class ManifestModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -32,6 +34,9 @@ class LicensePermissions(ManifestModel):
     distillation: bool
     pseudo_labeling: bool
     commercial_training: bool
+    noncommercial_research_training: bool = False
+    research_derivative_labels: bool = False
+    research_checkpoint_local_use: bool = False
 
 
 class LicenseReview(ManifestModel):
@@ -66,7 +71,7 @@ class SynchronizationPolicy(ManifestModel):
 
 
 class DatasetManifest(ManifestModel):
-    schema_version: Literal["ntp-dataset/2.0.0"]
+    schema_version: Literal["ntp-dataset/2.0.0", "ntp-dataset/3.0.0"]
     capture_schema_version: Literal["ntp-capture/1.0.0"]
     data_revision: str = Field(min_length=1)
     digest: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -75,10 +80,14 @@ class DatasetManifest(ManifestModel):
     normalization_revision: str = Field(min_length=1)
     calibration_revision: str = Field(min_length=1)
     feature_revision: str = Field(min_length=1)
-    pipeline_stage: Literal["base-model-training"] = "base-model-training"
+    pipeline_stage: PipelineStage = "base-model-training"
+    usage_tier: ArtifactUsageTier | None = None
     label_catalog: FileReference
     license_registry: FileReference | None = None
     license_record_ids: list[str] = Field(default_factory=list)
+    anchor_mapping: FileReference | None = None
+    training_recipe: FileReference | None = None
+    split_plan: FileReference | None = None
     record_files: list[RecordFile] = Field(min_length=1)
     teacher_sources: list[TeacherSource] = Field(min_length=1)
     license_reviews: list[LicenseReview] = Field(min_length=1)
@@ -88,6 +97,31 @@ class DatasetManifest(ManifestModel):
 
     @model_validator(mode="after")
     def validate_contract(self) -> Self:
+        if self.schema_version == "ntp-dataset/2.0.0":
+            inferred: ArtifactUsageTier = "synthetic-smoke" if self.smoke_only else "commercial"
+            if self.usage_tier is not None and self.usage_tier != inferred:
+                raise ValueError("v2 usage_tier conflicts with smoke_only")
+            self.usage_tier = inferred
+        elif self.usage_tier is None:
+            raise ValueError("v3 manifests require usage_tier")
+        if self.usage_tier == "noncommercial-research":
+            if self.pipeline_stage not in {
+                "research-mapping",
+                "research-model-training",
+                "research-evaluation",
+            }:
+                raise ValueError("research manifests require a research pipeline stage")
+            if self.smoke_only:
+                raise ValueError("noncommercial research data is not synthetic smoke data")
+            if (
+                self.anchor_mapping is None
+                or self.training_recipe is None
+                or self.split_plan is None
+            ):
+                raise ValueError(
+                    "research manifests require digest-pinned anchor mapping, split plan, "
+                    "and training recipe"
+                )
         required = {"train", "validation", "test"}
         missing = required.difference(self.splits)
         if missing:
@@ -120,19 +154,34 @@ class DatasetManifest(ManifestModel):
             if review is None:
                 raise ValueError(f"teacher {source.source_id!r} has no license review")
             permissions = review.permissions
-            if review.status != "approved" or not all(
+            commercial_complete = all(
                 (
                     permissions.collection,
                     permissions.distillation,
                     permissions.pseudo_labeling,
                     permissions.commercial_training,
                 )
+            )
+            research_complete = all(
+                (
+                    permissions.collection,
+                    permissions.noncommercial_research_training,
+                    permissions.research_derivative_labels,
+                    permissions.research_checkpoint_local_use,
+                )
+            )
+            if review.status != "approved" or not (
+                research_complete
+                if self.usage_tier == "noncommercial-research"
+                else commercial_complete
             ):
                 raise ValueError(
                     f"teacher {source.source_id!r} is not approved for the complete training use"
                 )
-        if not self.smoke_only and (self.license_registry is None or not self.license_record_ids):
-            raise ValueError("production manifests require a license registry and admitted records")
+        if self.usage_tier != "synthetic-smoke" and (
+            self.license_registry is None or not self.license_record_ids
+        ):
+            raise ValueError("non-smoke manifests require a license registry and admitted records")
         if self.license_record_ids and self.license_record_ids != sorted(
             set(self.license_record_ids)
         ):
@@ -169,6 +218,12 @@ class DatasetManifest(ManifestModel):
         references: list[FileReference] = [self.label_catalog, *self.record_files]
         if self.license_registry is not None:
             references.append(self.license_registry)
+        if self.anchor_mapping is not None:
+            references.append(self.anchor_mapping)
+        if self.training_recipe is not None:
+            references.append(self.training_recipe)
+        if self.split_plan is not None:
+            references.append(self.split_plan)
         for reference in references:
             path = self.resolve(manifest_path, reference)
             actual = hashlib.sha256(path.read_bytes()).hexdigest()
@@ -186,7 +241,8 @@ class DatasetManifest(ManifestModel):
             registry.admit(
                 self.license_record_ids,
                 stage=self.pipeline_stage,
-                production=not self.smoke_only,
+                production=self.usage_tier == "commercial",
+                usage_tier=self.usage_tier,
             )
         actual_dataset_digest = dataset_digest(self)
         if actual_dataset_digest != self.digest:
@@ -196,6 +252,9 @@ class DatasetManifest(ManifestModel):
 
 
 def dataset_digest(manifest: DatasetManifest) -> str:
-    payload = manifest.model_dump(mode="json", exclude={"digest"})
+    excluded = {"digest"}
+    if manifest.schema_version == "ntp-dataset/2.0.0":
+        excluded.update({"usage_tier", "anchor_mapping", "training_recipe", "split_plan"})
+    payload = manifest.model_dump(mode="json", exclude=excluded)
     canonical = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
     return hashlib.sha256(canonical).hexdigest()

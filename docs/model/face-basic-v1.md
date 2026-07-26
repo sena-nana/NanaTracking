@@ -3,9 +3,10 @@
 ## Scope and artifact status
 
 `FaceBasicModel` is the first executable single-frame model architecture for NTP Basic. It owns a
-single lightweight encoder and six named heads: the 36-signal orthogonal rig, camera-space head
-pose, auxiliary normalized landmarks, visibility state, an adversarial identity classifier, and
-per-signal confidence. Geometry and identity are training/diagnostic outputs; they are not new NTP
+single lightweight encoder and seven named heads: the 36-signal orthogonal rig, camera-space head
+pose, auxiliary normalized landmarks, 16-point canonical 3D geometry, visibility state, an
+adversarial identity classifier, and per-signal confidence. Geometry and identity are
+training/diagnostic outputs; they are not new NTP
 signals and do not leak framework values into the protocol. The identity adversary is excluded
 from deployable ONNX graphs so dataset identity classes cannot cross the training boundary.
 
@@ -50,6 +51,28 @@ Structured auxiliary teacher names are:
 
 Only synchronized observed or fused values enter these losses. Basic rig labels continue to use the
 versioned NTP label catalog.
+
+Stage A uses internal three-view groups and does not change the NTP contract. It projects an
+approved 16-point Multiface semantic map into each ROI, trains 2D anchors, HeadRelative canonical
+3D geometry, camera pose, visibility, reprojection, and capture-space cross-view consistency.
+Rig/confidence heads are excluded from the Stage A optimizer. `noncommercial-research`
+checkpoints cannot be exported or loaded by a commercial configuration.
+
+The checked-in `face-basic-stage-a-smoke.yaml` is a generated three-view control-flow fixture only.
+Real configs are created after license and anchor review with:
+
+```bash
+uv run --extra cu130 nana-tracking data create-stage-a-configs \
+  --manifest <stage-a-manifest.json> --anchor-mapping <approved-anchors.json>
+uv run --extra cu130 nana-tracking train \
+  --config configs/generated/face-basic-stage-a-single-view.yaml
+uv run --extra cu130 nana-tracking train \
+  --config configs/generated/face-basic-stage-a-multiview.yaml
+uv run --extra cu130 nana-tracking evaluate-stage-a \
+  --config configs/generated/face-basic-stage-a-multiview.yaml \
+  --single-view-checkpoint <single.pt> --multiview-checkpoint <multiview.pt> \
+  --output <research-report.json>
+```
 
 ## Calibration, export, and runtime verification
 

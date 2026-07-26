@@ -21,6 +21,19 @@
 - [ ] Dataset, file, license, mapping, config, lock, Git, NTP, Signal, feature digests pinned
 - [ ] Direct F report uses parameter/geometry-labeled holdouts only
 
+## Noncommercial Stage A research
+
+- [ ] Multiface and mapping helper records pass the exact research stage before network access
+- [ ] License text, likeness/biometric basis, attribution, and prohibited commercial use reviewed
+- [ ] 8-10 identities targeted; fewer than 8 explicitly classified as pipeline pilot
+- [ ] Identity and train/validation/test cameras are disjoint
+- [ ] Training is approximately 5 FPS; validation/test retain continuous 15-30 FPS
+- [ ] Human-approved 16-anchor map and MediaPipe model/overlay digests pinned
+- [ ] Rig/confidence heads are absent from the optimizer and unchanged after training
+- [ ] Checkpoint tier is `noncommercial-research`; commercial load and export rejection tests pass
+- [ ] Single-view and multiview runs use identical seed, schedule, and data
+- [ ] Identity-paired bootstrap report is research-only and does not close Issue #7
+
 ## G or CREMA-D training
 
 - [ ] CREMA-D registry record approved for expression training and release obligations understood

@@ -80,10 +80,20 @@ def _gradient_audit(config: ExperimentConfig) -> dict[str, object]:
         status["any_nonzero"] = bool(status["any_nonzero"]) or (
             gradient is not None and bool(torch.count_nonzero(gradient))
         )
-    passed = bool(groups) and all(
-        bool(status["all_finite"]) and bool(status["any_nonzero"]) for status in groups.values()
+    inactive_groups: set[str] = (
+        {"canonical_geometry_head"}
+        if config.training.canonical_geometry_loss_weight == 0.0
+        else set()
     )
-    return {"passed": passed, "parameter_groups": groups}
+    audited = {name: status for name, status in groups.items() if name not in inactive_groups}
+    passed = bool(audited) and all(
+        bool(status["all_finite"]) and bool(status["any_nonzero"]) for status in audited.values()
+    )
+    return {
+        "passed": passed,
+        "inactive_parameter_groups": sorted(inactive_groups),
+        "parameter_groups": groups,
+    }
 
 
 def _probe_config(
@@ -195,6 +205,7 @@ def validate_training_method(
     checkpoint_metadata = load_checkpoint(
         direct.checkpoint,
         model=checkpoint_model,
+        expected_usage_tier=direct_config.data.usage_tier,
     )
     passed = deterministic and resume_equivalent and learning_passed and bool(gradients["passed"])
     report: dict[str, object] = {

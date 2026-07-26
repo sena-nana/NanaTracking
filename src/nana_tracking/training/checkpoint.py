@@ -11,6 +11,7 @@ from torch import nn
 from torch.optim import Optimizer
 
 from nana_tracking.contracts import CheckpointMetadata
+from nana_tracking.governance import ArtifactUsageTier
 
 
 def save_checkpoint(
@@ -46,10 +47,17 @@ def load_checkpoint(
     optimizer: Optimizer | None = None,
     scaler: torch.GradScaler | None = None,
     restore_rng: bool = False,
+    expected_usage_tier: ArtifactUsageTier | None = None,
 ) -> CheckpointMetadata:
     """Load a checkpoint created by this project; never use with untrusted files."""
 
     payload: dict[str, Any] = torch.load(path, map_location="cpu", weights_only=False)
+    metadata = CheckpointMetadata.model_validate(payload["metadata"])
+    if expected_usage_tier is not None and metadata.usage_tier != expected_usage_tier:
+        raise ValueError(
+            "checkpoint usage tier mismatch: "
+            f"expected {expected_usage_tier}, got {metadata.usage_tier}"
+        )
     model.load_state_dict(payload["model"])
     if optimizer is not None:
         optimizer.load_state_dict(payload["optimizer"])
@@ -63,4 +71,4 @@ def load_checkpoint(
         cuda_rng = payload.get("cuda_rng")
         if cuda_rng is not None and torch.cuda.is_available():
             torch.cuda.set_rng_state_all(cuda_rng)
-    return CheckpointMetadata.model_validate(payload["metadata"])
+    return metadata

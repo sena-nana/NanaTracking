@@ -21,6 +21,7 @@ from nana_tracking.evaluation.runtime import (
     benchmark_full_set_package,
     benchmark_rgb_roi_preprocessor,
 )
+from nana_tracking.evaluation.stage_a import evaluate_stage_a_comparison
 from nana_tracking.evaluation.standard import EvaluationStandard
 from nana_tracking.evaluation.temporal import benchmark_temporal_refiner
 
@@ -39,6 +40,7 @@ __all__ = [
     "benchmark_rgb_roi_preprocessor",
     "benchmark_temporal_refiner",
     "evaluate",
+    "evaluate_stage_a_comparison",
     "fit_confidence_calibration",
     "render_failure_report",
     "run_expression_ablation_smoke",

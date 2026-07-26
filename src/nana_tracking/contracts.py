@@ -6,6 +6,8 @@ from datetime import datetime
 from pydantic import BaseModel, ConfigDict, Field
 from torch import Tensor
 
+from nana_tracking.governance import ArtifactUsageTier, TrainingStage
+
 
 @dataclass(frozen=True, slots=True)
 class TrackingBatch:
@@ -13,6 +15,22 @@ class TrackingBatch:
     targets: dict[str, Tensor]
     label_confidence: dict[str, Tensor]
     sample_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MultiViewTrackingBatch:
+    """Internal Stage A group; never crosses an NTP or consumer boundary."""
+
+    images: Tensor
+    targets: dict[str, Tensor]
+    label_confidence: dict[str, Tensor]
+    camera_intrinsics: Tensor
+    camera_to_capture: Tensor
+    sample_ids: tuple[str, ...]
+    identity_ids: tuple[str, ...]
+    sequence_ids: tuple[str, ...]
+    expressions: tuple[str, ...]
+    timestamps_ns: Tensor
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,6 +71,13 @@ class CheckpointMetadata(ContractModel):
     git_dirty: bool
     lock_digest: str
     created_at: datetime
+    usage_tier: ArtifactUsageTier = "synthetic-smoke"
+    training_stage: TrainingStage = "standard"
+    manifest_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    license_registry_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    anchor_mapping_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    training_recipe_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    parent_checkpoint_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class ModelPackageMetadata(ContractModel):

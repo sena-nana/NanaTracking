@@ -2,7 +2,7 @@
 
 ## Revisions and authoritative files
 
-- Dataset schema: `ntp-dataset/2.0.0`
+- Dataset schemas: `ntp-dataset/2.0.0` and research extension `ntp-dataset/3.0.0`
 - Capture schema: `ntp-capture/1.0.0`
 - Label catalog: `ntp-label-catalog/1.0.0`
 - NTP schema: `ntp/1.0`
@@ -21,9 +21,15 @@ digest is the SHA-256 of the canonical, sorted complete manifest excluding only 
 Validation fails if a file, revision, license decision, split, synchronization policy, count, or
 digest drifts.
 
-The manifest also pins `nana-license-registry/1.0.0` and the exact admitted record IDs. Validation
+The manifest also pins `nana-license-registry/2.0.0` and the exact admitted record IDs. Validation
 re-runs stage-specific license admission before materialization. Production manifests cannot omit
 the registry, and held-out test devices cannot appear in train or validation.
+
+Version 3 adds a required usage tier. Noncommercial research manifests also pin the approved
+semantic-anchor mapping and versioned training recipe, and use only the research mapping,
+training, or evaluation stages. Version 2 canonical digests exclude these new absent fields, so
+existing manifests remain verifiable. Research checkpoints cannot initialize commercial runs or
+enter ONNX export.
 
 ## Capture record
 

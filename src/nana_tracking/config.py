@@ -6,6 +6,8 @@ from typing import Literal
 import yaml
 from pydantic import BaseModel, ConfigDict, Field, PositiveInt, model_validator
 
+from nana_tracking.governance import ArtifactUsageTier, TrainingStage
+
 
 class StrictModel(BaseModel):
     """Base model that rejects misspelled or stale configuration fields."""
@@ -14,9 +16,17 @@ class StrictModel(BaseModel):
 
 
 class DataConfig(StrictModel):
-    dataset: Literal["synthetic", "manifest", "frozen_capture"] = "synthetic"
+    dataset: Literal[
+        "synthetic",
+        "multiview_smoke",
+        "manifest",
+        "frozen_capture",
+        "multiface",
+    ] = "synthetic"
+    usage_tier: ArtifactUsageTier = "synthetic-smoke"
     manifest: Path | None = None
     frozen_capture: Path | None = None
+    anchor_mapping: Path | None = None
     samples: PositiveInt = 16
     batch_size: PositiveInt = 4
     executor: Literal["inline", "multiprocessing", "interpreter"] = "inline"
@@ -30,16 +40,26 @@ class DataConfig(StrictModel):
     def validate_executor(self) -> DataConfig:
         if self.executor != "inline" and self.workers < 1:
             raise ValueError("parallel executors require workers >= 1")
-        if self.dataset in {"manifest", "frozen_capture"} and self.manifest is None:
+        if self.dataset in {"manifest", "frozen_capture", "multiface"} and self.manifest is None:
             raise ValueError("manifest datasets require data.manifest")
-        if self.dataset == "synthetic" and self.manifest is not None:
+        if self.dataset in {"synthetic", "multiview_smoke"} and self.manifest is not None:
             raise ValueError("synthetic datasets do not accept data.manifest")
-        if self.dataset == "synthetic" and self.frozen_capture is not None:
+        if self.dataset in {"synthetic", "multiview_smoke"} and self.frozen_capture is not None:
             raise ValueError("synthetic datasets do not accept data.frozen_capture")
         if self.dataset == "frozen_capture" and self.frozen_capture is None:
             raise ValueError("frozen_capture datasets require data.frozen_capture")
         if self.dataset != "frozen_capture" and self.frozen_capture is not None:
             raise ValueError("data.frozen_capture requires dataset=frozen_capture")
+        if self.dataset == "multiface" and self.anchor_mapping is None:
+            raise ValueError("multiface datasets require data.anchor_mapping")
+        if self.dataset != "multiface" and self.anchor_mapping is not None:
+            raise ValueError("data.anchor_mapping requires dataset=multiface")
+        if self.dataset in {"synthetic", "multiview_smoke"} and (
+            self.usage_tier != "synthetic-smoke"
+        ):
+            raise ValueError("synthetic datasets must use usage_tier=synthetic-smoke")
+        if self.dataset == "multiface" and self.usage_tier != "noncommercial-research":
+            raise ValueError("Multiface is restricted to usage_tier=noncommercial-research")
         return self
 
 
@@ -77,9 +97,15 @@ class ModelConfig(StrictModel):
 
 
 class TrainingConfig(StrictModel):
+    stage: TrainingStage = "standard"
     seed: int = Field(default=7, ge=0)
     max_steps: PositiveInt = 2
     learning_rate: float = Field(default=0.01, gt=0)
+    minimum_learning_rate: float = Field(default=0.0, ge=0)
+    warmup_steps: int = Field(default=0, ge=0)
+    weight_decay: float = Field(default=0.0, ge=0)
+    optimizer: Literal["adam", "adamw"] = "adam"
+    gradient_accumulation_steps: PositiveInt = 1
     device: Literal["auto", "cpu", "mps", "cuda"] = "auto"
     amp: bool = False
     shuffle: bool = True
@@ -96,6 +122,29 @@ class TrainingConfig(StrictModel):
     eye_geometry_loss_weight: float = Field(default=0.25, ge=0)
     face_geometry_loss_weight: float = Field(default=0.25, ge=0)
     tongue_visibility_loss_weight: float = Field(default=0.1, ge=0)
+    canonical_geometry_loss_weight: float = Field(default=0.0, ge=0)
+    pose_rotation_loss_weight: float = Field(default=0.0, ge=0)
+    pose_translation_loss_weight: float = Field(default=0.0, ge=0)
+    reprojection_loss_weight: float = Field(default=0.0, ge=0)
+    multiview_geometry_loss_weight: float = Field(default=0.0, ge=0)
+    multiview_pose_loss_weight: float = Field(default=0.0, ge=0)
+
+    @model_validator(mode="after")
+    def validate_schedule(self) -> TrainingConfig:
+        if self.warmup_steps >= self.max_steps:
+            raise ValueError("training.warmup_steps must be smaller than max_steps")
+        if self.minimum_learning_rate > self.learning_rate:
+            raise ValueError("minimum_learning_rate cannot exceed learning_rate")
+        if self.stage == "real-geometry-pretrain":
+            forbidden = {
+                "rig_loss_weight": self.rig_loss_weight,
+                "confidence_loss_weight": self.confidence_loss_weight,
+                "mirror_consistency_weight": self.mirror_consistency_weight,
+            }
+            enabled = [name for name, value in forbidden.items() if value != 0.0]
+            if enabled:
+                raise ValueError(f"Stage A requires zero weights for: {enabled}")
+        return self
 
 
 class EvaluationConfig(StrictModel):
@@ -108,6 +157,7 @@ class ExportConfig(StrictModel):
     model_family: str = Field(min_length=1)
     model_version: str = Field(min_length=1)
     smoke_only: bool = True
+    enabled: bool = True
 
 
 class ReproducibilityConfig(StrictModel):
@@ -119,6 +169,10 @@ class ReproducibilityConfig(StrictModel):
     calibration_revision: str = "ntp-calibration/1.0.0"
     feature_revision: str = Field(min_length=1)
     geometry_topology_revision: str = "ntp-face-canonical/1.0.0"
+    manifest_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    license_registry_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    anchor_mapping_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    training_recipe_digest: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class ExperimentConfig(StrictModel):
@@ -133,8 +187,27 @@ class ExperimentConfig(StrictModel):
 
     @model_validator(mode="after")
     def validate_artifact_status(self) -> ExperimentConfig:
-        if not self.export.smoke_only and self.data.dataset == "synthetic":
+        if not self.export.smoke_only and self.data.dataset in {
+            "synthetic",
+            "multiview_smoke",
+        }:
             raise ValueError("non-smoke exports require a reviewed manifest dataset")
+        if self.data.usage_tier == "noncommercial-research":
+            if self.training.stage != "real-geometry-pretrain":
+                raise ValueError("the first research implementation only permits Stage A")
+            if self.export.enabled:
+                raise ValueError("noncommercial research configurations must disable export")
+            required = {
+                "manifest_digest": self.reproducibility.manifest_digest,
+                "license_registry_digest": self.reproducibility.license_registry_digest,
+                "anchor_mapping_digest": self.reproducibility.anchor_mapping_digest,
+                "training_recipe_digest": self.reproducibility.training_recipe_digest,
+            }
+            missing = [name for name, value in required.items() if value is None]
+            if missing:
+                raise ValueError(f"research configurations require pinned digests: {missing}")
+        if self.data.usage_tier == "commercial" and self.export.smoke_only:
+            raise ValueError("commercial configurations cannot produce smoke-only artifacts")
         return self
 
 

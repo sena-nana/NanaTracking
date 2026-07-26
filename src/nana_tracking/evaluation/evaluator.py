@@ -23,13 +23,25 @@ def evaluate(
 ) -> dict[str, dict[str, object]]:
     device = choose_device(config.training.device)
     model = create_model(config.model).to(device)
-    load_checkpoint(checkpoint, model=model)
+    load_checkpoint(
+        checkpoint,
+        model=model,
+        expected_usage_tier=config.data.usage_tier,
+    )
     model.eval()
     seed_offset = 10_000 if split == "validation" else 20_000
     loader = create_loader(config, split=split, shuffle=False, seed_offset=seed_offset)
     names = output_names(config.model)
     comparable = [
-        name for name in names if name not in {"visibility", "tongue_visibility", "identity"}
+        name
+        for name in names
+        if name
+        not in {
+            "visibility",
+            "tongue_visibility",
+            "identity",
+            "canonical_geometry",
+        }
     ]
     predictions: dict[str, list[torch.Tensor]] = {name: [] for name in comparable}
     targets: dict[str, list[torch.Tensor]] = {name: [] for name in comparable}

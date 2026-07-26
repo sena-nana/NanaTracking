@@ -1,0 +1,76 @@
+{
+  "schema_version": "nana-training-recipe/1.0.0",
+  "recipe_id": "face-basic-stage-a-multiface",
+  "promotion_status": "research-candidate",
+  "usage_tier": "noncommercial-research",
+  "parent_checkpoint": null,
+  "seed": 17,
+  "model": {
+    "input_size": [128, 128],
+    "hidden_dims": 64,
+    "semantic_anchor_count": 16,
+    "trainable_heads": [
+      "encoder",
+      "pose",
+      "landmarks",
+      "canonical_geometry",
+      "visibility",
+      "identity_adversary"
+    ],
+    "excluded_heads": ["rig", "confidence"]
+  },
+  "schedule": {
+    "optimizer": "adamw",
+    "learning_rate": 0.0003,
+    "minimum_learning_rate": 0.000003,
+    "weight_decay": 0.0001,
+    "warmup_steps": 200,
+    "max_steps": 3000,
+    "batch_groups": 8,
+    "views_per_group": 3,
+    "gradient_accumulation_steps": 2,
+    "validation_interval_steps": 100,
+    "checkpoint_interval_steps": 500,
+    "amp": true,
+    "deterministic": true
+  },
+  "loss_weights": {
+    "landmarks_2d": 1.0,
+    "canonical_geometry_3d": 1.0,
+    "pose_rotation": 1.0,
+    "pose_translation": 1.0,
+    "reprojection": 1.0,
+    "multiview_geometry": 0.5,
+    "multiview_pose": 0.5,
+    "visibility": 0.25,
+    "identity_adversary": 0.1,
+    "rig": 0.0,
+    "confidence": 0.0,
+    "mirror_dynamic": 0.0
+  },
+  "data_policy": {
+    "budget_gib": 200,
+    "target_identities": [8, 10],
+    "minimum_identities": 5,
+    "train_fps": 5,
+    "validation_test_fps": [15, 30],
+    "views": {
+      "train_yaw_degrees": [-30, 0, 30],
+      "validation_yaw_degrees": [-45, 15, 45],
+      "test_yaw_degrees": [-60, -15, 60]
+    }
+  },
+  "forbidden_inheritance": [
+    "multiface_weights",
+    "ema",
+    "optimizer_state",
+    "rng_state",
+    "normalization_statistics",
+    "crop_color_camera_distributions",
+    "raw_data",
+    "mesh_cache",
+    "teacher_labels",
+    "topology_vertex_ids",
+    "research_thresholds"
+  ]
+}

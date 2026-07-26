@@ -22,20 +22,27 @@
 
 ## Machine registry fields
 
-Each record identifies kind, name/version/source, license and pinned license-text digest, review
+`nana-license-registry/2.0.0` records identify kind, name/version/source, license and pinned
+license-text digest, review
 state, commercial training/model distribution/raw redistribution/distillation/pseudo-label/
 derivative-label permissions, attribution/share-alike duties, consent basis, allowed stages,
 prohibited uses, evidence, and smoke-only status. Approved local license text must exist and match
 its digest. A production run rejects a smoke-only record.
 
-Stages are `base-model-training`, `expression-model-training`, `teacher-labeling`,
+Commercial stages are `base-model-training`, `expression-model-training`, `teacher-labeling`,
 `synthetic-rendering`, `evaluation`, and `model-release`. Approval for one does not imply another.
+Research stages are `research-mapping`, `research-model-training`, and `research-evaluation`;
+they require independent research-training, derivative-label, and local-checkpoint permissions.
+
+`ntp-dataset/2.0.0` remains digest-compatible for existing smoke/commercial manifests.
+`ntp-dataset/3.0.0` adds `usage_tier` plus digest-pinned research anchor-map and recipe references.
 
 ## Commands
 
 ```bash
 uv run --extra cpu nana-tracking data validate-licenses \
-  configs/data/license-registry.json --stage <stage> --records <comma-separated-ids>
+  configs/data/license-registry.json --stage <stage> --records <comma-separated-ids> \
+  --usage-tier <synthetic-smoke|noncommercial-research|commercial>
 uv run --extra cpu nana-tracking data validate <manifest>
 uv run --extra cpu nana-tracking data split-captures <records.jsonl> \
   --output <splits.json> --held-out-test-devices <ids>
@@ -50,6 +57,10 @@ uv run --extra cpu nana-tracking data capture-build-training-manifest <frozen.js
   --label-catalog configs/data/ntp-v1-label-catalog.json --output <manifest.json>
 uv run --extra cpu nana-tracking benchmark-expression-ablation \
   --config configs/expression/ablation-v1.json --output <report.json>
+uv run --extra cpu nana-tracking data multiface-preflight --output <preflight.json>
+uv run --extra cpu nana-tracking data validate-anchor-map <mapping.json>
+uv run --extra cpu nana-tracking data create-stage-a-configs \
+  --manifest <manifest.json> --anchor-mapping <mapping.json>
 ```
 
 Prefix repository commands with `rtk` when available. Use CPython 3.14 and uv. A synthetic command

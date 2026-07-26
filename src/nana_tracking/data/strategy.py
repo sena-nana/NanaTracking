@@ -12,15 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from nana_tracking.data.manifest import FileReference, SplitManifest
 from nana_tracking.data.schema import CaptureRecord
-
-PipelineStage = Literal[
-    "base-model-training",
-    "expression-model-training",
-    "teacher-labeling",
-    "synthetic-rendering",
-    "evaluation",
-    "model-release",
-]
+from nana_tracking.governance import ArtifactUsageTier, PipelineStage
 SplitName = Literal["train", "validation", "test"]
 FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
 
@@ -36,6 +28,9 @@ class CommercialPermissions(StrategyModel):
     distillation_allowed: bool
     pseudo_labeling_allowed: bool
     derivative_labels_allowed: bool
+    noncommercial_research_training_allowed: bool = False
+    research_derivative_labels_allowed: bool = False
+    research_checkpoint_local_use_allowed: bool = False
 
 
 class LicenseRecord(StrategyModel):
@@ -64,7 +59,10 @@ class LicenseRecord(StrategyModel):
 
 
 class LicenseRegistry(StrategyModel):
-    schema_version: Literal["nana-license-registry/1.0.0"] = "nana-license-registry/1.0.0"
+    schema_version: Literal[
+        "nana-license-registry/1.0.0",
+        "nana-license-registry/2.0.0",
+    ] = "nana-license-registry/2.0.0"
     revision: str = Field(min_length=1)
     records: list[LicenseRecord] = Field(min_length=1)
 
@@ -85,7 +83,11 @@ class LicenseRegistry(StrategyModel):
         *,
         stage: PipelineStage,
         production: bool,
+        usage_tier: ArtifactUsageTier | None = None,
     ) -> list[LicenseRecord]:
+        tier: ArtifactUsageTier = usage_tier or (
+            "commercial" if production else "synthetic-smoke"
+        )
         by_id = {record.record_id: record for record in self.records}
         requested = sorted(set(record_ids))
         if not requested:
@@ -101,6 +103,35 @@ class LicenseRegistry(StrategyModel):
                 raise ValueError(f"license record does not allow {stage}: {record_id}")
             if production and record.smoke_only:
                 raise ValueError(f"smoke-only license record cannot enter production: {record_id}")
+            if tier == "noncommercial-research":
+                permissions = record.permissions
+                if record.smoke_only:
+                    raise ValueError(
+                        f"smoke-only license record cannot stand in for research data: {record_id}"
+                    )
+                if stage not in {
+                    "research-mapping",
+                    "research-model-training",
+                    "research-evaluation",
+                }:
+                    raise ValueError(
+                        f"noncommercial research tier cannot use commercial stage {stage}: "
+                        f"{record_id}"
+                    )
+                if stage == "research-model-training" and not (
+                    permissions.noncommercial_research_training_allowed
+                    and permissions.research_derivative_labels_allowed
+                    and permissions.research_checkpoint_local_use_allowed
+                ):
+                    raise ValueError(
+                        f"license record forbids complete local research training use: {record_id}"
+                    )
+                if stage == "research-mapping" and not (
+                    permissions.research_derivative_labels_allowed
+                ):
+                    raise ValueError(
+                        f"license record forbids research mapping derivatives: {record_id}"
+                    )
             if stage in {
                 "base-model-training",
                 "expression-model-training",

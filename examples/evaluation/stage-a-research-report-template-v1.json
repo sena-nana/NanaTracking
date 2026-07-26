@@ -1,0 +1,30 @@
+{
+  "schema_version": "nana-stage-a-comparison/1.0.0",
+  "usage_tier": "noncommercial-research",
+  "commercial_release_evidence": false,
+  "crema_d_used": false,
+  "classification": "stage-a-inconclusive",
+  "identity_count": 0,
+  "bootstrap": {
+    "samples": 10000,
+    "seed": 17,
+    "cluster": "identity",
+    "metrics": {}
+  },
+  "single_view": {
+    "checkpoint_sha256": null,
+    "metadata": {},
+    "per_identity": {}
+  },
+  "multiview": {
+    "checkpoint_sha256": null,
+    "metadata": {},
+    "per_identity": {}
+  },
+  "data_revision": null,
+  "manifest_digest": null,
+  "anchor_mapping_digest": null,
+  "training_recipe_digest": null,
+  "config_digest": null,
+  "limitations": "Template only. Multiface evidence is noncommercial research and cannot close Issue #7 or support release."
+}

@@ -5,7 +5,7 @@ description: Enforce NanaTracking commercial data admission, provenance, identit
 
 # NanaTracking training data
 
-Apply fail-closed commercial admission before downloading, rendering, labeling, or training. Read
+Apply fail-closed tier-specific admission before downloading, rendering, labeling, or training. Read
 [`references/contracts.md`](references/contracts.md) for repository schemas, commands, and source
 roles. Read [`references/checklists.md`](references/checklists.md) for the workflow being executed.
 
@@ -14,6 +14,9 @@ roles. Read [`references/checklists.md`](references/checklists.md) for the workf
 - Reject a source until its dataset license, content rights, biometric/likeness consent, and any
   SDK/teacher-output terms explicitly allow the requested stage. Downloadability, open-source code,
   or not redistributing raw data are insufficient.
+- Keep `synthetic-smoke`, `noncommercial-research`, and `commercial` manifests, checkpoints,
+  reports, and initialization paths separate. Research weights and data never enter commercial
+  training, export, calibration, or release.
 - Add every dataset, capture program, render asset, and teacher SDK to the machine registry before a
   manifest or training configuration references it. Treat missing or pending permission as denial.
 - Never call teacher predictions ground truth. Record source/model/version, synchronization,
@@ -78,6 +81,18 @@ error, jitter, latency, peak, or semantic regressions.
 2. Verify complete label provenance/confidence and licensed renderer/asset/teacher records.
 3. Train without CREMA-D.
 4. Report direct metrics only on parameter/geometry-labeled ICT-derived or first-party holdouts.
+
+### Run noncommercial Stage A research
+
+1. Admit every source for `research-mapping`, `research-model-training`, or
+   `research-evaluation`; commercial permission does not substitute for the requested research
+   decision and research permission never grants commercial use.
+2. Require `ntp-dataset/3.0.0`, an approved 16-anchor mapping, identity/camera-isolated splits,
+   approximately 5 FPS training frames, and continuous 15-30 FPS validation/test clips.
+3. Train rig 1-36 and confidence with zero weight and exclude those heads from the optimizer.
+4. Mark every checkpoint `noncommercial-research`; reject it before commercial initialization or
+   ONNX export. Transfer only a reviewed recipe, never weights, optimizer/RNG state, normalization
+   statistics, raw data, teacher labels, or topology IDs.
 
 ### Build a G cache, train G, or evaluate expression
 

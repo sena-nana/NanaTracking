@@ -12,7 +12,7 @@ from torch import Tensor, nn
 from torch.utils.data import DataLoader
 
 from nana_tracking.config import ExperimentConfig, save_config
-from nana_tracking.contracts import CheckpointMetadata, TrackingBatch
+from nana_tracking.contracts import CheckpointMetadata, MultiViewTrackingBatch, TrackingBatch
 from nana_tracking.data.capture import FrozenCaptureDataset
 from nana_tracking.data.loaders import create_loader
 from nana_tracking.data.manifest import DatasetManifest, SplitManifest
@@ -32,6 +32,11 @@ from nana_tracking.reproducibility import (
     sha256_json,
 )
 from nana_tracking.training.checkpoint import load_checkpoint, save_checkpoint
+from nana_tracking.training.stage_a import (
+    compute_stage_a_loss_components,
+    learning_rate_at_step,
+    stage_a_parameters,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,7 +60,12 @@ def compute_loss_components(
     label_confidence: dict[str, Tensor],
     images: Tensor,
     model: nn.Module,
+    multiview_batch: MultiViewTrackingBatch | None = None,
 ) -> dict[str, Tensor]:
+    if config.training.stage == "real-geometry-pretrain":
+        if multiview_batch is None:
+            raise ValueError("Stage A loss requires a MultiViewTrackingBatch")
+        return compute_stage_a_loss_components(config, outputs, multiview_batch)
     if config.model.name == "smoke":
         return {
             "rig": nn.functional.mse_loss(outputs["rig"], targets["rig"]),
@@ -133,7 +143,8 @@ def compute_loss_components(
 
 def _resume_compatibility_digest(config: ExperimentConfig) -> str:
     payload = config.model_dump(mode="json")
-    payload["training"].pop("max_steps", None)
+    if config.training.stage != "real-geometry-pretrain":
+        payload["training"].pop("max_steps", None)
     payload["training"].pop("validation_interval_steps", None)
     payload["training"].pop("checkpoint_interval_steps", None)
     payload["reproducibility"].pop("output_dir", None)
@@ -159,13 +170,12 @@ def _evaluate_loss_components(
     model.eval()
     with torch.inference_mode():
         for batch in loader:
-            images = batch.images.to(device)
-            targets = {name: value.to(device) for name, value in batch.targets.items()}
-            label_confidence = {
-                name: value.to(device) for name, value in batch.label_confidence.items()
-            }
+            moved = _move_batch(batch, device)
+            images = moved.images
+            targets = moved.targets
+            label_confidence = moved.label_confidence
             with torch.autocast(device_type=device.type, enabled=amp_enabled):
-                outputs = dict(zip(output_names(config.model), model(images), strict=True))
+                outputs = _forward_outputs(config, model, images)
                 components = compute_loss_components(
                     config,
                     outputs,
@@ -173,6 +183,7 @@ def _evaluate_loss_components(
                     label_confidence,
                     images,
                     model,
+                    moved if isinstance(moved, MultiViewTrackingBatch) else None,
                 )
             batch_size = images.shape[0]
             sample_count += batch_size
@@ -185,6 +196,49 @@ def _evaluate_loss_components(
     averaged = {name: total / sample_count for name, total in totals.items()}
     averaged["loss"] = sum(averaged.values())
     return averaged
+
+
+def _move_batch(
+    batch: TrackingBatch | MultiViewTrackingBatch,
+    device: torch.device,
+) -> TrackingBatch | MultiViewTrackingBatch:
+    targets = {name: value.to(device) for name, value in batch.targets.items()}
+    confidence = {name: value.to(device) for name, value in batch.label_confidence.items()}
+    if isinstance(batch, MultiViewTrackingBatch):
+        return MultiViewTrackingBatch(
+            images=batch.images.to(device),
+            targets=targets,
+            label_confidence=confidence,
+            camera_intrinsics=batch.camera_intrinsics.to(device),
+            camera_to_capture=batch.camera_to_capture.to(device),
+            sample_ids=batch.sample_ids,
+            identity_ids=batch.identity_ids,
+            sequence_ids=batch.sequence_ids,
+            expressions=batch.expressions,
+            timestamps_ns=batch.timestamps_ns.to(device),
+        )
+    return TrackingBatch(
+        images=batch.images.to(device),
+        targets=targets,
+        label_confidence=confidence,
+        sample_ids=batch.sample_ids,
+    )
+
+
+def _forward_outputs(
+    config: ExperimentConfig,
+    model: nn.Module,
+    images: Tensor,
+) -> dict[str, Tensor]:
+    if images.ndim == 5:
+        groups, views, channels, height, width = images.shape
+        flat = images.reshape(groups * views, channels, height, width)
+        values = model(flat)
+        return {
+            name: value.reshape(groups, views, *value.shape[1:])
+            for name, value in zip(output_names(config.model), values, strict=True)
+        }
+    return dict(zip(output_names(config.model), model(images), strict=True))
 
 
 def _best_logged_validation(metrics_path: Path) -> float:
@@ -210,11 +264,13 @@ def _checkpoint_metadata(
     git_commit: str,
     git_dirty: bool,
     lock_digest: str,
+    parent_checkpoint_digest: str | None,
 ) -> CheckpointMetadata:
+    consumed_batches = step * config.training.gradient_accumulation_steps
     return CheckpointMetadata(
         run_id=run_id,
-        epoch=step // batches_per_epoch,
-        batch_in_epoch=step % batches_per_epoch,
+        epoch=consumed_batches // batches_per_epoch,
+        batch_in_epoch=consumed_batches % batches_per_epoch,
         step=step,
         seed=config.training.seed,
         config_digest=sha256_json(config.model_dump(mode="json")),
@@ -231,6 +287,13 @@ def _checkpoint_metadata(
         git_dirty=git_dirty,
         lock_digest=lock_digest,
         created_at=datetime.now(UTC),
+        usage_tier=config.data.usage_tier,
+        training_stage=config.training.stage,
+        manifest_digest=config.reproducibility.manifest_digest,
+        license_registry_digest=config.reproducibility.license_registry_digest,
+        anchor_mapping_digest=config.reproducibility.anchor_mapping_digest,
+        training_recipe_digest=config.reproducibility.training_recipe_digest,
+        parent_checkpoint_digest=parent_checkpoint_digest,
     )
 
 
@@ -264,6 +327,8 @@ def _training_summary(
     payload: dict[str, Any] = {
         "schema_version": "nana-training-summary/1.0.0",
         "smoke_only": config.export.smoke_only,
+        "usage_tier": config.data.usage_tier,
+        "training_stage": config.training.stage,
         "crema_d_used": False,
         "run_id": run_id,
         "data_revision": config.reproducibility.data_revision,
@@ -291,8 +356,14 @@ def _training_summary(
             "best_sha256": sha256_file(best_checkpoint),
         },
         "limitations": (
-            "Synthetic smoke evidence only. This report validates training control flow and "
-            "reproducibility; it does not establish real FaceBasic quality or production readiness."
+            "Noncommercial research evidence only. Multiface data and every derived weight are "
+            "forbidden from commercial initialization, export, or release."
+            if config.data.usage_tier == "noncommercial-research"
+            else (
+                "Synthetic smoke evidence only. This report validates training control flow and "
+                "reproducibility; it does not establish real FaceBasic quality or production "
+                "readiness."
+            )
         ),
     }
     output.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -305,19 +376,38 @@ def train(
     repository_root: Path | None = None,
 ) -> TrainingResult:
     _verify_frozen_capture_input(config)
+    _verify_research_input(config)
     seed_everything(config.training.seed, deterministic=config.training.deterministic)
     device = choose_device(config.training.device)
     if config.training.amp and device.type != "cuda":
         raise RuntimeError("AMP is currently supported only for CUDA training")
     amp_enabled = config.training.amp and device.type == "cuda"
     model = create_model(config.model).to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=config.training.learning_rate)
+    optimizer_parameters = (
+        stage_a_parameters(model)
+        if config.training.stage == "real-geometry-pretrain"
+        else list(model.parameters())
+    )
+    optimizer = (
+        torch.optim.AdamW(
+            optimizer_parameters,
+            lr=config.training.learning_rate,
+            weight_decay=config.training.weight_decay,
+        )
+        if config.training.optimizer == "adamw"
+        else torch.optim.Adam(
+            optimizer_parameters,
+            lr=config.training.learning_rate,
+            weight_decay=config.training.weight_decay,
+        )
+    )
     scaler = torch.GradScaler("cuda", enabled=amp_enabled)
 
     if resume is None:
         run_id = new_run_id()
         run_dir = config.reproducibility.output_dir / run_id
         start_step = 0
+        parent_checkpoint_digest = None
     else:
         run_dir = resume.parent.parent
         restored = load_checkpoint(
@@ -326,6 +416,7 @@ def train(
             optimizer=optimizer,
             scaler=scaler,
             restore_rng=True,
+            expected_usage_tier=config.data.usage_tier,
         )
         expected_resume_digest = _resume_compatibility_digest(config)
         if (
@@ -333,8 +424,11 @@ def train(
             and restored.resume_compatibility_digest != expected_resume_digest
         ):
             raise ValueError("resume configuration is incompatible with the checkpoint")
+        if restored.training_stage != config.training.stage:
+            raise ValueError("checkpoint training stage does not match the configuration")
         run_id = restored.run_id
         start_step = restored.step
+        parent_checkpoint_digest = sha256_file(resume)
 
     run_dir.mkdir(parents=True, exist_ok=True)
     if resume is None:
@@ -361,8 +455,10 @@ def train(
     lock_digest = sha256_file(lock_path) if lock_path.exists() else "missing"
     best_checkpoint = run_dir / "checkpoints" / "best.pt"
     best_validation_loss = _best_logged_validation(metrics_path)
-    start_epoch = start_step // batches_per_epoch
-    first_batch_in_epoch = start_step % batches_per_epoch
+    accumulation_steps = config.training.gradient_accumulation_steps
+    consumed_batches = start_step * accumulation_steps
+    start_epoch = consumed_batches // batches_per_epoch
+    first_batch_in_epoch = consumed_batches % batches_per_epoch
     epoch = start_epoch
     validation_loader = (
         create_loader(
@@ -386,6 +482,7 @@ def train(
             git_commit=git_commit,
             git_dirty=git_dirty,
             lock_digest=lock_digest,
+            parent_checkpoint_digest=parent_checkpoint_digest,
         )
         save_checkpoint(
             path,
@@ -395,6 +492,8 @@ def train(
             metadata=metadata,
         )
 
+    optimizer.zero_grad(set_to_none=True)
+    accumulated_batches = 0
     while step < config.training.max_steps:
         loader = create_loader(
             config,
@@ -408,14 +507,12 @@ def train(
                 continue
             if step >= config.training.max_steps:
                 break
-            images = batch.images.to(device)
-            targets = {name: value.to(device) for name, value in batch.targets.items()}
-            optimizer.zero_grad(set_to_none=True)
+            moved = _move_batch(batch, device)
+            images = moved.images
+            targets = moved.targets
             with torch.autocast(device_type=device.type, enabled=amp_enabled):
-                outputs = dict(zip(output_names(config.model), model(images), strict=True))
-                label_confidence = {
-                    name: value.to(device) for name, value in batch.label_confidence.items()
-                }
+                outputs = _forward_outputs(config, model, images)
+                label_confidence = moved.label_confidence
                 components = compute_loss_components(
                     config,
                     outputs,
@@ -423,11 +520,24 @@ def train(
                     label_confidence,
                     images,
                     model,
+                    moved if isinstance(moved, MultiViewTrackingBatch) else None,
                 )
                 loss = torch.stack(tuple(components.values())).sum()
-            scaler.scale(loss).backward()
+            scaler.scale(loss / accumulation_steps).backward()
+            accumulated_batches += 1
+            if accumulated_batches < accumulation_steps:
+                continue
+            current_lr = (
+                learning_rate_at_step(config, step)
+                if config.training.stage == "real-geometry-pretrain"
+                else config.training.learning_rate
+            )
+            for parameter_group in optimizer.param_groups:
+                parameter_group["lr"] = current_lr
             scaler.step(optimizer)
             scaler.update()
+            optimizer.zero_grad(set_to_none=True)
+            accumulated_batches = 0
             step += 1
             final_loss = float(loss.detach().cpu())
             metrics: dict[str, float | int | str] = {
@@ -436,6 +546,7 @@ def train(
                 "epoch": epoch,
                 "batch_in_epoch": batch_index + 1,
                 "train/loss": final_loss,
+                "train/learning_rate": current_lr,
             }
             metrics.update(
                 {f"train/{name}": float(value.detach().cpu()) for name, value in components.items()}
@@ -537,3 +648,39 @@ def _verify_frozen_capture_input(config: ExperimentConfig) -> None:
     for field, expected in expected_revisions.items():
         if getattr(manifest, field) != expected:
             raise ValueError(f"training configuration {field} does not match the manifest")
+
+
+def _verify_research_input(config: ExperimentConfig) -> None:
+    if config.data.usage_tier != "noncommercial-research":
+        return
+    manifest_path = config.data.manifest
+    anchor_mapping_path = config.data.anchor_mapping
+    if manifest_path is None or anchor_mapping_path is None:
+        raise ValueError("research training requires manifest and anchor mapping paths")
+    manifest_path = manifest_path.resolve()
+    anchor_mapping_path = anchor_mapping_path.resolve()
+    manifest = DatasetManifest.load(manifest_path)
+    manifest.verify_files(manifest_path)
+    if config.reproducibility.manifest_digest != sha256_file(manifest_path):
+        raise ValueError("research configuration manifest digest does not match the file")
+    if config.reproducibility.anchor_mapping_digest != sha256_file(anchor_mapping_path):
+        raise ValueError("research configuration anchor mapping digest does not match the file")
+    if manifest.license_registry is None or manifest.training_recipe is None:
+        raise ValueError("research manifest is missing license registry or training recipe")
+    registry_path = manifest.resolve(manifest_path, manifest.license_registry)
+    recipe_path = manifest.resolve(manifest_path, manifest.training_recipe)
+    if config.reproducibility.license_registry_digest != sha256_file(registry_path):
+        raise ValueError("research configuration license registry digest does not match")
+    if config.reproducibility.training_recipe_digest != sha256_file(recipe_path):
+        raise ValueError("research configuration training recipe digest does not match")
+    if manifest.data_revision != config.reproducibility.data_revision:
+        raise ValueError("research configuration data revision does not match the manifest")
+    for field in (
+        "ntp_schema_revision",
+        "signal_registry_revision",
+        "normalization_revision",
+        "calibration_revision",
+        "feature_revision",
+    ):
+        if getattr(manifest, field) != getattr(config.reproducibility, field):
+            raise ValueError(f"research configuration {field} does not match the manifest")

@@ -15,6 +15,7 @@ FACE_BASIC_OUTPUT_NAMES = (
     "rig",
     "pose",
     "landmarks",
+    "canonical_geometry",
     "visibility",
     "identity",
     "confidence",
@@ -85,12 +86,16 @@ class FaceBasicModel(nn.Module):
             nn.Linear(config.identity_dims, config.identity_classes),
         )
         self.confidence_head = nn.Linear(config.hidden_dims, 36)
+        # Append research-only heads after all v1 heads to preserve existing initialization streams.
+        self.canonical_geometry_head = nn.Linear(config.hidden_dims, config.landmark_count * 3)
         self.landmark_count = config.landmark_count
         unsigned = torch.zeros(36, dtype=torch.bool)
         unsigned[list(_UNSIGNED_BASIC_SLOTS)] = True
         self.register_buffer("unsigned_slots", unsigned, persistent=False)
 
-    def forward(self, image: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    def forward(
+        self, image: Tensor
+    ) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         features = self.encoder(image)
         raw_rig = self.rig_head(features)
         rig = torch.where(self.unsigned_slots, torch.sigmoid(raw_rig), torch.tanh(raw_rig))
@@ -99,11 +104,22 @@ class FaceBasicModel(nn.Module):
         quaternion = nn.functional.normalize(raw_pose[:, 3:], dim=-1, eps=1e-6)
         pose = torch.cat((position, quaternion), dim=-1)
         landmarks = torch.tanh(self.landmark_head(features)).reshape(-1, self.landmark_count, 2)
+        canonical_geometry = torch.tanh(self.canonical_geometry_head(features)).reshape(
+            -1, self.landmark_count, 3
+        )
         visibility = self.visibility_head(features)
         reversed_features = -features + (2.0 * features).detach()
         identity = self.identity_head(reversed_features)
         confidence = torch.sigmoid(self.confidence_head(features))
-        return rig, pose, landmarks, visibility, identity, confidence
+        return (
+            rig,
+            pose,
+            landmarks,
+            canonical_geometry,
+            visibility,
+            identity,
+            confidence,
+        )
 
 
 def mirror_basic_rig(values: Tensor) -> Tensor:

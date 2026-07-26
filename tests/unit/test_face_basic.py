@@ -36,12 +36,21 @@ def test_face_basic_has_complete_single_pass_heads() -> None:
 
     handle = model.encoder.register_forward_hook(count_encoder_call)  # type: ignore[attr-defined]
     with torch.inference_mode():
-        rig, pose, landmarks, visibility, identity, confidence = model(torch.zeros(2, 3, 64, 64))
+        (
+            rig,
+            pose,
+            landmarks,
+            canonical_geometry,
+            visibility,
+            identity,
+            confidence,
+        ) = model(torch.zeros(2, 3, 64, 64))
     handle.remove()
     assert encoder_calls == 1
     assert rig.shape == (2, 36)
     assert pose.shape == (2, 7)
     assert landmarks.shape == (2, 16, 2)
+    assert canonical_geometry.shape == (2, 16, 3)
     assert visibility.shape == (2, 3)
     assert identity.shape == (2, 2)
     assert confidence.shape == (2, 36)

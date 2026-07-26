@@ -47,7 +47,15 @@ class FaceBasicDeploymentModel(nn.Module):
         self.model = model
 
     def forward(self, image: Tensor) -> tuple[Tensor, Tensor, Tensor, Tensor, Tensor]:
-        rig, pose, landmarks, visibility, _identity, confidence = self.model(image)
+        (
+            rig,
+            pose,
+            landmarks,
+            _canonical_geometry,
+            visibility,
+            _identity,
+            confidence,
+        ) = self.model(image)
         return rig, pose, landmarks, visibility, confidence
 
 
@@ -93,7 +101,7 @@ def deployment_output_names(config: ModelConfig) -> tuple[str, ...]:
     if config.name == "smoke":
         return SMOKE_OUTPUT_NAMES
     names = output_names(config)
-    return tuple(name for name in names if name != "identity")
+    return tuple(name for name in names if name not in {"identity", "canonical_geometry"})
 
 
 __all__ = [

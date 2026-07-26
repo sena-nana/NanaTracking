@@ -25,11 +25,26 @@ signal. The RGB expression model is an upper-bound reference, not a teacher for 
 | ICT Face Model Light derived renders | F parameter/geometry truth, controlled coverage | Sole evidence for real-camera quality |
 | Consented RGB plus TrueDepth/ARKit | Real-domain F adaptation, temporal/device/identity evaluation | Unreviewed SDK output as absolute physical truth |
 | CREMA-D | Frozen-F cache to G, actor-held-out expression evaluation | Direct F supervision or BasicSet accuracy claims |
+| Multiface | Noncommercial Stage A geometry/pose/visibility and multiview-method research after approval | Commercial weights, NTP rig truth, release evidence |
 
 The machine registry is `configs/data/license-registry.json`. Missing, pending, rejected,
 stage-incompatible, smoke-only-for-production, or commercially incomplete records fail closed.
 The current ICT, CREMA-D, ARKit/TrueDepth, and first-party collection entries remain pending; no
 production training is authorized by this repository snapshot.
+
+## Research-to-commercial promotion boundary
+
+Multiface Stage A is a separate `noncommercial-research` chain. It targets 8-10 identities under
+the 200 GiB budget, uses approximately 5 FPS for training, and retains continuous 15-30 FPS
+validation/test sequences on disjoint identities and cameras. MediaPipe can propose the reviewed
+16-anchor topology mapping, but its outputs are not frame labels or distillation truth.
+
+Only network/head structure, loss formulas, stage order, candidate learning-rate/freeze/batch
+ratios, semantic locations, split/evaluation code, and failure taxonomy may become a
+`research-candidate` recipe. A commercial model must reproduce that recipe from random or already
+commercial weights on commercial data. Multiface-derived weights, optimizer/EMA/RNG state,
+normalization or crop/color/camera statistics, raw/cached data, topology IDs, teacher labels, and
+test-selected thresholds are prohibited inheritance.
 
 ## Reproducible pipeline
 

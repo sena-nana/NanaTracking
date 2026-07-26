@@ -78,6 +78,10 @@ def create_model_package(
     checkpoint: Path,
     output_dir: Path,
 ) -> dict[str, dict[str, float]]:
+    if not config.export.enabled:
+        raise ValueError("model export is disabled by this experiment configuration")
+    if config.data.usage_tier == "noncommercial-research":
+        raise ValueError("noncommercial research checkpoints cannot be exported")
     if not config.export.smoke_only:
         if config.data.dataset == "synthetic" or config.data.manifest is None:
             raise ValueError("non-smoke packages require a reviewed manifest dataset")
@@ -87,7 +91,11 @@ def create_model_package(
     vector_dir = output_dir / "test-vectors"
     vector_dir.mkdir(parents=True, exist_ok=True)
     training_model = create_model(config.model)
-    load_checkpoint(checkpoint, model=training_model)
+    load_checkpoint(
+        checkpoint,
+        model=training_model,
+        expected_usage_tier=config.data.usage_tier,
+    )
     model = create_deployment_model(config.model, training_model)
     model.eval()
     names = deployment_output_names(config.model)
