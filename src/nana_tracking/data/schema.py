@@ -57,7 +57,7 @@ class LabelObservation(DataModel):
     value: float | None = None
     confidence: float = Field(ge=0.0, le=1.0)
     state: Literal["observed", "fused", "predicted", "unavailable"]
-    evidence: Literal["teacher_label", "geometry", "derived"]
+    evidence: Literal["teacher_label", "pseudo_label", "geometry", "derived"]
     method: str = Field(min_length=1)
     unavailable_reason: str | None = None
 

@@ -1,16 +1,16 @@
 {
   "schema_version": "nana-license-registry/2.0.0",
-  "revision": "nana-training-data/2.0.0",
+  "revision": "nana-training-data/3.0.0",
   "records": [
     {
       "record_id": "apple-arkit-truedepth-teacher",
       "kind": "teacher-sdk",
       "name": "Apple ARKit and TrueDepth teacher outputs",
-      "version": "terms-review-2026-07-15",
-      "source": "https://developer.apple.com/augmented-reality/arkit/",
-      "license": "Apple SDK and platform terms; independent output-use review required",
-      "license_text_sha256": null,
-      "review_status": "pending",
+      "version": "evaluation-only-review-2026-07-26",
+      "source": "https://developer.apple.com/documentation/arkit/arfaceanchor",
+      "license": "https://developer.apple.com/jp/support/terms/apple-developer-program-license-agreement/",
+      "license_text_sha256": "3272658b686969dc47f1e4b23fae1731193a252a70defad52516257f1e5003ce",
+      "review_status": "approved",
       "permissions": {
         "commercial_training_allowed": false,
         "model_distribution_allowed": false,
@@ -21,10 +21,17 @@
       },
       "attribution_obligations": [],
       "share_alike_obligations": [],
-      "personal_biometric_consent_basis": "Separate participant consent is required in addition to SDK terms.",
-      "allowed_pipeline_stages": [],
-      "prohibited_uses": ["Training, distillation, or pseudo-labeling before written terms review"],
-      "evidence": "No commercial teacher-output permission has been approved in this registry.",
+      "personal_biometric_consent_basis": "Every first-party comparison clip requires clear and conspicuous Face Data consent, a specific evaluation purpose, retention and withdrawal handling, and any required off-device transfer consent.",
+      "allowed_pipeline_stages": ["evaluation"],
+      "teacher_supervision_roles": ["evaluation-reference"],
+      "prohibited_uses": [
+        "Training, fine-tuning, distillation, pseudo-labeling, calibration, threshold selection, or recipe selection",
+        "Copying ARKit coefficients into NTP training truth",
+        "Use outside the consented comparison purpose"
+      ],
+      "evidence": "Apple DPLA section 3.3.3(K) defines and restricts Face Data. Project-owner decision limits ARKit/TrueDepth outputs to an isolated first-party validation/test comparison and grants no training permission.",
+      "reviewed_by": "project-owner",
+      "reviewed_at": "2026-07-26T00:00:00+08:00",
       "smoke_only": false
     },
     {
@@ -35,7 +42,7 @@
       "source": "https://github.com/CheyneyComputerScience/CREMA-D",
       "license": "ODbL-1.0 database and DbCL-1.0 contents",
       "license_text_sha256": null,
-      "review_status": "pending",
+      "review_status": "rejected",
       "permissions": {
         "commercial_training_allowed": false,
         "model_distribution_allowed": false,
@@ -49,7 +56,7 @@
       "personal_biometric_consent_basis": "Original dataset consent and downstream biometric/model use require legal review.",
       "allowed_pipeline_stages": [],
       "prohibited_uses": ["Base-model F supervision", "Production training or release before legal approval"],
-      "evidence": "The official repository identifies ODbL/DbCL; commercial model-training and release obligations remain unapproved.",
+      "evidence": "The project-owner selected a no-existing-datasets policy. CREMA-D remains recorded only as a rejected source and cannot enter F, G, evaluation, or recipe selection.",
       "smoke_only": false
     },
     {
@@ -60,7 +67,7 @@
       "source": "https://vgl.ict.usc.edu/Data/ICTFaceModel/",
       "license": "No commercial Light license approved; official page directs commercial users to contact USC ICT",
       "license_text_sha256": null,
-      "review_status": "pending",
+      "review_status": "rejected",
       "permissions": {
         "commercial_training_allowed": false,
         "model_distribution_allowed": false,
@@ -74,7 +81,47 @@
       "personal_biometric_consent_basis": "Source model provenance is described by USC ICT; downstream commercial rights remain unapproved.",
       "allowed_pipeline_stages": [],
       "prohibited_uses": ["Commercial synthetic generation or training before written permission"],
-      "evidence": "The official page lists Light/Full features but does not provide an approved commercial Light grant.",
+      "evidence": "The project-owner selected a no-existing-datasets policy. ICT Face Model Light remains recorded only as a rejected source.",
+      "smoke_only": false
+    },
+    {
+      "record_id": "mediapipe-face-landmarker-v1",
+      "kind": "teacher-sdk",
+      "name": "MediaPipe Face Landmarker",
+      "version": "mediapipe-0.10.35-face-landmarker-float16-v1",
+      "source": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+      "license": "https://raw.githubusercontent.com/google-ai-edge/mediapipe/v0.10.35/LICENSE",
+      "license_text_sha256": "8707eef0533987efc5b155d64761eeb6e20793f50b9bd1a68dad1cf4719d0ed8",
+      "review_status": "approved",
+      "permissions": {
+        "commercial_training_allowed": true,
+        "model_distribution_allowed": true,
+        "redistribution_allowed": true,
+        "distillation_allowed": true,
+        "pseudo_labeling_allowed": true,
+        "derivative_labels_allowed": true
+      },
+      "attribution_obligations": [
+        "Preserve Apache-2.0 and required MediaPipe notices in the training provenance bundle"
+      ],
+      "share_alike_obligations": [],
+      "personal_biometric_consent_basis": "MediaPipe processes only separately consented first-party captures; the teacher license does not replace participant consent.",
+      "allowed_pipeline_stages": [
+        "base-model-training",
+        "teacher-labeling",
+        "evaluation",
+        "model-release"
+      ],
+      "teacher_supervision_roles": ["pseudo-label"],
+      "prohibited_uses": [
+        "Calling predictions ground truth",
+        "Identity recognition or user profiling",
+        "Using an unpinned model bundle or silently changing the landmark/blendshape mapping",
+        "Training confidence as certainty rather than teacher reliability"
+      ],
+      "evidence": "MediaPipe v0.10.35 code and the official FaceMesh V2/Blendshape V2 model cards identify Apache-2.0. Approved bundle SHA-256: 64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff.",
+      "reviewed_by": "project-owner",
+      "reviewed_at": "2026-07-26T00:00:00+08:00",
       "smoke_only": false
     },
     {
@@ -100,38 +147,45 @@
       "allowed_pipeline_stages": ["base-model-training", "expression-model-training", "teacher-labeling", "synthetic-rendering", "evaluation", "model-release"],
       "prohibited_uses": ["Production-quality, real-data, demographic, or target-device acceptance claims"],
       "evidence": "Repository-owned generated arrays and tiny fixtures only.",
+      "reviewed_by": "repository-owner",
+      "reviewed_at": "2026-07-15T00:00:00+08:00",
       "smoke_only": true
     },
     {
-      "record_id": "research-mediapipe-face-landmarker-mapping",
+      "record_id": "opencv-calibrated-geometry-v1",
       "kind": "teacher-sdk",
-      "name": "MediaPipe Face Landmarker mapping helper",
-      "version": "0.10.35",
-      "source": "https://github.com/google-ai-edge/mediapipe",
-      "license": "Apache-2.0 code; Face Landmarker model asset and output-use review required",
-      "license_text_sha256": null,
-      "review_status": "pending",
+      "name": "OpenCV calibrated geometry derivation",
+      "version": "4.5.0-or-later-apache-2.0",
+      "source": "https://opencv.org/license/",
+      "license": "https://raw.githubusercontent.com/opencv/opencv/4.x/LICENSE",
+      "license_text_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "review_status": "approved",
       "permissions": {
-        "commercial_training_allowed": false,
-        "model_distribution_allowed": false,
-        "redistribution_allowed": false,
-        "distillation_allowed": false,
-        "pseudo_labeling_allowed": false,
-        "derivative_labels_allowed": false,
-        "noncommercial_research_training_allowed": false,
-        "research_derivative_labels_allowed": false,
-        "research_checkpoint_local_use_allowed": false
+        "commercial_training_allowed": true,
+        "model_distribution_allowed": true,
+        "redistribution_allowed": true,
+        "distillation_allowed": true,
+        "pseudo_labeling_allowed": true,
+        "derivative_labels_allowed": true
       },
-      "attribution_obligations": ["Preserve MediaPipe notices for the mapping helper"],
+      "attribution_obligations": ["Preserve the applicable OpenCV Apache-2.0 notices"],
       "share_alike_obligations": [],
-      "personal_biometric_consent_basis": "No new identity data is admitted by this tool record; source dataset consent remains independently required.",
-      "allowed_pipeline_stages": [],
-      "prohibited_uses": [
-        "Per-frame training supervision",
-        "Pseudo-labeling or distillation",
-        "Use before model-asset and output-rights review"
+      "personal_biometric_consent_basis": "OpenCV operates only on separately consented first-party captures; mathematical derivation does not replace participant consent.",
+      "allowed_pipeline_stages": [
+        "base-model-training",
+        "teacher-labeling",
+        "evaluation",
+        "model-release"
       ],
-      "evidence": "MediaPipe is registered only as a candidate semantic-mapping helper and remains denied until reviewed.",
+      "teacher_supervision_roles": ["geometry-derivation"],
+      "prohibited_uses": [
+        "Using uncalibrated or unsynchronized geometry as observed truth",
+        "Promoting MediaPipe-seeded points without multiview reprojection and human-review gates",
+        "Treating solvePnP or triangulation residuals as model confidence"
+      ],
+      "evidence": "OpenCV 4.5.0 and later are Apache-2.0. Only deterministic calibration, triangulation, solvePnP, reprojection, and optical-flow outputs from first-party captures are admitted.",
+      "reviewed_by": "project-owner",
+      "reviewed_at": "2026-07-26T00:00:00+08:00",
       "smoke_only": false
     },
     {
@@ -142,17 +196,14 @@
       "source": "https://github.com/facebookresearch/multiface",
       "license": "CC BY-NC 4.0; local license text and likeness/biometric basis review required",
       "license_text_sha256": null,
-      "review_status": "pending",
+      "review_status": "rejected",
       "permissions": {
         "commercial_training_allowed": false,
         "model_distribution_allowed": false,
         "redistribution_allowed": false,
         "distillation_allowed": false,
         "pseudo_labeling_allowed": false,
-        "derivative_labels_allowed": false,
-        "noncommercial_research_training_allowed": false,
-        "research_derivative_labels_allowed": false,
-        "research_checkpoint_local_use_allowed": false
+        "derivative_labels_allowed": false
       },
       "attribution_obligations": ["Cite the Multiface dataset and preserve CC BY attribution"],
       "share_alike_obligations": [],
@@ -163,7 +214,7 @@
         "Checkpoint export or commercial initialization",
         "Download before license and likeness review"
       ],
-      "evidence": "Official repository states CC BY-NC 4.0; admission remains fail-closed pending human review.",
+      "evidence": "Rejected by the project-wide no-existing-datasets policy. Multiface cannot enter training, evaluation, baseline selection, or recipe promotion.",
       "smoke_only": false
     },
     {

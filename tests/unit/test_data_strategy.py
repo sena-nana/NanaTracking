@@ -34,6 +34,13 @@ def test_license_registry_fails_closed_for_unapproved_or_smoke_production() -> N
         ["nana-synthetic-smoke"], stage="base-model-training", production=False
     )
     assert [record.record_id for record in admitted] == ["nana-synthetic-smoke"]
+    with pytest.raises(ValueError, match="usage tier disagree"):
+        registry.admit(
+            ["nana-synthetic-smoke"],
+            stage="base-model-training",
+            production=False,
+            usage_tier="commercial",
+        )
 
 
 def test_f_and_expression_splits_preserve_identity_and_actor_groups() -> None:

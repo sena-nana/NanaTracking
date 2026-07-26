@@ -1,0 +1,50 @@
+{
+  "schema_version": "nana-teacher-model/1.0.0",
+  "teacher_source_id": "mediapipe-face-landmarker-v1",
+  "framework": "MediaPipe Face Landmarker",
+  "framework_version": "0.10.35",
+  "license_record_id": "mediapipe-face-landmarker-v1",
+  "model": {
+    "url": "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task",
+    "sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff"
+  },
+  "model_cards": [
+    {
+      "url": "https://storage.googleapis.com/mediapipe-assets/Model%20Card%20MediaPipe%20Face%20Mesh%20V2.pdf",
+      "sha256": "c6add060f4ebfb37b2690136b6c711c7e5fcb7038baa2649ae3338b83979565a"
+    },
+    {
+      "url": "https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Blendshape%20V2.pdf",
+      "sha256": "c8e9cf60a39998f4b341740623917590e050d1c97004e2de4568d84e026445ae"
+    }
+  ],
+  "output_contract_revision": "mediapipe-semantic-landmarks/1.0.0",
+  "supervision_role": "pseudo-label",
+  "admitted_outputs": ["semantic-landmarks-2d"],
+  "default_label_confidence": 0.5,
+  "anchor_bindings": [
+    {"semantic_name": "eye.left.inner", "teacher_index": 133},
+    {"semantic_name": "eye.left.outer", "teacher_index": 33},
+    {"semantic_name": "eye.right.inner", "teacher_index": 362},
+    {"semantic_name": "eye.right.outer", "teacher_index": 263},
+    {"semantic_name": "brow.left.inner", "teacher_index": 107},
+    {"semantic_name": "brow.left.outer", "teacher_index": 70},
+    {"semantic_name": "brow.right.inner", "teacher_index": 336},
+    {"semantic_name": "brow.right.outer", "teacher_index": 300},
+    {"semantic_name": "nose.tip", "teacher_index": 1},
+    {"semantic_name": "nose.left.alar", "teacher_index": 98},
+    {"semantic_name": "nose.right.alar", "teacher_index": 327},
+    {"semantic_name": "mouth.left.corner", "teacher_index": 61},
+    {"semantic_name": "mouth.right.corner", "teacher_index": 291},
+    {"semantic_name": "mouth.upper.center", "teacher_index": 13},
+    {"semantic_name": "mouth.lower.center", "teacher_index": 14},
+    {"semantic_name": "chin.center", "teacher_index": 152}
+  ],
+  "prohibited_outputs": [
+    "NTP Basic 36 numeric truth",
+    "canonical metric 3D geometry",
+    "head-pose ground truth",
+    "confidence ground truth",
+    "identity labels or embeddings"
+  ]
+}

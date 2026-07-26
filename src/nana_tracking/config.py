@@ -21,7 +21,6 @@ class DataConfig(StrictModel):
         "multiview_smoke",
         "manifest",
         "frozen_capture",
-        "multiface",
     ] = "synthetic"
     usage_tier: ArtifactUsageTier = "synthetic-smoke"
     manifest: Path | None = None
@@ -40,7 +39,7 @@ class DataConfig(StrictModel):
     def validate_executor(self) -> DataConfig:
         if self.executor != "inline" and self.workers < 1:
             raise ValueError("parallel executors require workers >= 1")
-        if self.dataset in {"manifest", "frozen_capture", "multiface"} and self.manifest is None:
+        if self.dataset in {"manifest", "frozen_capture"} and self.manifest is None:
             raise ValueError("manifest datasets require data.manifest")
         if self.dataset in {"synthetic", "multiview_smoke"} and self.manifest is not None:
             raise ValueError("synthetic datasets do not accept data.manifest")
@@ -50,16 +49,12 @@ class DataConfig(StrictModel):
             raise ValueError("frozen_capture datasets require data.frozen_capture")
         if self.dataset != "frozen_capture" and self.frozen_capture is not None:
             raise ValueError("data.frozen_capture requires dataset=frozen_capture")
-        if self.dataset == "multiface" and self.anchor_mapping is None:
-            raise ValueError("multiface datasets require data.anchor_mapping")
-        if self.dataset != "multiface" and self.anchor_mapping is not None:
-            raise ValueError("data.anchor_mapping requires dataset=multiface")
+        if self.anchor_mapping is not None and self.dataset not in {"manifest", "frozen_capture"}:
+            raise ValueError("data.anchor_mapping requires a reviewed manifest dataset")
         if self.dataset in {"synthetic", "multiview_smoke"} and (
             self.usage_tier != "synthetic-smoke"
         ):
             raise ValueError("synthetic datasets must use usage_tier=synthetic-smoke")
-        if self.dataset == "multiface" and self.usage_tier != "noncommercial-research":
-            raise ValueError("Multiface is restricted to usage_tier=noncommercial-research")
         return self
 
 
@@ -192,20 +187,6 @@ class ExperimentConfig(StrictModel):
             "multiview_smoke",
         }:
             raise ValueError("non-smoke exports require a reviewed manifest dataset")
-        if self.data.usage_tier == "noncommercial-research":
-            if self.training.stage != "real-geometry-pretrain":
-                raise ValueError("the first research implementation only permits Stage A")
-            if self.export.enabled:
-                raise ValueError("noncommercial research configurations must disable export")
-            required = {
-                "manifest_digest": self.reproducibility.manifest_digest,
-                "license_registry_digest": self.reproducibility.license_registry_digest,
-                "anchor_mapping_digest": self.reproducibility.anchor_mapping_digest,
-                "training_recipe_digest": self.reproducibility.training_recipe_digest,
-            }
-            missing = [name for name, value in required.items() if value is None]
-            if missing:
-                raise ValueError(f"research configurations require pinned digests: {missing}")
         if self.data.usage_tier == "commercial" and self.export.smoke_only:
             raise ValueError("commercial configurations cannot produce smoke-only artifacts")
         return self

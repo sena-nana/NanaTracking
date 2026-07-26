@@ -26,7 +26,10 @@ cu130 = [
   "torchvision>=0.26,<0.27",
 ]
 tracking = ["tensorboard>=2.20,<3"]
-anchor-mapping = ["mediapipe==0.10.35"]
+teacher-labeling = [
+  "mediapipe==0.10.35",
+  "opencv-python-headless>=4.11,<5",
+]
 
 [project.scripts]
 nana-tracking = "nana_tracking.cli:main"

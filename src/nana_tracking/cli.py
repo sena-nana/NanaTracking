@@ -29,23 +29,6 @@ from nana_tracking.data.capture import (
 from nana_tracking.data.executors import benchmark_backends
 from nana_tracking.data.labeling import LabelCatalog, materialize_dataset, write_materialized_labels
 from nana_tracking.data.manifest import DatasetManifest
-from nana_tracking.data.mediapipe_mapping import (
-    generate_mediapipe_anchor_votes,
-    render_anchor_review_overlays,
-)
-from nana_tracking.data.multiface import (
-    AnchorVote,
-    MultifaceCamera,
-    SemanticAnchorMapping,
-    StageAFrameGroup,
-    build_anchor_mapping_proposal,
-    build_multiface_split_plan,
-    build_stage_a_manifest,
-    create_stage_a_configs,
-    preflight_multiface,
-    save_stage_a_model,
-    validate_stage_a_manifest,
-)
 from nana_tracking.data.schema import CaptureRecord
 from nana_tracking.data.strategy import (
     ActorSplitManifest,
@@ -64,6 +47,7 @@ from nana_tracking.data.studio import (
     StudioSessionDefinition,
 )
 from nana_tracking.data.studio_server import make_capture_studio_server
+from nana_tracking.data.teachers import TeacherModelDescriptor
 from nana_tracking.doctor import doctor_report
 from nana_tracking.evaluation import (
     ExpressionAblationConfig,
@@ -230,10 +214,6 @@ def doctor() -> None:
 def validate_data(manifest: Annotated[Path, typer.Argument(exists=True, dir_okay=False)]) -> None:
     """Validate the complete dataset contract and automatic quality gates."""
 
-    loaded = DatasetManifest.load(manifest)
-    if loaded.pipeline_stage == "research-model-training":
-        _print_json(validate_stage_a_manifest(manifest))
-        return
     result = materialize_dataset(manifest)
     _print_json(result.quality.model_dump(mode="json"))
     if result.quality.error_count:
@@ -271,8 +251,7 @@ def data_schema_command(
             "raw-arkit-frame",
             "arkit-mapping",
             "frozen-capture-dataset",
-            "semantic-anchor-map",
-            "stage-a-frame-group",
+            "teacher-model",
         ],
         typer.Argument(),
     ] = "manifest",
@@ -292,8 +271,7 @@ def data_schema_command(
         "raw-arkit-frame": RawArkitFrame,
         "arkit-mapping": ArkitMapping,
         "frozen-capture-dataset": FrozenCaptureDataset,
-        "semantic-anchor-map": SemanticAnchorMapping,
-        "stage-a-frame-group": StageAFrameGroup,
+        "teacher-model": TeacherModelDescriptor,
     }
     _print_json(models[kind].model_json_schema())
 
@@ -327,182 +305,34 @@ def validate_licenses_command(
     )
 
 
-@data_app.command("multiface-preflight")
-def multiface_preflight_command(
-    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+@data_app.command("validate-teacher-model")
+def validate_teacher_model_command(
+    descriptor: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    model_asset: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
     registry: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
         "configs/data/license-registry.json"
     ),
-    budget_gib: Annotated[int, typer.Option(min=1, max=200)] = 200,
 ) -> None:
-    """Admit Multiface, then query exact selected archive sizes without downloading data."""
+    """Verify a pinned teacher model and its commercial teacher-labeling admission."""
 
-    plan = preflight_multiface(registry_path=registry, budget_gib=budget_gib)
-    save_stage_a_model(plan, output)
-    _print_json(plan.model_dump(mode="json") | {"output": output})
-
-
-@data_app.command("multiface-split-plan")
-def multiface_split_plan_command(
-    identities: Annotated[str, typer.Option(help="Comma-separated admitted identity IDs")],
-    cameras: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
-    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
-) -> None:
-    """Create deterministic identity and disjoint yaw-camera Stage A splits."""
-
-    payload = json.loads(cameras.read_text(encoding="utf-8"))
-    if not isinstance(payload, list):
-        raise typer.BadParameter("camera calibration input must be a JSON array")
-    plan = build_multiface_split_plan(
-        [item.strip() for item in identities.split(",") if item.strip()],
-        [MultifaceCamera.model_validate(item) for item in payload],
-    )
-    save_stage_a_model(plan, output)
-    _print_json(plan.model_dump(mode="json") | {"output": output})
-
-
-@data_app.command("propose-anchor-map")
-def propose_anchor_map_command(
-    votes: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
-    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
-    mapping_revision: Annotated[str, typer.Option()],
-    mediapipe_model_sha256: Annotated[str, typer.Option()],
-    mediapipe_version: Annotated[str, typer.Option()] = "0.10.35",
-) -> None:
-    """Reduce MediaPipe-assisted votes into an unapproved semantic mapping candidate."""
-
-    mapping = build_anchor_mapping_proposal(
-        AnchorVote.load_jsonl(votes),
-        mapping_revision=mapping_revision,
-        mediapipe_version=mediapipe_version,
-        mediapipe_model_sha256=mediapipe_model_sha256,
-    )
-    save_stage_a_model(mapping, output)
-    _print_json(
-        {
-            "output": output,
-            "mapping_revision": mapping.mapping_revision,
-            "status": mapping.status,
-            "training_allowed": False,
-        }
-    )
-
-
-@data_app.command("build-stage-a-manifest")
-def build_stage_a_manifest_command(
-    records: Annotated[str, typer.Option(help="Comma-separated Stage A JSONL shards")],
-    split_plan: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
-    anchor_mapping: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
-    data_revision: Annotated[str, typer.Option()],
-    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
-    label_catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
-        "configs/data/ntp-v1-label-catalog.json"
-    ),
-    license_registry: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
-        "configs/data/license-registry.json"
-    ),
-    recipe: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
-        "configs/training/nana-training-recipe-1.0.0.json"
-    ),
-) -> None:
-    """Freeze reviewed Multiface frame groups into ntp-dataset/3.0.0."""
-
-    record_paths = [Path(item.strip()) for item in records.split(",") if item.strip()]
-    if not record_paths or any(not path.is_file() for path in record_paths):
-        raise typer.BadParameter("every Stage A record shard must exist")
-    manifest = build_stage_a_manifest(
-        record_files=record_paths,
-        split_plan_path=split_plan,
-        label_catalog_path=label_catalog,
-        license_registry_path=license_registry,
-        anchor_mapping_path=anchor_mapping,
-        recipe_path=recipe,
-        data_revision=data_revision,
-        output_path=output,
+    loaded = TeacherModelDescriptor.load(descriptor)
+    loaded.verify_model_asset(model_asset)
+    licenses = LicenseRegistry.load(registry)
+    licenses.verify_local_license_texts(registry)
+    licenses.admit(
+        [loaded.license_record_id],
+        stage="teacher-labeling",
+        production=True,
+        usage_tier="commercial",
     )
     _print_json(
         {
-            "output": output,
-            "data_revision": manifest.data_revision,
-            "digest": manifest.digest,
-            "usage_tier": manifest.usage_tier,
+            "teacher_source_id": loaded.teacher_source_id,
+            "model_sha256": loaded.model.sha256,
+            "license_record_id": loaded.license_record_id,
+            "supervision_role": loaded.supervision_role,
+            "admitted_outputs": sorted(loaded.admitted_outputs),
         }
-    )
-
-
-@data_app.command("mediapipe-anchor-votes")
-def mediapipe_anchor_votes_command(
-    review_index: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
-    model_asset: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
-    model_sha256: Annotated[str, typer.Option()],
-    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
-) -> None:
-    """Generate mapping-only nearest-vertex votes with the optional MediaPipe helper."""
-
-    _print_json(
-        generate_mediapipe_anchor_votes(
-            review_index=review_index,
-            model_asset=model_asset,
-            expected_model_sha256=model_sha256,
-            output=output,
-        )
-    )
-
-
-@data_app.command("create-stage-a-configs")
-def create_stage_a_configs_command(
-    manifest: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
-    anchor_mapping: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
-    recipe: Annotated[Path, typer.Option(exists=True, dir_okay=False)] = Path(
-        "configs/training/nana-training-recipe-1.0.0.json"
-    ),
-    output_directory: Annotated[Path, typer.Option("--output-directory", file_okay=False)] = Path(
-        "configs/generated"
-    ),
-) -> None:
-    """Create the two digest-pinned Stage A configs only after admission and review."""
-
-    single_view, multiview = create_stage_a_configs(
-        manifest_path=manifest,
-        anchor_mapping_path=anchor_mapping,
-        recipe_path=recipe,
-        output_directory=output_directory,
-    )
-    _print_json({"single_view": single_view, "multiview": multiview})
-
-
-@data_app.command("validate-anchor-map")
-def validate_anchor_map_command(
-    mapping: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
-    require_approved: Annotated[bool, typer.Option()] = True,
-) -> None:
-    """Validate semantic correspondence coverage and human-review evidence."""
-
-    loaded = SemanticAnchorMapping.load(mapping, require_approved=require_approved)
-    _print_json(
-        {
-            "mapping_revision": loaded.mapping_revision,
-            "status": loaded.status,
-            "correspondence_count": len(loaded.correspondences),
-            "training_allowed": loaded.status == "approved",
-        }
-    )
-
-
-@data_app.command("render-anchor-overlays")
-def render_anchor_overlays_command(
-    review_index: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
-    mapping: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
-    output_directory: Annotated[Path, typer.Option("--output-directory", file_okay=False)],
-) -> None:
-    """Render candidate Multiface anchor overlays for mandatory human review."""
-
-    _print_json(
-        render_anchor_review_overlays(
-            review_index=review_index,
-            mapping_path=mapping,
-            output_directory=output_directory,
-        )
     )
 
 
@@ -514,7 +344,7 @@ def split_actors_command(
     validation_actors: Annotated[int, typer.Option(min=1)] = 1,
     test_actors: Annotated[int, typer.Option(min=1)] = 1,
 ) -> None:
-    """Build deterministic actor-isolated CREMA-D train/validation/test splits."""
+    """Build deterministic actor-isolated expression-clip splits."""
 
     manifest = split_clips_by_actor(
         load_clip_index(index),
@@ -638,7 +468,7 @@ def capture_convert_arkit_command(
     mapping: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
     output: Annotated[Path, typer.Option("--output", dir_okay=False)],
 ) -> None:
-    """Regenerate versioned NTP teacher records from immutable raw ARKit frames."""
+    """Convert ARKit rows for synthetic smoke or isolated evaluation comparison."""
 
     loaded_mapping = ArkitMapping.load(mapping)
     records = convert_arkit_frames(RawArkitFrame.load_jsonl(raw_frames), loaded_mapping)

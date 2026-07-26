@@ -1133,6 +1133,10 @@ def _validate_mapping_records(
 ) -> None:
     if not mappings:
         raise ValueError("frozen capture requires at least one versioned ARKit mapping")
+    if not smoke_only:
+        raise ValueError(
+            "ARKit mappings are evaluation-only and cannot enter a production training archive"
+        )
     revisions = [mapping.mapping_revision for mapping in mappings]
     if revisions != sorted(set(revisions)):
         raise ValueError("frozen ARKit mapping revisions must be unique and increasing")

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Iterable
+from datetime import datetime
 from pathlib import Path
 from typing import Annotated, Literal, Self
 
@@ -13,8 +14,14 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from nana_tracking.data.manifest import FileReference, SplitManifest
 from nana_tracking.data.schema import CaptureRecord
 from nana_tracking.governance import ArtifactUsageTier, PipelineStage
+
 SplitName = Literal["train", "validation", "test"]
 FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
+TeacherSupervisionRole = Literal[
+    "pseudo-label",
+    "geometry-derivation",
+    "evaluation-reference",
+]
 
 
 class StrategyModel(BaseModel):
@@ -28,9 +35,6 @@ class CommercialPermissions(StrategyModel):
     distillation_allowed: bool
     pseudo_labeling_allowed: bool
     derivative_labels_allowed: bool
-    noncommercial_research_training_allowed: bool = False
-    research_derivative_labels_allowed: bool = False
-    research_checkpoint_local_use_allowed: bool = False
 
 
 class LicenseRecord(StrategyModel):
@@ -47,14 +51,24 @@ class LicenseRecord(StrategyModel):
     share_alike_obligations: list[str] = Field(default_factory=list)
     personal_biometric_consent_basis: str = Field(min_length=1)
     allowed_pipeline_stages: set[PipelineStage] = Field(default_factory=set)
+    teacher_supervision_roles: set[TeacherSupervisionRole] = Field(default_factory=set)
     prohibited_uses: list[str] = Field(min_length=1)
     evidence: str = Field(min_length=1)
+    reviewed_by: str | None = None
+    reviewed_at: datetime | None = None
     smoke_only: bool = False
 
     @model_validator(mode="after")
     def validate_approval_evidence(self) -> Self:
-        if self.review_status == "approved" and self.license_text_sha256 is None:
-            raise ValueError("approved license records require a pinned license-text digest")
+        if self.review_status == "approved":
+            if self.license_text_sha256 is None:
+                raise ValueError("approved license records require a pinned license-text digest")
+            if self.reviewed_by is None or self.reviewed_at is None:
+                raise ValueError("approved license records require reviewer and review time")
+            if self.kind == "teacher-sdk" and not self.teacher_supervision_roles:
+                raise ValueError("approved teacher records require explicit supervision roles")
+        if self.kind != "teacher-sdk" and self.teacher_supervision_roles:
+            raise ValueError("only teacher SDK records may declare supervision roles")
         return self
 
 
@@ -85,9 +99,9 @@ class LicenseRegistry(StrategyModel):
         production: bool,
         usage_tier: ArtifactUsageTier | None = None,
     ) -> list[LicenseRecord]:
-        tier: ArtifactUsageTier = usage_tier or (
-            "commercial" if production else "synthetic-smoke"
-        )
+        tier: ArtifactUsageTier = usage_tier or ("commercial" if production else "synthetic-smoke")
+        if production != (tier == "commercial"):
+            raise ValueError("production flag and usage tier disagree")
         by_id = {record.record_id: record for record in self.records}
         requested = sorted(set(record_ids))
         if not requested:
@@ -103,35 +117,10 @@ class LicenseRegistry(StrategyModel):
                 raise ValueError(f"license record does not allow {stage}: {record_id}")
             if production and record.smoke_only:
                 raise ValueError(f"smoke-only license record cannot enter production: {record_id}")
-            if tier == "noncommercial-research":
-                permissions = record.permissions
-                if record.smoke_only:
-                    raise ValueError(
-                        f"smoke-only license record cannot stand in for research data: {record_id}"
-                    )
-                if stage not in {
-                    "research-mapping",
-                    "research-model-training",
-                    "research-evaluation",
-                }:
-                    raise ValueError(
-                        f"noncommercial research tier cannot use commercial stage {stage}: "
-                        f"{record_id}"
-                    )
-                if stage == "research-model-training" and not (
-                    permissions.noncommercial_research_training_allowed
-                    and permissions.research_derivative_labels_allowed
-                    and permissions.research_checkpoint_local_use_allowed
-                ):
-                    raise ValueError(
-                        f"license record forbids complete local research training use: {record_id}"
-                    )
-                if stage == "research-mapping" and not (
-                    permissions.research_derivative_labels_allowed
-                ):
-                    raise ValueError(
-                        f"license record forbids research mapping derivatives: {record_id}"
-                    )
+            if tier == "synthetic-smoke" and not record.smoke_only:
+                raise ValueError(
+                    f"non-smoke license record cannot enter synthetic smoke lineage: {record_id}"
+                )
             if stage in {
                 "base-model-training",
                 "expression-model-training",
@@ -147,6 +136,20 @@ class LicenseRegistry(StrategyModel):
                 and record.permissions.derivative_labels_allowed
             ):
                 raise ValueError(f"license record forbids teacher-derived labels: {record_id}")
+            if (
+                record.kind == "teacher-sdk"
+                and stage
+                in {
+                    "teacher-labeling",
+                    "base-model-training",
+                    "expression-model-training",
+                    "model-release",
+                }
+                and not record.teacher_supervision_roles & {"pseudo-label", "geometry-derivation"}
+            ):
+                raise ValueError(
+                    f"evaluation-only teacher cannot enter training lineage: {record_id}"
+                )
             admitted.append(record)
         return admitted
 

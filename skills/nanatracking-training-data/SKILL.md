@@ -1,122 +1,66 @@
 ---
 name: nanatracking-training-data
-description: Enforce NanaTracking commercial data admission, provenance, identity-safe splitting, synthetic generation, ICT-to-NTP mapping, frozen-F expression caches, F/G training boundaries, and separate evaluation/release evidence. Use for adding, downloading, purchasing, or evaluating datasets or render assets; changing capture schemas, action scripts, loaders, labels, teachers, pseudo-labels, mappings, caches, splits, training, model export metadata, or F/G reports; and any FaceBasic data/loss/evaluation change.
+description: Enforce NanaTracking first-party-only commercial data admission, MediaPipe/OpenCV teacher provenance, ARKit evaluation isolation, identity-safe splitting, labeling, checkpoints, and release evidence. Use for adding or evaluating data; changing capture schemas, teachers, pseudo-labels, mappings, loaders, splits, training, reports, or derived artifacts.
 ---
 
 # NanaTracking training data
 
-Apply fail-closed tier-specific admission before downloading, rendering, labeling, or training. Read
-[`references/contracts.md`](references/contracts.md) for repository schemas, commands, and source
-roles. Read [`references/checklists.md`](references/checklists.md) for the workflow being executed.
+Apply fail-closed admission before collection, labeling, training, or evaluation. Read
+[`references/contracts.md`](references/contracts.md) and
+[`references/checklists.md`](references/checklists.md) for the matching workflow.
 
-## Stop rules
+## Fixed policy
 
-- Reject a source until its dataset license, content rights, biometric/likeness consent, and any
-  SDK/teacher-output terms explicitly allow the requested stage. Downloadability, open-source code,
-  or not redistributing raw data are insufficient.
-- Keep `synthetic-smoke`, `noncommercial-research`, and `commercial` manifests, checkpoints,
-  reports, and initialization paths separate. Research weights and data never enter commercial
-  training, export, calibration, or release.
-- Add every dataset, capture program, render asset, and teacher SDK to the machine registry before a
-  manifest or training configuration references it. Treat missing or pending permission as denial.
-- Never call teacher predictions ground truth. Record source/model/version, synchronization,
-  confidence, NTP mapping revision, and allowed supervision roles.
-- Split F by identity, keep all sessions with that identity, and reserve explicit devices for test.
-  Split CREMA-D/G by actor. Never split video by frame. Preserve split IDs through augmentation and
-  caches.
-- Mark every synthetic artifact and report smoke-only. Never use it as production quality evidence.
-- Do not commit raw recordings, third-party media, biometric metadata, caches, checkpoints, or model
-  packages.
+- Use only explicitly consented, project-owned first-party recordings for real model development.
+  Do not use existing face datasets, their labels, caches, weights, statistics, or thresholds.
+- MediaPipe Face Landmarker is a pinned pseudo-label teacher for the reviewed 16 semantic 2D
+  anchors only. Its blendshapes, pose, metric depth, identity, and confidence are not NTP truth.
+- OpenCV is a deterministic geometry teacher only when synchronized views and reviewed camera
+  calibration support triangulation, pose, and reprojection checks.
+- ARKit/TrueDepth outputs are an isolated evaluation reference. They never enter training,
+  pseudo-labeling, calibration, threshold/recipe selection, checkpoint initialization, or release
+  lineage.
+- Repository synthetic fixtures are smoke-only and never prove tracking quality.
+- Do not commit raw recordings, biometric metadata, consent records, teacher caches, checkpoints,
+  or model packages.
 
-## Preserve source roles
+## Admit captures and teachers
 
-- Use licensed ICT Face Model Light-derived synthetic data only for controlled parameter, geometry,
-  pose, occlusion, and visibility truth for model F. Do not treat it as the real camera domain.
-- Use explicitly consented and licensed RGB plus TrueDepth/ARKit captures for real-domain,
-  cross-identity/device/session, temporal, and final F calibration evidence. Review teacher outputs;
-  do not assume they are absolute physical truth.
-- Use CREMA-D only after approval to evaluate expression information and train model G from a frozen
-  F prediction cache. Never convert emotion classes into NTP/Blendshape truth or cite CREMA-D
-  classification as BasicSet numeric accuracy.
+1. Record authoritative code/model licenses, exact versions, model digests, attribution, allowed
+   outputs, and prohibited roles.
+2. Obtain per-participant consent for commercial training, derived labels, weight distribution,
+   review, retention, and withdrawal.
+3. Add or update the machine registry before collection or labeling. Pending means denied.
+4. Run `data validate-licenses` for the exact stage and commercial tier.
+5. Verify the MediaPipe teacher descriptor and bundle digest before inference.
 
-## Preserve the two-stage boundary
+## Build Stage A labels
 
-Treat PyTorch model F as `RGB/causal RGB -> BasicSet + pose/geometry/state/confidence`. Train F only
-from admitted synthetic/first-party parameter or geometry supervision.
+1. Split identities before sampling. Keep every session for an identity in one split and reserve
+   test devices/cameras.
+2. Preserve synchronized front/left/right RGB, calibration, timestamps, and continuous 15-30 FPS
+   validation/test clips; only training may sample to approximately 5 FPS.
+3. Store MediaPipe 16-point outputs as `pseudo_label` with source/model/mapping version and
+   confidence.
+4. Use OpenCV to undistort, triangulate, solve pose, and calculate reprojection residuals. Reject
+   missing/unsynchronized/invalid groups rather than filling values with zero.
+5. Human-review sampled overlays and freeze the calibration, mapping, and quality threshold before
+   training.
+6. Exclude rig/confidence heads from the Stage A optimizer and prove they remain bitwise unchanged.
 
-Treat PyTorch model G as `frozen F parameter history -> expression distribution/intensity/neutral/
-confidence`. Pin F digest and revisions, generate the cache offline, and expose no F parameters or
-optimizer to initial G training. A later joint optimization requires explicit approval, continued F
-physical supervision, and an independent F regression gate; emotion gains never waive parameter
-error, jitter, latency, peak, or semantic regressions.
+## Train, evaluate, and release
 
-## Execute the matching workflow
+- Keep PyTorch authoritative and NTP free of framework tensors or teacher-native types.
+- Pin manifest, teacher, mapping, calibration, recipe, seed, Git, lock, NTP, Signal Registry,
+  metrics, and checkpoint metadata.
+- Compare identical-schedule scratch, synthetic-only, and A-to-B-to-C FaceBasic runs.
+- Report identity-level bootstrap confidence intervals and continuous jitter, delay, peak retention,
+  and recovery.
+- Report ARKit comparison separately and ensure its outputs cannot affect model selection.
+- Release only from a `commercial-reproduced` recipe that passes the locked first-party test set
+  and all license/consent gates.
 
-### Admit data, assets, or teachers
-
-1. Locate authoritative license and content terms plus participant/biometric consent basis.
-2. Record commercial training, weight distribution, raw redistribution, attribution/share-alike,
-   distillation, pseudo-labeling, derivative-label, allowed-stage, and prohibited-use decisions.
-3. Pin the license text digest and add the record to `configs/data/license-registry.json`.
-4. Run stage-specific `data validate-licenses`. Stop if it rejects the source.
-5. Only then download or reference the source from a versioned manifest.
-
-### Change schema, labels, mapping, or synthetic generation
-
-1. Version the schema/mapping; never mutate published semantics in place.
-2. Describe migration and cache/checkpoint invalidation.
-3. Preserve old fixed vectors and add functional validation for the new behavior.
-4. For capture mappings, pin the mapping file and teacher license in the frozen dataset, regenerate
-   derived records without mutating raw chunks, and build the training manifest only from the
-   verified frozen revision.
-5. For synthetic sampling, cover isolated actions, reviewed combinations, asymmetry,
-   neutral-onset-peak-recovery, viseme coexistence, camera/light/occlusion/imaging variation, and
-   bounded edge cases. Never sample all parameters independently and uniformly.
-6. Re-run license, coverage, provenance, and leakage gates.
-
-### Train or evaluate F
-
-1. Complete the F checklist and pin manifest/frozen-capture digests, seed, revisions, Git/lock
-   state, and config.
-2. Verify complete label provenance/confidence and licensed renderer/asset/teacher records.
-3. Train without CREMA-D.
-4. Report direct metrics only on parameter/geometry-labeled ICT-derived or first-party holdouts.
-
-### Run noncommercial Stage A research
-
-1. Admit every source for `research-mapping`, `research-model-training`, or
-   `research-evaluation`; commercial permission does not substitute for the requested research
-   decision and research permission never grants commercial use.
-2. Require `ntp-dataset/3.0.0`, an approved 16-anchor mapping, identity/camera-isolated splits,
-   approximately 5 FPS training frames, and continuous 15-30 FPS validation/test clips.
-3. Train rig 1-36 and confidence with zero weight and exclude those heads from the optimizer.
-4. Mark every checkpoint `noncommercial-research`; reject it before commercial initialization or
-   ONNX export. Transfer only a reviewed recipe, never weights, optimizer/RNG state, normalization
-   statistics, raw data, teacher labels, or topology IDs.
-
-### Build a G cache, train G, or evaluate expression
-
-1. Complete the G checklist and verify CREMA-D admission before accessing it.
-2. Pin the released F digest and NTP/Signal/feature revisions; require `frozen=true`.
-3. Cache BasicSet 1..36, confidence, visibility, head pose, frame quality, timestamps, label
-   distribution/source, intensity, shard digests, and actor split.
-4. Run every required temporal/parameter/head-pose/mouth/RGB ablation.
-5. Interpret results only as actor-held-out expression separability and temporal information.
-
-### Release a model or report
-
-1. Complete the release checklist and re-run license admission for `model-release`.
-2. Attach the source/license manifest and separate F direct and G downstream reports.
-3. Pin NTP schema, Signal Registry, mapping, feature, data/cache, model, and config revisions/digests.
-4. Block release on any non-commercial, unknown, withdrawn, expired, unapproved-teacher, split-leak,
-   or semantic-regression input.
-
-## Keep governance synchronized
-
-Keep this skill consistent with GitHub issues
-[#2](https://github.com/sena-nana/NanaTracking/issues/2),
-[#6](https://github.com/sena-nana/NanaTracking/issues/6),
-[#7](https://github.com/sena-nana/NanaTracking/issues/7), and
-[#12](https://github.com/sena-nana/NanaTracking/issues/12), plus the repository contracts listed in
-the references. When any protocol or data boundary changes, update this skill, machine
-registry/schema, tests, templates, and migration notes in the same change set.
+Keep this skill synchronized with Issues
+[#7](https://github.com/sena-nana/NanaTracking/issues/7) and
+[#12](https://github.com/sena-nana/NanaTracking/issues/12), the registry, schemas, tests, and report
+templates whenever this boundary changes.

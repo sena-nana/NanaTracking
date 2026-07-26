@@ -1,0 +1,32 @@
+{
+  "schema_version": "nana-stage-a-report/1.0.0",
+  "usage_tier": "commercial",
+  "data_source": "consented-first-party-only",
+  "training_teachers": [
+    "mediapipe-face-landmarker-v1",
+    "opencv-calibrated-geometry-v1"
+  ],
+  "evaluation_only_reference": "apple-arkit-truedepth-teacher",
+  "existing_datasets_used": false,
+  "identity_count": null,
+  "classification": "not-run",
+  "single_view_checkpoint_sha256": null,
+  "multiview_checkpoint_sha256": null,
+  "data_revision": null,
+  "calibration_revision": null,
+  "teacher_model_sha256": "64184e229b263107bc2b804c6625db1341ff2bb731874b0bcc2fe6544e0bc9ff",
+  "metrics": {},
+  "bootstrap": {
+    "unit": "identity",
+    "samples": 10000,
+    "seed": 17,
+    "confidence_interval": 0.95
+  },
+  "arkit_comparison": {
+    "reported_separately": true,
+    "used_for_training": false,
+    "used_for_model_or_threshold_selection": false,
+    "metrics": {}
+  },
+  "limitations": "Template only. No consented first-party Stage A run has been completed, so current real-data training quality is unknown."
+}

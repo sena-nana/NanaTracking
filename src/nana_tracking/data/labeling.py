@@ -41,7 +41,7 @@ class LabelModel(BaseModel):
 
 class LabelStrategy(LabelModel):
     source_types: set[TeacherSourceType] = Field(min_length=1)
-    evidence: Literal["teacher_label", "geometry", "derived"]
+    evidence: Literal["teacher_label", "pseudo_label", "geometry", "derived"]
     method: str = Field(min_length=1)
     accepted_states: set[ObservationState] = Field(min_length=1)
     strict_observation: bool = False

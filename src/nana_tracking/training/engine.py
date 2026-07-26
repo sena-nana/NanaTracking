@@ -356,13 +356,13 @@ def _training_summary(
             "best_sha256": sha256_file(best_checkpoint),
         },
         "limitations": (
-            "Noncommercial research evidence only. Multiface data and every derived weight are "
-            "forbidden from commercial initialization, export, or release."
-            if config.data.usage_tier == "noncommercial-research"
+            "Synthetic smoke evidence only. This report validates training control flow and "
+            "reproducibility; it does not establish real FaceBasic quality or production "
+            "readiness."
+            if config.data.usage_tier == "synthetic-smoke"
             else (
-                "Synthetic smoke evidence only. This report validates training control flow and "
-                "reproducibility; it does not establish real FaceBasic quality or production "
-                "readiness."
+                "Commercial development evidence only. Independent locked-test, NanaLive A/B, "
+                "ONNX parity, target-hardware, license, and release gates remain required."
             )
         ),
     }
@@ -376,7 +376,6 @@ def train(
     repository_root: Path | None = None,
 ) -> TrainingResult:
     _verify_frozen_capture_input(config)
-    _verify_research_input(config)
     seed_everything(config.training.seed, deterministic=config.training.deterministic)
     device = choose_device(config.training.device)
     if config.training.amp and device.type != "cuda":
@@ -648,39 +647,3 @@ def _verify_frozen_capture_input(config: ExperimentConfig) -> None:
     for field, expected in expected_revisions.items():
         if getattr(manifest, field) != expected:
             raise ValueError(f"training configuration {field} does not match the manifest")
-
-
-def _verify_research_input(config: ExperimentConfig) -> None:
-    if config.data.usage_tier != "noncommercial-research":
-        return
-    manifest_path = config.data.manifest
-    anchor_mapping_path = config.data.anchor_mapping
-    if manifest_path is None or anchor_mapping_path is None:
-        raise ValueError("research training requires manifest and anchor mapping paths")
-    manifest_path = manifest_path.resolve()
-    anchor_mapping_path = anchor_mapping_path.resolve()
-    manifest = DatasetManifest.load(manifest_path)
-    manifest.verify_files(manifest_path)
-    if config.reproducibility.manifest_digest != sha256_file(manifest_path):
-        raise ValueError("research configuration manifest digest does not match the file")
-    if config.reproducibility.anchor_mapping_digest != sha256_file(anchor_mapping_path):
-        raise ValueError("research configuration anchor mapping digest does not match the file")
-    if manifest.license_registry is None or manifest.training_recipe is None:
-        raise ValueError("research manifest is missing license registry or training recipe")
-    registry_path = manifest.resolve(manifest_path, manifest.license_registry)
-    recipe_path = manifest.resolve(manifest_path, manifest.training_recipe)
-    if config.reproducibility.license_registry_digest != sha256_file(registry_path):
-        raise ValueError("research configuration license registry digest does not match")
-    if config.reproducibility.training_recipe_digest != sha256_file(recipe_path):
-        raise ValueError("research configuration training recipe digest does not match")
-    if manifest.data_revision != config.reproducibility.data_revision:
-        raise ValueError("research configuration data revision does not match the manifest")
-    for field in (
-        "ntp_schema_revision",
-        "signal_registry_revision",
-        "normalization_revision",
-        "calibration_revision",
-        "feature_revision",
-    ):
-        if getattr(manifest, field) != getattr(config.reproducibility, field):
-            raise ValueError(f"research configuration {field} does not match the manifest")

@@ -1,8 +1,8 @@
 {
   "schema_version": "nana-training-recipe/1.0.0",
-  "recipe_id": "face-basic-stage-a-multiface",
-  "promotion_status": "research-candidate",
-  "usage_tier": "noncommercial-research",
+  "recipe_id": "face-basic-stage-a-commercial-first-party",
+  "promotion_status": "commercial-candidate",
+  "usage_tier": "commercial",
   "parent_checkpoint": null,
   "seed": 17,
   "model": {
@@ -49,9 +49,15 @@
     "mirror_dynamic": 0.0
   },
   "data_policy": {
-    "budget_gib": 200,
-    "target_identities": [8, 10],
-    "minimum_identities": 5,
+    "existing_datasets_allowed": false,
+    "source": "explicitly-consented-first-party-synchronized-rgb",
+    "training_teachers": [
+      "mediapipe-face-landmarker-v1",
+      "opencv-calibrated-geometry-v1"
+    ],
+    "evaluation_only_references": ["apple-arkit-truedepth-teacher"],
+    "minimum_identities": 8,
+    "identity_split": [5, 1, 2],
     "train_fps": 5,
     "validation_test_fps": [15, 30],
     "views": {
@@ -61,16 +67,16 @@
     }
   },
   "forbidden_inheritance": [
-    "multiface_weights",
+    "existing_dataset_artifacts",
+    "unapproved_teacher_outputs",
+    "arkit_training_labels",
     "ema",
     "optimizer_state",
     "rng_state",
     "normalization_statistics",
-    "crop_color_camera_distributions",
     "raw_data",
-    "mesh_cache",
-    "teacher_labels",
-    "topology_vertex_ids",
-    "research_thresholds"
+    "external_dataset_statistics",
+    "external_dataset_thresholds",
+    "external_dataset_calibration"
   ]
 }

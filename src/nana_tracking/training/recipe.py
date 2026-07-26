@@ -12,11 +12,11 @@ class TrainingRecipe(BaseModel):
     schema_version: Literal["nana-training-recipe/1.0.0"]
     recipe_id: str = Field(min_length=1)
     promotion_status: Literal[
-        "research-candidate",
+        "commercial-candidate",
         "commercial-reproduced",
         "release-eligible",
     ]
-    usage_tier: Literal["noncommercial-research", "commercial"]
+    usage_tier: Literal["commercial"]
     parent_checkpoint: str | None
     seed: int = Field(ge=0)
     model: dict[str, Any]
@@ -27,24 +27,22 @@ class TrainingRecipe(BaseModel):
 
     @model_validator(mode="after")
     def validate_promotion(self) -> Self:
-        if self.promotion_status == "research-candidate":
-            if self.usage_tier != "noncommercial-research":
-                raise ValueError("research-candidate recipes must remain noncommercial")
-            if self.parent_checkpoint is not None:
-                raise ValueError("the Stage A research recipe must start without parent weights")
+        if self.promotion_status == "commercial-candidate" and self.parent_checkpoint is not None:
+            raise ValueError("the Stage A commercial candidate must start without parent weights")
         required = {
-            "multiface_weights",
+            "existing_dataset_artifacts",
+            "unapproved_teacher_outputs",
+            "arkit_training_labels",
             "ema",
             "optimizer_state",
             "rng_state",
             "normalization_statistics",
             "raw_data",
-            "teacher_labels",
-            "topology_vertex_ids",
+            "external_dataset_statistics",
         }
         missing = required.difference(self.forbidden_inheritance)
         if missing:
-            raise ValueError(f"recipe omits forbidden research artifacts: {sorted(missing)}")
+            raise ValueError(f"recipe omits forbidden commercial artifacts: {sorted(missing)}")
         return self
 
     @classmethod

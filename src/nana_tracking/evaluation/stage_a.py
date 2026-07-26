@@ -1,4 +1,4 @@
-"""Identity-clustered evaluation for Multiface Stage A ablations."""
+"""Identity-clustered evaluation for commercial first-party Stage A ablations."""
 
 from __future__ import annotations
 
@@ -114,7 +114,7 @@ def _evaluate_checkpoint(
     metadata = load_checkpoint(
         checkpoint,
         model=model,
-        expected_usage_tier="noncommercial-research",
+        expected_usage_tier="commercial",
     )
     model.eval()
     loader = create_loader(config, split="test", shuffle=False, seed_offset=20_000)
@@ -273,8 +273,11 @@ def evaluate_stage_a_comparison(
     output_path: Path,
     bootstrap_samples: int = 10_000,
 ) -> dict[str, Any]:
-    if config.data.dataset != "multiface":
-        raise ValueError("Stage A comparison requires data.dataset=multiface")
+    if config.data.usage_tier != "commercial" or config.data.dataset not in {
+        "manifest",
+        "frozen_capture",
+    }:
+        raise ValueError("Stage A comparison requires a commercial first-party manifest")
     baseline, baseline_metadata = _evaluate_checkpoint(config, single_view_checkpoint)
     candidate, candidate_metadata = _evaluate_checkpoint(config, multiview_checkpoint)
     bootstrap = _paired_bootstrap(
@@ -317,7 +320,7 @@ def evaluate_stage_a_comparison(
         )
     report: dict[str, Any] = {
         "schema_version": "nana-stage-a-comparison/1.0.0",
-        "usage_tier": "noncommercial-research",
+        "usage_tier": "commercial",
         "commercial_release_evidence": False,
         "crema_d_used": False,
         "classification": classification,
@@ -344,8 +347,9 @@ def evaluate_stage_a_comparison(
         "training_recipe_digest": config.reproducibility.training_recipe_digest,
         "config_digest": sha256_json(config.model_dump(mode="json")),
         "limitations": (
-            "Research-only Multiface evidence. No rig/confidence claim, commercial checkpoint "
-            "inheritance, ONNX export, release evidence, or Issue #7 closure is permitted."
+            "Commercial first-party Stage A evidence only. No rig/confidence claim or release "
+            "evidence is implied; Stage B/C, NanaLive A/B, ONNX parity, and target hardware "
+            "acceptance remain required before Issue #7 can close."
         ),
     }
     output_path.parent.mkdir(parents=True, exist_ok=True)

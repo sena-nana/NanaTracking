@@ -62,6 +62,10 @@ model, manifest loader, Level A calibration, latest-frame-only NTP producer, ONN
 hardware benchmark, and failure-sample workflow. Its checked-in configuration is smoke-only and
 cannot serve as real tracking-quality or RTX 4060 acceptance evidence.
 
+The real-data policy uses only consented first-party captures. MediaPipe Face Landmarker supplies
+reviewed 16-point 2D pseudo-labels and OpenCV derives calibrated multiview geometry; ARKit/TrueDepth
+is isolated to validation/test comparison. Existing public face datasets are not used.
+
 `face-basic-round1-smoke.yaml` is the first repeatable learning-method run. It verifies loss
 reduction, deterministic repeatability, exact checkpoint resume, gradient flow, and held-out
 evaluation on repository-owned synthetic samples. Its report remains smoke-only and is not a
@@ -97,7 +101,7 @@ profiles.
 - [ADR 0001: Vendor parameters are adapters, not NTP](docs/adr/0001-vendor-parameters-are-adapters.md)
 - [ADR 0002: PyTorch authority and portable runtime boundary](docs/adr/0002-pytorch-onnx-runtime-boundary.md)
 - [ADR 0003: Negotiated immutable compact frames](docs/adr/0003-negotiated-compact-frames.md)
-- [Commercial dataset and two-stage expression strategy](docs/training/dataset-strategy.md)
+- [First-party commercial training strategy](docs/training/dataset-strategy.md)
 
 ## Training data and evaluation
 

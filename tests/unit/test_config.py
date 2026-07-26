@@ -70,3 +70,10 @@ def test_capture_training_requires_the_manifest_and_frozen_archive_together() ->
     )
     with pytest.raises(ValidationError, match=r"data\.frozen_capture"):
         ExperimentConfig.model_validate(config)
+
+
+def test_removed_noncommercial_tier_is_rejected() -> None:
+    config = load_config(Path("configs/face-basic-smoke.yaml")).model_dump(mode="json")
+    config["data"]["usage_tier"] = "noncommercial-research"
+    with pytest.raises(ValidationError, match="synthetic-smoke"):
+        ExperimentConfig.model_validate(config)

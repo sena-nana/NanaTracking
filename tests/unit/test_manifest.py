@@ -46,7 +46,7 @@ def test_label_catalog_covers_all_stable_signals_with_core_sources() -> None:
     assert [signal.signal_id for signal in catalog.signals] == list(range(1, 89))
     for signal in catalog.signals[:76]:
         strategy = catalog.strategies[signal.strategy]
-        assert strategy.evidence in {"teacher_label", "geometry", "derived"}
+        assert strategy.evidence in {"teacher_label", "pseudo_label", "geometry", "derived"}
         assert strategy.method
 
 

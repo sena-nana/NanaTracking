@@ -1,10 +1,9 @@
-"""Shared research, smoke, and commercial artifact governance types."""
+"""Shared smoke and commercial artifact governance types."""
 
 from typing import Literal
 
 ArtifactUsageTier = Literal[
     "synthetic-smoke",
-    "noncommercial-research",
     "commercial",
 ]
 
@@ -15,12 +14,6 @@ TrainingStage = Literal[
     "dual-domain-finetune",
 ]
 
-ResearchPipelineStage = Literal[
-    "research-mapping",
-    "research-model-training",
-    "research-evaluation",
-]
-
 PipelineStage = Literal[
     "base-model-training",
     "expression-model-training",
@@ -28,7 +21,4 @@ PipelineStage = Literal[
     "synthetic-rendering",
     "evaluation",
     "model-release",
-    "research-mapping",
-    "research-model-training",
-    "research-evaluation",
 ]

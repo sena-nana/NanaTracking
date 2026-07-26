@@ -350,9 +350,7 @@ def run_expression_ablation_smoke(
     report: dict[str, object] = {
         "schema_version": "nana-expression-ablation-report/1.1.0",
         "smoke_only": True,
-        "warning": (
-            "Synthetic smoke evidence does not validate CREMA-D or production expression quality."
-        ),
+        "warning": ("Synthetic smoke evidence does not validate first-party expression quality."),
         "frozen_f_source": "synthetic-frozen-f-predictions",
         "f_weights_trainable": False,
         "actor_split": {

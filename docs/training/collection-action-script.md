@@ -9,8 +9,14 @@ alone and combined with expression, head rotations/translations, glasses/hair/ha
 and backlit conditions, and deliberate re-entry after out-of-frame loss. Participants may stop or
 skip any action.
 
-RGB, camera metadata, ARKit/TrueDepth parameters, teacher mesh/head pose, depth and confidence are
-synchronized without rewriting timestamps. A human reviewer records approved/rejected/pending and
-per-label confidence. Reviewers never fill missing truth with zero. Rejected, withdrawn, expired,
-unsynchronized, or SDK-license-ineligible sessions cannot enter a production manifest.
+Training sessions synchronize front and approximately left/right 30-degree RGB, camera intrinsics,
+extrinsics, and timestamps without rewriting them. The pinned MediaPipe bundle proposes only the
+reviewed 16 semantic 2D anchors; OpenCV derives triangulated geometry, pose, reprojection residuals,
+and optical-flow consistency. A human reviewer records approved/rejected/pending and per-label
+confidence. Reviewers never fill missing truth with zero.
+
+ARKit/TrueDepth may be recorded only in separately declared validation/test comparison sessions.
+Those outputs are excluded from training manifests, pseudo-label caches, calibration, threshold
+selection, recipe selection, and checkpoint ancestry. Rejected, withdrawn, expired,
+unsynchronized, uncalibrated, or license-ineligible sessions fail closed.
 

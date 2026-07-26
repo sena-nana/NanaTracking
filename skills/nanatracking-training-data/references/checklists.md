@@ -1,56 +1,37 @@
 # Execution checklists
 
-## New source or asset
+## Capture admission
 
-- [ ] Authoritative dataset and item/content terms located
-- [ ] Commercial training and model distribution explicitly decided
-- [ ] Raw redistribution and attribution/share-alike duties recorded
-- [ ] Likeness/biometric consent basis recorded
-- [ ] SDK/teacher distillation, pseudo-label, and derivative-output rights separately decided
-- [ ] License text snapshot/digest pinned
-- [ ] Registry record added before download/training
-- [ ] Requested pipeline stage passes admission
+- [ ] First-party source only; no existing dataset media, labels, weights, caches, or statistics
+- [ ] Commercial training, derived-label, model-distribution, review, retention, and withdrawal
+      consent complete
+- [ ] Identity/session/device IDs are de-identified and identity-safe splits are frozen
+- [ ] Raw recordings and consent records remain access-controlled outside Git
 
-## F training
+## Teacher labeling
 
-- [ ] No CREMA-D or emotion-class supervision
-- [ ] Dataset/asset/teacher records pass commercial admission
-- [ ] Identity and session isolated; explicit devices held out for test
-- [ ] No frame-random video split; augmentation inherits split
-- [ ] Label source/model/version/sync/confidence/mapping/role complete
-- [ ] Dataset, file, license, mapping, config, lock, Git, NTP, Signal, feature digests pinned
-- [ ] Direct F report uses parameter/geometry-labeled holdouts only
+- [ ] MediaPipe 0.10.35 bundle, model cards, license, SHA-256, and 16-point mapping are pinned
+- [ ] Only semantic 2D landmarks are marked `pseudo_label`
+- [ ] OpenCV version, camera calibration, synchronization, triangulation/PnP method, and
+      reprojection thresholds are pinned
+- [ ] Missing views, failed detections, invalid depth, and excessive residuals fail closed
+- [ ] Overlay samples and calibration are human-reviewed before manifest approval
+- [ ] ARKit labels are absent from every training manifest and checkpoint lineage
 
-## Noncommercial Stage A research
+## Stage A training
 
-- [ ] Multiface and mapping helper records pass the exact research stage before network access
-- [ ] License text, likeness/biometric basis, attribution, and prohibited commercial use reviewed
-- [ ] 8-10 identities targeted; fewer than 8 explicitly classified as pipeline pilot
-- [ ] Identity and train/validation/test cameras are disjoint
-- [ ] Training is approximately 5 FPS; validation/test retain continuous 15-30 FPS
-- [ ] Human-approved 16-anchor map and MediaPipe model/overlay digests pinned
-- [ ] Rig/confidence heads are absent from the optimizer and unchanged after training
-- [ ] Checkpoint tier is `noncommercial-research`; commercial load and export rejection tests pass
-- [ ] Single-view and multiview runs use identical seed, schedule, and data
-- [ ] Identity-paired bootstrap report is research-only and does not close Issue #7
+- [ ] At least 8 identities, default 5/1/2 identity split
+- [ ] Training may use approximately 5 FPS; validation/test retain continuous 15-30 FPS
+- [ ] MediaPipe/OpenCV/first-party records pass commercial admission
+- [ ] Rig/confidence heads are excluded from the optimizer and bitwise unchanged
+- [ ] Single-view and multiview runs use identical seed, schedule, and eligible data
+- [ ] Checkpoint metadata pins all source, teacher, mapping, calibration, recipe, and code digests
 
-## G or CREMA-D training
+## Evaluation and release
 
-- [ ] CREMA-D registry record approved for expression training and release obligations understood
-- [ ] F package/digest/revisions fixed and `frozen=true`
-- [ ] Cache contains ordered BasicSet 1..36 plus confidence, visibility, head pose, frame quality,
-      timestamps, distribution/intensity labels, provenance, and shard digests
-- [ ] Actors and clips isolated; cache inherits split
-- [ ] G optimizer contains no F parameters
-- [ ] All/single/velocity/acceleration/mouth-only/no-mouth/head-only/no-head/shuffled/RGB ablations run
-- [ ] Report says downstream expression evidence, not parameter truth
-
-## Model release
-
-- [ ] `model-release` license admission passes for every data/asset/teacher record
-- [ ] Withdrawn, expired, unapproved, non-commercial, and unknown sources absent
-- [ ] F direct report and G downstream report attached separately
-- [ ] NTP, Signal Registry, mapping, feature, data/cache, config, checkpoint/model digests recorded
-- [ ] Synthetic evidence marked smoke-only and excluded from production claims
-- [ ] F semantic and regression gates pass even if G metrics improve
-
+- [ ] Scratch, synthetic-only, and A-to-B-to-C internal baselines are compared
+- [ ] Identity-paired bootstrap uses 10,000 samples and reports 95% confidence intervals
+- [ ] Geometry, pose, jitter, delay, peak retention, recovery, confidence, and runtime are reported
+- [ ] ARKit is a separate comparison only and cannot select parameters, thresholds, or recipes
+- [ ] Locked first-party test data is opened only after the commercial recipe is frozen
+- [ ] Synthetic smoke and pending/rejected sources cannot support release claims

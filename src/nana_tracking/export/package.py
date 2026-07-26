@@ -80,8 +80,6 @@ def create_model_package(
 ) -> dict[str, dict[str, float]]:
     if not config.export.enabled:
         raise ValueError("model export is disabled by this experiment configuration")
-    if config.data.usage_tier == "noncommercial-research":
-        raise ValueError("noncommercial research checkpoints cannot be exported")
     if not config.export.smoke_only:
         if config.data.dataset == "synthetic" or config.data.manifest is None:
             raise ValueError("non-smoke packages require a reviewed manifest dataset")

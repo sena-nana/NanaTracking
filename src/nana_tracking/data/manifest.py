@@ -34,9 +34,6 @@ class LicensePermissions(ManifestModel):
     distillation: bool
     pseudo_labeling: bool
     commercial_training: bool
-    noncommercial_research_training: bool = False
-    research_derivative_labels: bool = False
-    research_checkpoint_local_use: bool = False
 
 
 class LicenseReview(ManifestModel):
@@ -104,24 +101,8 @@ class DatasetManifest(ManifestModel):
             self.usage_tier = inferred
         elif self.usage_tier is None:
             raise ValueError("v3 manifests require usage_tier")
-        if self.usage_tier == "noncommercial-research":
-            if self.pipeline_stage not in {
-                "research-mapping",
-                "research-model-training",
-                "research-evaluation",
-            }:
-                raise ValueError("research manifests require a research pipeline stage")
-            if self.smoke_only:
-                raise ValueError("noncommercial research data is not synthetic smoke data")
-            if (
-                self.anchor_mapping is None
-                or self.training_recipe is None
-                or self.split_plan is None
-            ):
-                raise ValueError(
-                    "research manifests require digest-pinned anchor mapping, split plan, "
-                    "and training recipe"
-                )
+        if self.usage_tier == "commercial" and self.smoke_only:
+            raise ValueError("commercial manifests cannot be smoke-only")
         required = {"train", "validation", "test"}
         missing = required.difference(self.splits)
         if missing:
@@ -154,7 +135,7 @@ class DatasetManifest(ManifestModel):
             if review is None:
                 raise ValueError(f"teacher {source.source_id!r} has no license review")
             permissions = review.permissions
-            commercial_complete = all(
+            complete = all(
                 (
                     permissions.collection,
                     permissions.distillation,
@@ -162,19 +143,7 @@ class DatasetManifest(ManifestModel):
                     permissions.commercial_training,
                 )
             )
-            research_complete = all(
-                (
-                    permissions.collection,
-                    permissions.noncommercial_research_training,
-                    permissions.research_derivative_labels,
-                    permissions.research_checkpoint_local_use,
-                )
-            )
-            if review.status != "approved" or not (
-                research_complete
-                if self.usage_tier == "noncommercial-research"
-                else commercial_complete
-            ):
+            if review.status != "approved" or not complete:
                 raise ValueError(
                     f"teacher {source.source_id!r} is not approved for the complete training use"
                 )

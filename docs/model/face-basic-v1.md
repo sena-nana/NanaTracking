@@ -52,26 +52,32 @@ Structured auxiliary teacher names are:
 Only synchronized observed or fused values enter these losses. Basic rig labels continue to use the
 versioned NTP label catalog.
 
-Stage A uses internal three-view groups and does not change the NTP contract. It projects an
-approved 16-point Multiface semantic map into each ROI, trains 2D anchors, HeadRelative canonical
-3D geometry, camera pose, visibility, reprojection, and capture-space cross-view consistency.
-Rig/confidence heads are excluded from the Stage A optimizer. `noncommercial-research`
-checkpoints cannot be exported or loaded by a commercial configuration.
+Stage A uses internal three-view groups and does not change the NTP contract. On explicitly
+consented first-party captures, the pinned MediaPipe teacher supplies only 16 semantic 2D
+pseudo-labels. OpenCV uses synchronized camera calibration to triangulate HeadRelative canonical
+geometry, solve pose, and calculate reprojection quality. Rig/confidence heads are excluded from
+the Stage A optimizer. ARKit/TrueDepth outputs are evaluation-only and cannot enter the checkpoint
+lineage or select training parameters.
 
-The checked-in `face-basic-stage-a-smoke.yaml` is a generated three-view control-flow fixture only.
-Real configs are created after license and anchor review with:
+The checked-in `face-basic-stage-a-smoke.yaml` is a three-view control-flow fixture only. Before
+building a real manifest, validate the approved teachers and the pinned MediaPipe bundle:
 
 ```bash
-uv run --extra cu130 nana-tracking data create-stage-a-configs \
-  --manifest <stage-a-manifest.json> --anchor-mapping <approved-anchors.json>
+uv run --extra cpu nana-tracking data validate-licenses \
+  configs/data/license-registry.json --stage teacher-labeling \
+  --records mediapipe-face-landmarker-v1,opencv-calibrated-geometry-v1 \
+  --usage-tier commercial
+uv run --extra cpu nana-tracking data validate-teacher-model \
+  configs/data/mediapipe-face-landmarker-v1.json \
+  --model-asset <face_landmarker.task>
 uv run --extra cu130 nana-tracking train \
-  --config configs/generated/face-basic-stage-a-single-view.yaml
+  --config <first-party-stage-a-single-view.yaml>
 uv run --extra cu130 nana-tracking train \
-  --config configs/generated/face-basic-stage-a-multiview.yaml
+  --config <first-party-stage-a-multiview.yaml>
 uv run --extra cu130 nana-tracking evaluate-stage-a \
-  --config configs/generated/face-basic-stage-a-multiview.yaml \
+  --config <first-party-stage-a-multiview.yaml> \
   --single-view-checkpoint <single.pt> --multiview-checkpoint <multiview.pt> \
-  --output <research-report.json>
+  --output <commercial-development-report.json>
 ```
 
 ## Calibration, export, and runtime verification

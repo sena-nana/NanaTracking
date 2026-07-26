@@ -4,8 +4,9 @@ This template requires legal review and a signed, access-controlled record; it i
 completed consent.
 
 - Participant and guardian status where applicable; de-identified identity ID.
-- Modalities: RGB video, TrueDepth/depth, face mesh, head pose, teacher parameters, device metadata,
-  scripted actions, derived labels, and quality annotations.
+- Modalities: synchronized multi-camera RGB, camera calibration, MediaPipe semantic landmark
+  pseudo-labels, OpenCV-derived geometry/pose/reprojection evidence, optional evaluation-only
+  ARKit/TrueDepth comparison outputs, device metadata, scripted actions, and quality annotations.
 - Purposes: commercial NanaTracking model training, validation, internal human review, creation of
   derived labels and synthetic identity parameters, and distribution of trained model weights and
   inference products.
@@ -16,5 +17,7 @@ completed consent.
 - Withdrawal/deletion route and identity-to-artifact deletion mapping, including future training
   revision invalidation.
 - Whether raw or derived data may be redistributed; default is no.
+- A separate opt-in states whether ARKit/TrueDepth comparison is allowed. Declining it does not
+  prevent participation in the RGB training capture.
 - Signature, date, consent text digest, reviewer, and approval/expiry state.
 

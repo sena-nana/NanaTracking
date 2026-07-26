@@ -1,92 +1,45 @@
-# Repository contracts and source roles
+# Repository contracts
 
 ## Authoritative paths
 
 - License registry: `configs/data/license-registry.json`
-- Dataset/capture contracts: `src/nana_tracking/data/manifest.py`, `schema.py`, and `capture.py`
-- Local-first recorder/Studio contract: `src/nana_tracking/data/studio.py` and
-  `docs/data/capture-archive-v1.md`
-- Provenance/materialization: `src/nana_tracking/data/labeling.py`
-- Frozen-F cache and split contracts: `src/nana_tracking/data/strategy.py`
-- NTP label catalog: `configs/data/ntp-v1-label-catalog.json`
-- ICT mapping gate: `configs/data/ict-facekit-light-to-ntp-v1.json`
-- ARKit mapping gate: versioned files such as `configs/data/arkit-to-ntp-v1-smoke.json`; every
-  mapping identifies its teacher license record and is digest-pinned by the frozen capture dataset
-- G ablations: `configs/expression/ablation-v1.json`
-- Strategy/specification: `docs/training/dataset-strategy.md` and
-  `docs/training/synthetic-sequence-spec.md`
-- Capture script/consent: `docs/training/collection-action-script.md` and
+- MediaPipe teacher descriptor: `configs/data/mediapipe-face-landmarker-v1.json`
+- Commercial recipe: `configs/training/nana-training-recipe-1.0.0.json`
+- Capture and manifest contracts: `src/nana_tracking/data/capture.py`, `manifest.py`, `schema.py`
+- Teacher contract: `src/nana_tracking/data/teachers.py`
+- Label materialization: `src/nana_tracking/data/labeling.py`
+- Strategy: `docs/training/dataset-strategy.md`
+- Capture action/consent: `docs/training/collection-action-script.md`,
   `docs/training/capture-consent-template.md`
-- F/G report templates: `examples/evaluation/f-direct-report-template-v1.json` and
-  `expression-downstream-report-template-v1.json`
 
-## Machine registry fields
+## Source roles
 
-`nana-license-registry/2.0.0` records identify kind, name/version/source, license and pinned
-license-text digest, review
-state, commercial training/model distribution/raw redistribution/distillation/pseudo-label/
-derivative-label permissions, attribution/share-alike duties, consent basis, allowed stages,
-prohibited uses, evidence, and smoke-only status. Approved local license text must exist and match
-its digest. A production run rejects a smoke-only record.
-
-Commercial stages are `base-model-training`, `expression-model-training`, `teacher-labeling`,
-`synthetic-rendering`, `evaluation`, and `model-release`. Approval for one does not imply another.
-Research stages are `research-mapping`, `research-model-training`, and `research-evaluation`;
-they require independent research-training, derivative-label, and local-checkpoint permissions.
-
-`ntp-dataset/2.0.0` remains digest-compatible for existing smoke/commercial manifests.
-`ntp-dataset/3.0.0` adds `usage_tier` plus digest-pinned research anchor-map and recipe references.
+- First-party consented RGB is the only real training/evaluation source.
+- `mediapipe-face-landmarker-v1` may produce `semantic-landmarks-2d` pseudo-labels.
+- `opencv-calibrated-geometry-v1` may derive calibrated multiview geometry and pose.
+- `apple-arkit-truedepth-teacher` may be admitted only at `evaluation`.
+- Existing dataset records remain rejected as machine-readable negative policy evidence.
 
 ## Commands
 
 ```bash
 uv run --extra cpu nana-tracking data validate-licenses \
-  configs/data/license-registry.json --stage <stage> --records <comma-separated-ids> \
-  --usage-tier <synthetic-smoke|noncommercial-research|commercial>
-uv run --extra cpu nana-tracking data validate <manifest>
+  configs/data/license-registry.json --stage teacher-labeling \
+  --records mediapipe-face-landmarker-v1,opencv-calibrated-geometry-v1 \
+  --usage-tier commercial
+uv run --extra cpu nana-tracking data validate-teacher-model \
+  configs/data/mediapipe-face-landmarker-v1.json \
+  --model-asset <face_landmarker.task>
 uv run --extra cpu nana-tracking data split-captures <records.jsonl> \
   --output <splits.json> --held-out-test-devices <ids>
-uv run --extra cpu nana-tracking data split-actors <clip-index.json> \
-  --output <splits.json> --validation-actors <n> --test-actors <n>
-uv run --extra cpu nana-tracking data capture-freeze \
-  --session-manifests <session.json,...> --capture-records <records.jsonl> \
-  --arkit-mappings <mapping.json,...> --license-registry <registry.json> \
-  --license-records <ids> --held-out-test-devices <ids> --data-revision <revision> \
-  --output <frozen.json>
-uv run --extra cpu nana-tracking data capture-build-training-manifest <frozen.json> \
-  --label-catalog configs/data/ntp-v1-label-catalog.json --output <manifest.json>
-uv run --extra cpu nana-tracking benchmark-expression-ablation \
-  --config configs/expression/ablation-v1.json --output <report.json>
-uv run --extra cpu nana-tracking data multiface-preflight --output <preflight.json>
-uv run --extra cpu nana-tracking data validate-anchor-map <mapping.json>
-uv run --extra cpu nana-tracking data create-stage-a-configs \
-  --manifest <manifest.json> --anchor-mapping <mapping.json>
+uv run --extra cpu nana-tracking data validate <manifest.json>
 ```
 
-Prefix repository commands with `rtk` when available. Use CPython 3.14 and uv. A synthetic command
-proves only schema/control flow.
+Use CPython 3.14 and uv. Synthetic commands prove control flow only.
 
-Capture-based F configurations set `data.dataset=frozen_capture`, `data.manifest`, and
-`data.frozen_capture`. Training re-verifies record, split, license, mapping, data revision, and NTP
-revision equality before creating a loader. Other reviewed manifest sources keep their independent
-immutable-manifest path and are not forced through the ARKit capture archive.
+## Artifact rule
 
-## Required source interpretation
-
-ICT-derived truth can validate F parameters only after commercial source and render-asset approval.
-First-party truth requires per-participant commercial training/model-distribution consent, retention
-and withdrawal mapping, reviewed SDK rights, and synchronized provenance. CREMA-D can validate G
-expression behavior only; its ODbL/DbCL and person/content obligations require an approved registry
-decision before use.
-
-## Report constraints
-
-F reports MAE/RMSE/CCC, geometry/head pose, asymmetry, event F1, neutral jitter, dynamic delay/peak,
-occlusion recovery, identity/session/device generalization, and confidence calibration. F reports
-must state `crema_d_used=false`.
-
-G reports actor-held-out macro-F1, balanced accuracy, intensity, probability calibration, temporal
-and parameter-group ablations, and the RGB upper-bound gap. It must state the frozen F digest and
-that results do not measure BasicSet numeric accuracy.
-
-Never combine F and G into one “face tracking accuracy” score.
+Every pseudo-label stores source ID, teacher/model version, mapping revision, timestamp,
+confidence, and evidence=`pseudo_label`. Every OpenCV-derived label stores calibration and
+derivation revisions plus residual-based quality evidence. ARKit comparison data is stored in an
+evaluation-only manifest and cannot be loaded by a training configuration.

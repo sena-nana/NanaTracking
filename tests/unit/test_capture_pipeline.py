@@ -383,7 +383,7 @@ def test_frozen_capture_dataset_reuses_license_and_identity_device_split_gates(
     assert frozen.split_plan.splits["test"].devices == ["dev-heldout"]
     FrozenCaptureDataset.load(output).verify(output)
 
-    with pytest.raises(ValueError, match="smoke"):
+    with pytest.raises(ValueError, match="ARKit mappings are evaluation-only"):
         freeze_capture_dataset(
             data_revision="invalid-production",
             session_manifests=manifests,

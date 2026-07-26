@@ -1,89 +1,70 @@
-# Commercial dataset and two-stage expression strategy
+# First-party commercial training strategy
 
-## Hard boundary
+## Fixed data boundary
 
-Model F maps monocular RGB or a short causal RGB history to NTP BasicSet signals, head pose,
-visibility, auxiliary geometry, and per-signal confidence. Only reviewed ICT-derived synthetic
-renders and explicitly consented first-party captures may supervise F. CREMA-D emotion labels may
-never be interpreted as NTP numeric truth, geometry truth, or confidence truth.
+NanaTracking production models use only explicitly consented, project-owned first-party captures.
+Existing face datasets, their annotations, derived caches, checkpoints, statistics, and
+test-selected thresholds are excluded from training, evaluation, recipe selection, and release
+evidence. Repository-generated arrays remain synthetic smoke fixtures only.
 
-Model G consumes an offline cache produced by a frozen, digest-pinned F. Its inputs are BasicSet
-history, velocity, acceleration, confidence, visibility, duration, frame quality, and optionally
-head pose. It outputs an emotion probability distribution, intensity, neutral probability, and
-confidence. The initial G workflow has no handle to F parameters or optimizer state, so an emotion
-loss cannot change NTP semantics. Any future joint optimization must retain F's physical losses and
-pass an independent F regression suite before it can be considered.
+The approved training teachers are:
 
-CREMA-D results only measure whether the parameter representation retains downstream expression
-information across held-out actors. They do not validate the numerical accuracy of any BasicSet
-signal. The RGB expression model is an upper-bound reference, not a teacher for F.
-
-## Source roles
-
-| Source | Permitted role after license approval | Never permitted |
+| Source | Training role | Prohibited role |
 | --- | --- | --- |
-| ICT Face Model Light derived renders | F parameter/geometry truth, controlled coverage | Sole evidence for real-camera quality |
-| Consented RGB plus TrueDepth/ARKit | Real-domain F adaptation, temporal/device/identity evaluation | Unreviewed SDK output as absolute physical truth |
-| CREMA-D | Frozen-F cache to G, actor-held-out expression evaluation | Direct F supervision or BasicSet accuracy claims |
-| Multiface | Noncommercial Stage A geometry/pose/visibility and multiview-method research after approval | Commercial weights, NTP rig truth, release evidence |
+| MediaPipe Face Landmarker 0.10.35, pinned model bundle | 16 semantic 2D landmark pseudo-labels with teacher confidence and provenance | NTP Basic numeric truth, metric 3D/pose truth, identity labels, confidence truth |
+| OpenCV 4.5+ | Calibrated undistortion, multiview triangulation, solvePnP, reprojection residuals, and optical-flow checks | Creating truth from an uncalibrated single view or converting residuals directly to model confidence |
+| Apple ARKit/TrueDepth | Isolated first-party validation/test comparison only | Training, pseudo-labeling, calibration, threshold selection, recipe selection, or checkpoint lineage |
 
-The machine registry is `configs/data/license-registry.json`. Missing, pending, rejected,
-stage-incompatible, smoke-only-for-production, or commercially incomplete records fail closed.
-The current ICT, CREMA-D, ARKit/TrueDepth, and first-party collection entries remain pending; no
-production training is authorized by this repository snapshot.
+MediaPipe and OpenCV licenses do not grant rights to participant recordings. Every real capture
+batch still requires reviewed consent for commercial training, derived labels, model-weight
+distribution, retention, and withdrawal.
 
-## Research-to-commercial promotion boundary
+## Stage A teacher flow
 
-Multiface Stage A is a separate `noncommercial-research` chain. It targets 8-10 identities under
-the 200 GiB budget, uses approximately 5 FPS for training, and retains continuous 15-30 FPS
-validation/test sequences on disjoint identities and cameras. MediaPipe can propose the reviewed
-16-anchor topology mapping, but its outputs are not frame labels or distillation truth.
+1. Collect synchronized first-party RGB from front and approximately left/right 30-degree cameras.
+   Preserve intrinsics, extrinsics, timestamps, identity/session/device IDs, and continuous clips.
+2. Run the digest-pinned MediaPipe bundle independently on each view. Retain only the reviewed
+   16-point semantic mapping and mark every output `pseudo_label`.
+3. Use OpenCV with the recorded calibration to undistort points, triangulate anchors, transform them
+   to a head-relative frame, solve pose, and calculate per-view reprojection residuals.
+4. Reject unsynchronized groups, missing views, failed detections, invalid depth, and groups above
+   the frozen reprojection threshold. Human review samples overlays before a capture revision is
+   approved.
+5. Train encoder, 2D anchors, canonical geometry, pose, visibility, and identity adversary.
+   Rig/confidence heads remain outside the Stage A optimizer.
 
-Only network/head structure, loss formulas, stage order, candidate learning-rate/freeze/batch
-ratios, semantic locations, split/evaluation code, and failure taxonomy may become a
-`research-candidate` recipe. A commercial model must reproduce that recipe from random or already
-commercial weights on commercial data. Multiface-derived weights, optimizer/EMA/RNG state,
-normalization or crop/color/camera statistics, raw/cached data, topology IDs, teacher labels, and
-test-selected thresholds are prohibited inheritance.
+Training may sample approximately 5 FPS. Validation and test preserve continuous 15-30 FPS clips.
+Identity splits are fixed first; devices and sessions cannot leak across the split boundary.
 
-## Reproducible pipeline
+## A/B/C/D commercial route
 
-1. Validate the global license registry for the exact stage and source record IDs.
-2. Validate the dataset manifest, digests, revisions, teacher permissions, synchronization, and
-   identity/session split. A production capture additionally requires environment, action-script,
-   consent-record, and approved human-review fields.
-3. Build F splits with `data split-captures`, assigning every identity and all its sessions to one
-   split and reserving one or more devices exclusively for test.
-4. Train/evaluate F without CREMA-D. Pin the manifest digest in the checkpoint and report.
-5. Run the released F offline over CREMA-D only after its license record is approved. Emit the
-   `nana-expression-cache/1.1.0` format; the contract requires a frozen F digest, BasicSet IDs 1..36
-   in order, and an exact source dataset name/revision bound to its admitted dataset-license record.
-6. Build actor-level G splits with `data split-actors`; clips from one actor cannot cross splits.
-7. Train G and the required ablations. Store F and G reports separately.
+- **A-final:** train real geometry, pose, landmarks, and visibility from first-party captures and
+  the admitted MediaPipe/OpenCV teacher flow.
+- **B-final:** train NTP parameter/confidence heads from project-owned synthetic or directly
+  controlled first-party labels. The first 20% freezes encoder/pose/geometry; the remainder
+  unfreezes only the final encoder stage at 0.1 times the head learning rate.
+- **C-final:** alternate first-party real batches and project-owned synthetic batches. Real batches
+  compute geometry/pose/visibility/multiview losses; synthetic batches compute complete NTP losses.
+- **D-final:** evaluate on locked first-party identities, devices, and continuous clips. ARKit may
+  appear only in a separately reported comparison column.
 
-The checked-in G report is synthetic smoke-only. It verifies the frozen boundary, actor split,
-feature paths, validation/test metrics, confidence-head error, and complete ablation execution. The
-report pins its resolved configuration, generated data digest, Git state, and dependency lock, but
-does not claim CREMA-D performance.
+No current real-data checkpoint exists. The checked-in recipe is a `commercial-candidate`, starts
+without a parent checkpoint, and cannot become `commercial-reproduced` until the consented
+first-party development set reproduces the expected behavior. Only then may a locked first-party
+test set be opened for `release-eligible` review.
 
-## Required evaluation
+## Required gates
 
-F reports parameter MAE/RMSE/CCC, landmark NME, head-pose error, asymmetric-action preservation,
-event F1, neutral jitter, dynamic delay/peak retention, cross-identity/session/device behavior, and
-confidence calibration on ICT-derived and first-party held-out truth only.
+- Admit the first-party capture program and both teachers for the exact stage before labeling.
+- Verify the MediaPipe bundle SHA-256 and the ordered 16-point mapping.
+- Pin calibration, teacher/model, mapping, data, config, lock, Git, NTP, and Signal Registry
+  revisions in every run.
+- Compare the staged model with identical-schedule scratch and synthetic-only FaceBasic baselines.
+- Use identity-level paired bootstrap with 10,000 samples and report 95% confidence intervals.
+- Require improvement over both internal baselines in geometry, pose, and continuous behavior,
+  without stable rig, confidence, latency, or recovery regression.
+- Keep raw recordings, consent records, teacher caches, checkpoints, and full reports outside Git.
 
-G reports actor-held-out macro-F1, balanced accuracy, intensity error or rank correlation,
-calibration, and the RGB upper-bound gap. The mandatory suite is all parameters, single frame,
-parameters plus velocity, parameters plus velocity/acceleration, mouth/jaw only, mouth/viseme
-removed, head pose only, head pose removed, shuffled time, and RGB upper-bound reference.
-
-## Release stop rules
-
-- No source or render asset enters a run without an approved machine record and pinned license text.
-- No identity or session crosses F splits; held-out test devices cannot occur in development.
-- No actor crosses G splits.
-- A G cache whose F is not marked frozen, whose digest/revisions drift, or whose BasicSet is
-  incomplete is rejected.
-- F and G reports stay separate. Emotion accuracy cannot waive F regression failures.
-- Raw recordings, CREMA-D media, caches, model weights, consent documents, or biometric identifiers
-  are never committed.
+The machine policy is `configs/data/license-registry.json`; the pinned MediaPipe teacher contract
+is `configs/data/mediapipe-face-landmarker-v1.json`; and the candidate schedule is
+`configs/training/nana-training-recipe-1.0.0.json`. Missing or pending records fail closed.
