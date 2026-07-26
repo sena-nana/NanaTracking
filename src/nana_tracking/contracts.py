@@ -36,9 +36,11 @@ class ContractModel(BaseModel):
 class CheckpointMetadata(ContractModel):
     run_id: str
     epoch: int = Field(ge=0)
+    batch_in_epoch: int = Field(default=0, ge=0)
     step: int = Field(ge=0)
     seed: int = Field(ge=0)
     config_digest: str
+    resume_compatibility_digest: str = ""
     data_revision: str
     ntp_schema_revision: str
     signal_registry_revision: str

@@ -74,6 +74,7 @@ from nana_tracking.personalization import (
     verify_level_b_adapter,
 )
 from nana_tracking.training import train as train_model
+from nana_tracking.training.method import validate_training_method
 
 app = typer.Typer(no_args_is_help=True, help="NanaTracking training and ONNX tooling.")
 data_app = typer.Typer(no_args_is_help=True, help="Dataset manifest commands.")
@@ -640,9 +641,30 @@ def train_command(
         {
             "run_dir": result.run_dir,
             "checkpoint": result.checkpoint,
+            "best_checkpoint": result.best_checkpoint,
+            "summary_report": result.summary_report,
             "final_step": result.final_step,
             "final_loss": result.final_loss,
         }
+    )
+
+
+@app.command("validate-training-method")
+def validate_training_method_command(
+    config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+    probe_steps: Annotated[int, typer.Option(min=4)] = 40,
+    minimum_loss_reduction: Annotated[float, typer.Option(min=0.0, max=1.0)] = 0.3,
+) -> None:
+    """Verify deterministic learning, gradient flow, and exact checkpoint resume."""
+
+    _print_json(
+        validate_training_method(
+            load_config(config),
+            output,
+            probe_steps=probe_steps,
+            minimum_loss_reduction=minimum_loss_reduction,
+        )
     )
 
 
@@ -651,10 +673,18 @@ def evaluate_command(
     config: Annotated[Path, typer.Option("--config", exists=True, dir_okay=False)],
     checkpoint: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
     output: Annotated[Path | None, typer.Option()] = None,
+    split: Annotated[Literal["validation", "test"], typer.Option()] = "validation",
 ) -> None:
     """Evaluate a checkpoint and write per-head metrics."""
 
-    _print_json(evaluate_model(load_config(config), checkpoint, output_path=output))
+    _print_json(
+        evaluate_model(
+            load_config(config),
+            checkpoint,
+            output_path=output,
+            split=split,
+        )
+    )
 
 
 @app.command("export")

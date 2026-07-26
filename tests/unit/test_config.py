@@ -12,6 +12,15 @@ def test_smoke_config_loads() -> None:
     assert config.reproducibility.ntp_schema_revision == "smoke-ntp-v0"
 
 
+def test_round1_config_enables_reproducible_validation_and_checkpoints() -> None:
+    config = load_config(Path("configs/face-basic-round1-smoke.yaml"))
+    assert config.export.smoke_only is True
+    assert config.training.deterministic is True
+    assert config.training.shuffle is True
+    assert config.training.validation_interval_steps == 10
+    assert config.training.checkpoint_interval_steps == 25
+
+
 def test_unknown_field_is_rejected() -> None:
     with pytest.raises(ValidationError, match="Extra inputs"):
         ExperimentConfig.model_validate(

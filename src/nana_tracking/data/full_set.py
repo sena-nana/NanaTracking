@@ -178,10 +178,14 @@ class FullSetDataset(Dataset[FaceBasicSample]):
 
 
 def create_full_set_loader(
-    config: ExperimentConfig, *, split: str, shuffle: bool
+    config: ExperimentConfig,
+    *,
+    split: str,
+    shuffle: bool,
+    seed_offset: int = 0,
 ) -> DataLoader[TrackingBatch]:
     dataset = FullSetDataset(config, split=split)
-    generator = torch.Generator().manual_seed(config.training.seed)
+    generator = torch.Generator().manual_seed(config.training.seed + seed_offset)
     multiprocessing = config.data.executor == "multiprocessing"
     return cast(
         DataLoader[TrackingBatch],

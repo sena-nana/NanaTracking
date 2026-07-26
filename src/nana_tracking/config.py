@@ -82,6 +82,10 @@ class TrainingConfig(StrictModel):
     learning_rate: float = Field(default=0.01, gt=0)
     device: Literal["auto", "cpu", "mps", "cuda"] = "auto"
     amp: bool = False
+    shuffle: bool = True
+    deterministic: bool = True
+    validation_interval_steps: PositiveInt | None = None
+    checkpoint_interval_steps: PositiveInt | None = None
     rig_loss_weight: float = Field(default=1.0, ge=0)
     pose_loss_weight: float = Field(default=0.5, ge=0)
     landmark_loss_weight: float = Field(default=0.25, ge=0)

@@ -33,6 +33,10 @@ uv run --extra cpu nana-tracking evaluation validate-standard \
 uv run --extra cpu nana-tracking train --config configs/smoke.yaml
 uv run --extra cpu nana-tracking smoke --work-dir runs/smoke
 uv run --extra cpu nana-tracking train --config configs/face-basic-smoke.yaml
+uv run --extra cpu nana-tracking validate-training-method \
+  --config configs/face-basic-round1-smoke.yaml \
+  --output runs/face-basic-round1-smoke/training-method-report.json
+uv run --extra cpu nana-tracking train --config configs/face-basic-round1-smoke.yaml
 uv run --extra cpu nana-tracking train --config configs/face-spatial-smoke.yaml
 uv run --extra cpu nana-tracking benchmark-python
 uv run --extra cpu nana-tracking benchmark-expression-ablation \
@@ -57,6 +61,11 @@ The [FaceBasic v1 baseline](docs/model/face-basic-v1.md) documents the shared-en
 model, manifest loader, Level A calibration, latest-frame-only NTP producer, ONNX package, target
 hardware benchmark, and failure-sample workflow. Its checked-in configuration is smoke-only and
 cannot serve as real tracking-quality or RTX 4060 acceptance evidence.
+
+`face-basic-round1-smoke.yaml` is the first repeatable learning-method run. It verifies loss
+reduction, deterministic repeatability, exact checkpoint resume, gradient flow, and held-out
+evaluation on repository-owned synthetic samples. Its report remains smoke-only and is not a
+substitute for an admitted real-data F report.
 
 Run the quality gates before handing off a change:
 

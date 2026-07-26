@@ -148,9 +148,11 @@ def create_loader(
     *,
     shuffle: bool,
     seed_offset: int = 0,
+    shuffle_seed_offset: int | None = None,
 ) -> DataLoader[TrackingBatch]:
     dataset = SyntheticTrackingDataset(config, seed_offset=seed_offset)
-    generator = torch.Generator().manual_seed(config.training.seed + seed_offset)
+    shuffle_offset = seed_offset if shuffle_seed_offset is None else shuffle_seed_offset
+    generator = torch.Generator().manual_seed(config.training.seed + shuffle_offset)
     return cast(
         DataLoader[TrackingBatch],
         DataLoader(

@@ -67,6 +67,10 @@ Useful commands:
 
 ```bash
 uv run --extra cpu nana-tracking train --config configs/face-basic-smoke.yaml
+uv run --extra cpu nana-tracking validate-training-method \
+  --config configs/face-basic-round1-smoke.yaml \
+  --output runs/face-basic-round1-smoke/training-method-report.json
+uv run --extra cpu nana-tracking train --config configs/face-basic-round1-smoke.yaml
 uv run --extra cpu nana-tracking export --config configs/face-basic-smoke.yaml \
   --checkpoint <checkpoint.pt> --output <package-directory>
 uv run --extra cpu nana-tracking verify-export --package <package-directory>

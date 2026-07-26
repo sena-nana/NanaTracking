@@ -1,0 +1,7 @@
+configs/data/**/*.json text eol=lf
+configs/data/**/*.txt text eol=lf
+configs/evaluation/**/*.json text eol=lf
+configs/expression/**/*.json text eol=lf
+examples/evaluation/**/*.json text eol=lf
+examples/manifests/**/*.json text eol=lf
+examples/records/**/*.jsonl text eol=lf

@@ -15,6 +15,7 @@ from nana_tracking.evaluation.runtime import (
 )
 from nana_tracking.export import create_model_package, verify_model_package
 from nana_tracking.training import train
+from nana_tracking.training.method import validate_training_method
 
 
 @pytest.mark.integration
@@ -47,7 +48,7 @@ def test_face_basic_train_evaluate_export_verify(tmp_path: Path) -> None:
     )
     result = train(config)
     metrics = evaluate(config, result.checkpoint)
-    assert set(metrics) == {"rig", "pose", "landmarks", "confidence"}
+    assert set(metrics) == {"rig", "pose", "landmarks", "visibility", "confidence"}
     package = tmp_path / "face-basic-package"
     parity = create_model_package(config, result.checkpoint, package)
     verified = verify_model_package(package)
@@ -126,6 +127,21 @@ def test_face_basic_train_evaluate_export_verify(tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
+def test_face_basic_training_method_is_deterministic_and_resumable(tmp_path: Path) -> None:
+    config = load_config(Path("configs/face-basic-smoke.yaml"))
+    report = validate_training_method(
+        config,
+        tmp_path / "training-method-report.json",
+        probe_steps=4,
+        minimum_loss_reduction=0.001,
+    )
+
+    assert report["passed"] is True
+    assert report["smoke_only"] is True
+    assert report["crema_d_used"] is False
+
+
+@pytest.mark.integration
 def test_face_spatial_train_evaluate_export_verify(tmp_path: Path) -> None:
     config = load_config(Path("configs/face-spatial-smoke.yaml"))
     config = config.model_copy(
@@ -143,6 +159,8 @@ def test_face_spatial_train_evaluate_export_verify(tmp_path: Path) -> None:
         "eye_directions",
         "look_at_head",
         "face_geometry",
+        "visibility",
+        "tongue_visibility",
         "confidence",
     }
     package = tmp_path / "face-spatial-package"
@@ -194,6 +212,7 @@ def test_full_set_train_evaluate_export_verify(tmp_path: Path) -> None:
         "limb_directions",
         "limb_twists",
         "bone_lengths",
+        "visibility",
         "confidence",
     }
     package = tmp_path / "full-set-package"

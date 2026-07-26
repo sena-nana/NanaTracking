@@ -15,9 +15,26 @@ def create_loader(
     split: str,
     shuffle: bool,
     seed_offset: int = 0,
+    shuffle_seed_offset: int | None = None,
 ) -> DataLoader[TrackingBatch]:
+    shuffle_offset = seed_offset if shuffle_seed_offset is None else shuffle_seed_offset
     if config.data.dataset == "synthetic":
-        return create_synthetic_loader(config, shuffle=shuffle, seed_offset=seed_offset)
+        return create_synthetic_loader(
+            config,
+            shuffle=shuffle,
+            seed_offset=seed_offset,
+            shuffle_seed_offset=shuffle_offset,
+        )
     if config.model.name == "full_set":
-        return create_full_set_loader(config, split=split, shuffle=shuffle)
-    return create_manifest_loader(config, split=split, shuffle=shuffle)
+        return create_full_set_loader(
+            config,
+            split=split,
+            shuffle=shuffle,
+            seed_offset=shuffle_offset,
+        )
+    return create_manifest_loader(
+        config,
+        split=split,
+        shuffle=shuffle,
+        seed_offset=shuffle_offset,
+    )

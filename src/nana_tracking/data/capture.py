@@ -1331,8 +1331,13 @@ def _merge_missing_ranges(chunks: Iterable[CaptureChunk]) -> list[MissingChunkRa
 
 def _file_reference(path: Path, root: Path) -> FileReference:
     path = path.resolve()
-    relative = os.path.relpath(path, root).replace(os.sep, "/")
-    return FileReference(path=relative, sha256=_file_digest(path))
+    try:
+        reference_path = os.path.relpath(path, root).replace(os.sep, "/")
+    except ValueError:
+        # Windows cannot express a relative path across drive letters. Frozen local artifacts may
+        # therefore retain an absolute governed-asset path while still pinning its byte digest.
+        reference_path = path.as_posix()
+    return FileReference(path=reference_path, sha256=_file_digest(path))
 
 
 def _atomic_write(path: Path, payload: bytes) -> None:

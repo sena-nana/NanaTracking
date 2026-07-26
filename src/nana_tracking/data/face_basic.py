@@ -31,6 +31,9 @@ class FaceBasicSample:
 
 
 def resolve_image_uri(manifest_path: Path, uri: str) -> Path:
+    local_path = Path(uri)
+    if local_path.is_absolute():
+        return local_path
     parsed = urlparse(uri)
     if parsed.scheme not in {"", "file"}:
         raise ValueError(f"FaceBasic loader supports local or file:// RGB URIs, got {uri!r}")
@@ -276,9 +279,10 @@ def create_manifest_loader(
     *,
     split: str,
     shuffle: bool,
+    seed_offset: int = 0,
 ) -> DataLoader[TrackingBatch]:
     dataset = FaceBasicDataset(config, split=split)
-    generator = torch.Generator().manual_seed(config.training.seed)
+    generator = torch.Generator().manual_seed(config.training.seed + seed_offset)
     multiprocessing = config.data.executor == "multiprocessing"
     return cast(
         DataLoader[TrackingBatch],

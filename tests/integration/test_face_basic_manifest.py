@@ -16,6 +16,8 @@ from nana_tracking.data.schema import (
     RgbFrame,
     TeacherFrame,
 )
+from nana_tracking.evaluation import evaluate
+from nana_tracking.training import train
 
 
 def _sha256(path: Path) -> str:
@@ -231,3 +233,26 @@ def test_manifest_loader_requires_complete_spatial_and_preserves_geometry_truth(
     assert batch.targets["tongue_visibility"].item() == 1
     assert torch.all(batch.label_confidence["rig"] > 0.0)
     assert torch.all(batch.label_confidence["face_geometry"] == 0.85)
+
+
+def test_evaluation_reports_missing_geometry_as_unavailable(tmp_path: Path) -> None:
+    manifest = _build_manifest(tmp_path)
+    base = load_config(Path("configs/face-basic-smoke.yaml"))
+    config = base.model_copy(
+        update={
+            "data": base.data.model_copy(
+                update={"dataset": "manifest", "manifest": manifest, "batch_size": 1}
+            ),
+            "training": base.training.model_copy(update={"max_steps": 1}),
+            "reproducibility": base.reproducibility.model_copy(
+                update={"output_dir": tmp_path / "runs"}
+            ),
+        }
+    )
+    result = train(config)
+    metrics = evaluate(config, result.checkpoint, split="validation")
+
+    assert metrics["landmarks"]["status"] == "unavailable"
+    assert metrics["landmarks"]["sample_count"] == 0
+    assert metrics["rig"]["status"] == "measured"
+    assert metrics["rig"]["sample_count"] == 36

@@ -15,6 +15,7 @@ from typing import cast
 
 import numpy as np
 import onnxruntime as ort
+import psutil
 
 from nana_tracking.contracts import ModelPackageMetadata
 from nana_tracking.export import verify_model_package
@@ -39,7 +40,11 @@ def _percentile(values: list[float], quantile: float) -> float:
 
 def _peak_rss_native_units() -> int | None:
     if sys.platform == "win32":
-        return None
+        try:
+            memory = psutil.Process().memory_info()
+            return int(getattr(memory, "peak_wset", memory.rss))
+        except psutil.Error:
+            return None
     import resource
 
     return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
@@ -76,9 +81,14 @@ def _nvidia_telemetry() -> dict[str, object] | None:
 
 
 def _current_process_resources(elapsed_seconds: float) -> dict[str, object]:
-    rss_bytes: int | None = None
-    thread_count: int | None = None
-    if sys.platform == "linux":
+    try:
+        process = psutil.Process()
+        rss_bytes: int | None = process.memory_info().rss
+        thread_count: int | None = process.num_threads()
+    except psutil.Error:
+        rss_bytes = None
+        thread_count = None
+    if rss_bytes is None and sys.platform == "linux":
         try:
             page_size = os.sysconf("SC_PAGE_SIZE")
             resident_pages = int(Path("/proc/self/statm").read_text(encoding="utf-8").split()[1])
@@ -89,7 +99,7 @@ def _current_process_resources(elapsed_seconds: float) -> dict[str, object]:
                     break
         except OSError, ValueError, IndexError:
             pass
-    elif sys.platform == "darwin":
+    elif rss_bytes is None and sys.platform == "darwin":
         try:
             rss = subprocess.run(
                 ["ps", "-o", "rss=", "-p", str(os.getpid())],
