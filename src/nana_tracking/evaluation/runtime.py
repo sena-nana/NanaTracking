@@ -80,15 +80,10 @@ def _nvidia_telemetry() -> dict[str, object] | None:
     }
 
 
-def _current_process_resources(elapsed_seconds: float) -> dict[str, object]:
-    try:
-        process = psutil.Process()
-        rss_bytes: int | None = process.memory_info().rss
-        thread_count: int | None = process.num_threads()
-    except psutil.Error:
-        rss_bytes = None
-        thread_count = None
-    if rss_bytes is None and sys.platform == "linux":
+def _fallback_process_resources() -> tuple[int | None, int | None]:
+    if sys.platform == "linux":
+        rss_bytes: int | None = None
+        thread_count: int | None = None
         try:
             page_size = os.sysconf("SC_PAGE_SIZE")
             resident_pages = int(Path("/proc/self/statm").read_text(encoding="utf-8").split()[1])
@@ -99,7 +94,8 @@ def _current_process_resources(elapsed_seconds: float) -> dict[str, object]:
                     break
         except OSError, ValueError, IndexError:
             pass
-    elif rss_bytes is None and sys.platform == "darwin":
+        return rss_bytes, thread_count
+    if sys.platform == "darwin":
         try:
             rss = subprocess.run(
                 ["ps", "-o", "rss=", "-p", str(os.getpid())],
@@ -117,8 +113,19 @@ def _current_process_resources(elapsed_seconds: float) -> dict[str, object]:
             )
             rss_bytes = int(rss.stdout.strip()) * 1024
             thread_count = max(0, len(threads.stdout.splitlines()) - 1)
+            return rss_bytes, thread_count
         except OSError, subprocess.CalledProcessError, subprocess.TimeoutExpired, ValueError:
             pass
+    return None, None
+
+
+def _current_process_resources(elapsed_seconds: float) -> dict[str, object]:
+    try:
+        process = psutil.Process()
+        rss_bytes: int | None = process.memory_info().rss
+        thread_count: int | None = process.num_threads()
+    except psutil.Error:
+        rss_bytes, thread_count = _fallback_process_resources()
     return {
         "elapsed_seconds": elapsed_seconds,
         "rss_bytes": rss_bytes,

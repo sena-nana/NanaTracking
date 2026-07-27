@@ -33,12 +33,12 @@ jobs:
         with:
           version: "0.11.28"
           enable-cache: true
-      - run: uv sync --locked --extra cpu --all-groups
+      - run: uv sync --locked --extra cpu --extra teacher-labeling --all-groups
       - run: uv lock --check
       - run: uv run --extra cpu ruff check .
       - run: uv run --extra cpu ruff format --check .
-      - run: uv run --extra cpu pyright
-      - run: uv run --extra cpu pytest --cov=nana_tracking --cov-report=xml
+      - run: uv run --extra cpu --extra teacher-labeling pyright
+      - run: uv run --extra cpu --extra teacher-labeling pytest --cov=nana_tracking --cov-report=xml
       - run: uv build
 
   cross-platform-smoke:
