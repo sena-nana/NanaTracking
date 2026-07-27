@@ -27,6 +27,7 @@ class SplitManifest(ManifestModel):
     identities: list[str] = Field(min_length=1)
     sessions: list[str] = Field(default_factory=list)
     devices: list[str] = Field(default_factory=list)
+    camera_ids: list[str] = Field(default_factory=list)
 
 
 class LicensePermissions(ManifestModel):
@@ -69,7 +70,10 @@ class SynchronizationPolicy(ManifestModel):
 
 class DatasetManifest(ManifestModel):
     schema_version: Literal["ntp-dataset/2.0.0", "ntp-dataset/3.0.0"]
-    capture_schema_version: Literal["ntp-capture/1.0.0"]
+    capture_schema_version: Literal[
+        "ntp-capture/1.0.0",
+        "nana-stage-a-materialization/1.0.0",
+    ]
     data_revision: str = Field(min_length=1)
     digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     ntp_schema_revision: str = Field(min_length=1)
@@ -83,6 +87,10 @@ class DatasetManifest(ManifestModel):
     license_registry: FileReference | None = None
     license_record_ids: list[str] = Field(default_factory=list)
     anchor_mapping: FileReference | None = None
+    teacher_model: FileReference | None = None
+    calibration_bundle: FileReference | None = None
+    quality_profile: FileReference | None = None
+    overlay_review: FileReference | None = None
     training_recipe: FileReference | None = None
     split_plan: FileReference | None = None
     record_files: list[RecordFile] = Field(min_length=1)
@@ -167,7 +175,60 @@ class DatasetManifest(ManifestModel):
         overlap = sorted(test_devices & development_devices)
         if overlap:
             raise ValueError(f"held-out test devices leak into development splits: {overlap}")
+        if self.capture_schema_version == "nana-stage-a-materialization/1.0.0":
+            self._validate_stage_a_contract()
         return self
+
+    def _validate_stage_a_contract(self) -> None:
+        if self.schema_version != "ntp-dataset/3.0.0":
+            raise ValueError("Stage A materialization requires a commercial v3 manifest")
+        if self.usage_tier != "commercial" or self.smoke_only:
+            raise ValueError("Stage A materialization manifests must be commercial and non-smoke")
+        required_refs = {
+            "anchor_mapping": self.anchor_mapping,
+            "teacher_model": self.teacher_model,
+            "calibration_bundle": self.calibration_bundle,
+            "quality_profile": self.quality_profile,
+            "overlay_review": self.overlay_review,
+            "training_recipe": self.training_recipe,
+            "split_plan": self.split_plan,
+        }
+        missing_refs = sorted(
+            name for name, reference in required_refs.items() if reference is None
+        )
+        if missing_refs:
+            raise ValueError(f"Stage A manifest is missing required references: {missing_refs}")
+        source_ids = {source.source_id for source in self.teacher_sources}
+        expected_sources = {
+            "mediapipe-face-landmarker-v1",
+            "opencv-calibrated-geometry-v1",
+        }
+        if source_ids != expected_sources:
+            raise ValueError(
+                "Stage A teacher sources must be exactly MediaPipe landmarks and OpenCV geometry"
+            )
+
+        for dimension in ("identities", "sessions", "devices", "camera_ids"):
+            owners: dict[str, str] = {}
+            for split_name, split in self.splits.items():
+                for value in getattr(split, dimension):
+                    previous = owners.setdefault(value, split_name)
+                    if previous != split_name:
+                        raise ValueError(
+                            f"{dimension[:-1]} {value!r} appears in both "
+                            f"{previous!r} and {split_name!r}"
+                        )
+        expected_identity_counts = {"train": 5, "validation": 1, "test": 2}
+        for split_name, expected_count in expected_identity_counts.items():
+            split = self.splits[split_name]
+            if len(split.identities) != expected_count:
+                raise ValueError(
+                    f"Stage A {split_name} split requires exactly {expected_count} identities"
+                )
+            if len(split.devices) != 3 or len(split.camera_ids) != 3:
+                raise ValueError(
+                    f"Stage A {split_name} split requires exactly three devices and cameras"
+                )
 
     @classmethod
     def load(cls, path: Path) -> Self:
@@ -189,6 +250,14 @@ class DatasetManifest(ManifestModel):
             references.append(self.license_registry)
         if self.anchor_mapping is not None:
             references.append(self.anchor_mapping)
+        if self.teacher_model is not None:
+            references.append(self.teacher_model)
+        if self.calibration_bundle is not None:
+            references.append(self.calibration_bundle)
+        if self.quality_profile is not None:
+            references.append(self.quality_profile)
+        if self.overlay_review is not None:
+            references.append(self.overlay_review)
         if self.training_recipe is not None:
             references.append(self.training_recipe)
         if self.split_plan is not None:
@@ -223,7 +292,21 @@ class DatasetManifest(ManifestModel):
 def dataset_digest(manifest: DatasetManifest) -> str:
     excluded = {"digest"}
     if manifest.schema_version == "ntp-dataset/2.0.0":
-        excluded.update({"usage_tier", "anchor_mapping", "training_recipe", "split_plan"})
+        excluded.update(
+            {
+                "usage_tier",
+                "anchor_mapping",
+                "teacher_model",
+                "calibration_bundle",
+                "quality_profile",
+                "overlay_review",
+                "training_recipe",
+                "split_plan",
+            }
+        )
     payload = manifest.model_dump(mode="json", exclude=excluded)
+    if manifest.schema_version == "ntp-dataset/2.0.0":
+        for split in payload["splits"].values():
+            split.pop("camera_ids", None)
     canonical = json.dumps(payload, separators=(",", ":"), sort_keys=True).encode()
     return hashlib.sha256(canonical).hexdigest()

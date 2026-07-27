@@ -25,6 +25,13 @@ uv run --extra cpu nana-tracking doctor
 uv run --extra cpu nana-tracking data validate examples/manifests/synthetic-v1.json
 uv run --extra cpu nana-tracking data materialize-labels \
   examples/manifests/synthetic-v1.json --output artifacts/data/synthetic-labels.jsonl
+uv run --extra cpu --extra teacher-labeling nana-tracking data \
+  materialize-stage-a-labels <capture-index.jsonl> \
+  --teacher-descriptor configs/data/mediapipe-face-landmarker-v1.json \
+  --model-asset <face_landmarker.task> --calibration <reviewed-calibration.json> \
+  --quality-profile <reviewed-quality-profile.json> \
+  --license-registry <reviewed-batch-license-registry.json> \
+  --capture-license-record self-captured-consented --output <candidate-directory>
 uv run --extra cpu nana-tracking data validate-licenses \
   configs/data/license-registry.json --stage base-model-training \
   --records nana-synthetic-smoke --no-production
@@ -65,6 +72,9 @@ cannot serve as real tracking-quality or RTX 4060 acceptance evidence.
 The real-data policy uses only consented first-party captures. MediaPipe Face Landmarker supplies
 reviewed 16-point 2D pseudo-labels and OpenCV derives calibrated multiview geometry; ARKit/TrueDepth
 is isolated to validation/test comparison. Existing public face datasets are not used.
+The teacher environment pins `mediapipe==0.10.35` and the single `cv2` provider
+`opencv-contrib-python==5.0.0.93`. Candidate labels and overlays remain outside Git until their
+calibration, quality profile, file digests, and overlay review are approved.
 
 `face-basic-round1-smoke.yaml` is the first repeatable learning-method run. It verifies loss
 reduction, deterministic repeatability, exact checkpoint resume, gradient flow, and held-out

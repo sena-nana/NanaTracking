@@ -3,7 +3,8 @@
 ## Revisions and authoritative files
 
 - Dataset schemas: `ntp-dataset/2.0.0` and research extension `ntp-dataset/3.0.0`
-- Capture schema: `ntp-capture/1.0.0`
+- Capture schemas: `ntp-capture/1.0.0` and
+  `nana-first-party-multiview-capture/1.0.0`
 - Label catalog: `ntp-label-catalog/1.0.0`
 - NTP schema: `ntp/1.0`
 - Signal Registry: `ntp-signals/1.0.0`
@@ -30,6 +31,20 @@ semantic-anchor mapping and versioned training recipe, and use only the research
 training, or evaluation stages. Version 2 canonical digests exclude these new absent fields, so
 existing manifests remain verifiable. Research checkpoints cannot initialize commercial runs or
 enter ONNX export.
+
+Commercial Stage A uses `ntp-dataset/3.0.0` with
+`nana-stage-a-materialization/1.0.0`. The manifest pins the teacher descriptor and ordered mapping,
+reviewed calibration, reviewed quality profile, approved overlay review, training recipe, split
+plan, and final materialized shard. Identity, session, device, and camera ownership cannot overlap
+across train/validation/test. The reviewed split has 5/1/2 identities; train groups are sampled at
+approximately 5 FPS while validation/test retain continuous 15 or 30 FPS.
+
+The multiview capture group contains first-party identity/session/take/consent/action provenance,
+sequence and timestamps, and up to front/left/right RGB views. Incomplete or malformed groups are
+retained as rejected candidates. Calibration contains intrinsics, distortion,
+`camera_to_capture`, identity-level `head_width_m`, and review evidence. Quality profiles carry the
+5 ms-or-tighter skew gate, positive-depth and triangulation-angle gates, reprojection and PnP
+thresholds, pose-consistency thresholds, exact OpenCV provider/version, and review evidence.
 
 ## Capture record
 
@@ -128,3 +143,7 @@ uv run --extra cpu nana-tracking data materialize-labels \
 
 The example is synthetic smoke-only evidence. It proves schema and control-flow behavior, not
 FaceBasic quality or production data readiness.
+
+The 16 semantic anchors, HeadRelative geometry, and per-view pose are internal training contracts.
+They do not allocate, reuse, or change any NTP Signal ID. Unavailable geometry/pose carries no
+value, zero confidence, and a deterministic reason; no neutral zero is emitted.

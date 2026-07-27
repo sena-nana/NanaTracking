@@ -6,6 +6,7 @@ from nana_tracking.config import ExperimentConfig
 from nana_tracking.contracts import TrackingBatch
 from nana_tracking.data.face_basic import create_manifest_loader
 from nana_tracking.data.full_set import create_full_set_loader
+from nana_tracking.data.stage_a import create_first_party_stage_a_loader
 from nana_tracking.data.stage_a_smoke import create_stage_a_smoke_loader
 from nana_tracking.data.synthetic import create_loader as create_synthetic_loader
 
@@ -29,6 +30,13 @@ def create_loader(
     if config.data.dataset == "multiview_smoke":
         return create_stage_a_smoke_loader(  # type: ignore[return-value]
             config,
+            shuffle=shuffle,
+            seed_offset=shuffle_offset,
+        )
+    if config.data.dataset == "manifest" and config.training.stage == "real-geometry-pretrain":
+        return create_first_party_stage_a_loader(  # type: ignore[return-value]
+            config,
+            split=split,
             shuffle=shuffle,
             seed_offset=shuffle_offset,
         )

@@ -155,7 +155,7 @@
       "record_id": "opencv-calibrated-geometry-v1",
       "kind": "teacher-sdk",
       "name": "OpenCV calibrated geometry derivation",
-      "version": "4.5.0-or-later-apache-2.0",
+      "version": "opencv-contrib-python-5.0.0.93",
       "source": "https://opencv.org/license/",
       "license": "https://raw.githubusercontent.com/opencv/opencv/4.x/LICENSE",
       "license_text_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
@@ -183,7 +183,7 @@
         "Promoting MediaPipe-seeded points without multiview reprojection and human-review gates",
         "Treating solvePnP or triangulation residuals as model confidence"
       ],
-      "evidence": "OpenCV 4.5.0 and later are Apache-2.0. Only deterministic calibration, triangulation, solvePnP, reprojection, and optical-flow outputs from first-party captures are admitted.",
+      "evidence": "OpenCV 4.5.0 and later are Apache-2.0. The materializer runtime is pinned to the single cv2 provider opencv-contrib-python 5.0.0.93. Only deterministic calibration, triangulation, solvePnP, reprojection, and optical-flow outputs from first-party captures are admitted.",
       "reviewed_by": "project-owner",
       "reviewed_at": "2026-07-26T00:00:00+08:00",
       "smoke_only": false

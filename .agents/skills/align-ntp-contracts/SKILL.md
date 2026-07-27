@@ -12,3 +12,6 @@ description: Align NanaTracking training labels, model heads, normalization, met
 5. Reject silent semantic changes; require a revision and compatibility decision.
 6. Verify that protocol and consumer code need no Python, PyTorch, ONNX Runtime, or backend type.
 7. Add contract and fixed-vector tests for every mapping change.
+
+Treat Stage A's 16 anchors, HeadRelative geometry, pose, residuals, and review state as internal
+training metadata. Do not allocate or repurpose NTP Signal IDs for them.

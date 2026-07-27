@@ -58,6 +58,10 @@ pseudo-labels. OpenCV uses synchronized camera calibration to triangulate HeadRe
 geometry, solve pose, and calculate reprojection quality. Rig/confidence heads are excluded from
 the Stage A optimizer. ARKit/TrueDepth outputs are evaluation-only and cannot enter the checkpoint
 lineage or select training parameters.
+The HeadRelative frame uses the midpoint between eye centers as origin, the right-eye center toward
+the left-eye center as `+X`, the orthogonalized chin direction as `+Y`, and `X × Y` as `+Z`, with
+reviewed identity `head_width_m` as the length basis. These anchors and coordinates are internal
+training geometry, not NTP signals.
 
 The checked-in `face-basic-stage-a-smoke.yaml` is a three-view control-flow fixture only. Before
 building a real manifest, validate the approved teachers and the pinned MediaPipe bundle:
@@ -70,6 +74,10 @@ uv run --extra cpu nana-tracking data validate-licenses \
 uv run --extra cpu nana-tracking data validate-teacher-model \
   configs/data/mediapipe-face-landmarker-v1.json \
   --model-asset <face_landmarker.task>
+uv run --extra cpu --extra teacher-labeling nana-tracking data \
+  materialize-stage-a-labels <capture-index.jsonl> <required-reviewed-options>
+uv run --extra cpu --extra teacher-labeling nana-tracking data \
+  build-stage-a-manifest <stage-a-candidates.jsonl> <required-reviewed-options>
 uv run --extra cu130 nana-tracking train \
   --config <first-party-stage-a-single-view.yaml>
 uv run --extra cu130 nana-tracking train \

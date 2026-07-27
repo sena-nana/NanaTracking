@@ -48,6 +48,12 @@ Apply fail-closed admission before collection, labeling, training, or evaluation
    training.
 6. Exclude rig/confidence heads from the Stage A optimizer and prove they remain bitwise unchanged.
 
+Use `data materialize-stage-a-labels` only with `mediapipe==0.10.35`, the digest-pinned bundle,
+the sole `opencv-contrib-python==5.0.0.93` provider, and reviewed calibration/quality inputs. Use
+`data build-stage-a-manifest` only after the approved overlay decision matches the candidate and
+aggregate PNG digests. The commercial manifest must own identity/session/device/camera splits and
+retain 5 FPS train versus continuous 15/30 FPS validation/test evidence.
+
 ## Train, evaluate, and release
 
 - Keep PyTorch authoritative and NTP free of framework tensors or teacher-native types.

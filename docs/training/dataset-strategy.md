@@ -12,7 +12,7 @@ The approved training teachers are:
 | Source | Training role | Prohibited role |
 | --- | --- | --- |
 | MediaPipe Face Landmarker 0.10.35, pinned model bundle | 16 semantic 2D landmark pseudo-labels with teacher confidence and provenance | NTP Basic numeric truth, metric 3D/pose truth, identity labels, confidence truth |
-| OpenCV 4.5+ | Calibrated undistortion, multiview triangulation, solvePnP, reprojection residuals, and optical-flow checks | Creating truth from an uncalibrated single view or converting residuals directly to model confidence |
+| OpenCV contrib-python 5.0.0.93, sole `cv2` provider | Calibrated undistortion, multiview triangulation, solvePnP, and reprojection residuals | Creating truth from an uncalibrated single view or converting residuals directly to model confidence |
 | Apple ARKit/TrueDepth | Isolated first-party validation/test comparison only | Training, pseudo-labeling, calibration, threshold selection, recipe selection, or checkpoint lineage |
 
 MediaPipe and OpenCV licenses do not grant rights to participant recordings. Every real capture
@@ -35,6 +35,16 @@ distribution, retention, and withdrawal.
 
 Training may sample approximately 5 FPS. Validation and test preserve continuous 15-30 FPS clips.
 Identity splits are fixed first; devices and sessions cannot leak across the split boundary.
+Camera IDs are also split-owned. The production skew ceiling is 5 ms. No production calibration or
+quality threshold exists until a named reviewer approves its digest; repository defaults never
+silently supply these values.
+
+`data materialize-stage-a-labels` emits candidate JSONL, a quality summary, deterministic PNG
+overlays, and an overlay index. Red points are MediaPipe observations, green points are OpenCV
+reprojections, and yellow segments are residuals. `data build-stage-a-manifest` accepts only an
+approved review whose materialization and aggregate overlay digests match, then freezes the
+commercial v3 shard. Rejected geometry and pose are always `null` with zero weight and a stable
+failure code; residuals never become confidence.
 
 ## A/B/C/D commercial route
 
