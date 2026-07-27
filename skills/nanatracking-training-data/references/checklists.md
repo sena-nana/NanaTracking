@@ -15,7 +15,8 @@
 - [ ] OpenCV version, camera calibration, synchronization, triangulation/PnP method, and
       reprojection thresholds are pinned
 - [ ] Missing views, failed detections, invalid depth, and excessive residuals fail closed
-- [ ] Overlay samples and calibration are human-reviewed before manifest approval
+- [ ] Overlay samples and calibration are human-reviewed before aggregate approval
+- [ ] Every admitted record has independent human evidence; corrected records are re-materialized
 - [ ] ARKit labels are absent from every training manifest and checkpoint lineage
 
 ## Stage A training

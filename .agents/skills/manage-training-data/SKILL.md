@@ -5,6 +5,11 @@ description: Manage NanaTracking training data schemas, manifests, collection pl
 
 # Manage training data
 
+For commercial core-16 candidate materialization, require the first-party multiview capture,
+reviewed calibration/quality profile, pinned MediaPipe/OpenCV providers, aggregate overlay approval,
+independent per-record human evidence, and identity/session/device/camera split ownership described
+in `references/data-contract.md`. Aggregate approval must never promote unreviewed records.
+
 1. Read `references/data-contract.md` before changing a manifest, split, or collection workflow.
 2. Identify the schema, data, NTP, and Signal Registry revisions affected by the change.
 3. Preserve identity/session/device grouping and reject identity overlap across splits.

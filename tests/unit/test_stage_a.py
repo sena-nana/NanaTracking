@@ -36,7 +36,7 @@ def _stage_a_outputs(
 
 def test_commercial_recipe_and_pinned_mediapipe_descriptor(tmp_path: Path) -> None:
     recipe = TrainingRecipe.load(Path("configs/training/nana-training-recipe-1.0.0.json"))
-    assert recipe.promotion_status == "commercial-candidate"
+    assert recipe.promotion_status == "pilot-only"
     assert recipe.usage_tier == "commercial"
     assert recipe.parent_checkpoint is None
     assert recipe.data_policy["existing_datasets_allowed"] is False

@@ -55,3 +55,10 @@ identity groups; the UI never asks the participant to type private identity into
 An action completes only when required duration, repetitions, visibility, and timestamp continuity
 are satisfied. A retry creates a new take and never overwrites the failed one. The failed take is
 tagged for the failure flow, while label materialization decides each signal independently.
+
+For commercial Canonical core-16 candidate materialization, front/left/right RGB cameras share the
+reviewed capture clock and must remain within the approved skew threshold, never above 5 ms. Each
+view retains its stable camera and device ID; the rig stores reviewed intrinsics, distortion, and
+`camera_to_capture`. Identity-level `head_width_m` is reviewed separately from camera calibration.
+Missing views, duplicate cameras, clock violations, or unreviewed/tampered calibration remain
+reviewable failed takes and cannot enter a candidate shard.

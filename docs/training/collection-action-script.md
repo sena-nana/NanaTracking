@@ -12,8 +12,9 @@ skip any action.
 Training sessions synchronize front and approximately left/right 30-degree RGB, camera intrinsics,
 extrinsics, and timestamps without rewriting them. The pinned MediaPipe bundle proposes only the
 reviewed 16 semantic 2D anchors; OpenCV derives triangulated geometry, pose, reprojection residuals,
-and optical-flow consistency. A human reviewer records approved/rejected/pending and per-label
-confidence. Reviewers never fill missing truth with zero.
+and optical-flow consistency. A human reviewer records accepted/corrected/rejected, reviewer,
+revision, and correction evidence. Reviewers never convert residuals into confidence or fill
+missing truth with zero.
 
 ARKit/TrueDepth may be recorded only in separately declared validation/test comparison sessions.
 Those outputs are excluded from training manifests, pseudo-label caches, calibration, threshold

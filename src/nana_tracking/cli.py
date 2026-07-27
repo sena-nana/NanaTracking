@@ -30,6 +30,18 @@ from nana_tracking.data.executors import benchmark_backends
 from nana_tracking.data.labeling import LabelCatalog, materialize_dataset, write_materialized_labels
 from nana_tracking.data.manifest import DatasetManifest
 from nana_tracking.data.schema import CaptureRecord
+from nana_tracking.data.stage_a import (
+    CameraRigCalibrationBundle,
+    MaterializedStageAGroup,
+    OverlayReviewDecision,
+    OverlayReviewIndex,
+    StageACaptureGroup,
+    StageAQualityProfile,
+    StageASplitPlan,
+    build_stage_a_manifest,
+    materialize_stage_a_labels,
+    validate_stage_a_manifest,
+)
 from nana_tracking.data.strategy import (
     ActorSplitManifest,
     CaptureSplitPlan,
@@ -214,6 +226,10 @@ def doctor() -> None:
 def validate_data(manifest: Annotated[Path, typer.Argument(exists=True, dir_okay=False)]) -> None:
     """Validate the complete dataset contract and automatic quality gates."""
 
+    loaded = DatasetManifest.load(manifest)
+    if loaded.capture_schema_version == "nana-stage-a-materialization/1.0.0":
+        _print_json(validate_stage_a_manifest(manifest))
+        return
     result = materialize_dataset(manifest)
     _print_json(result.quality.model_dump(mode="json"))
     if result.quality.error_count:
@@ -235,6 +251,75 @@ def materialize_labels_command(
     _print_json({"output": output, "quality": result.quality.model_dump(mode="json")})
 
 
+@data_app.command("materialize-stage-a-labels")
+def materialize_stage_a_labels_command(
+    capture_index: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    teacher_descriptor: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    model_asset: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    calibration: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    quality_profile: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    license_registry: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    capture_license_record: Annotated[str, typer.Option()],
+    output_directory: Annotated[Path, typer.Option("--output", file_okay=False)],
+) -> None:
+    """Generate fail-closed Stage A candidates, overlays, and a pending review index."""
+
+    summary = materialize_stage_a_labels(
+        capture_index,
+        teacher_descriptor=teacher_descriptor,
+        model_asset=model_asset,
+        calibration_path=calibration,
+        quality_profile_path=quality_profile,
+        license_registry_path=license_registry,
+        capture_license_record_id=capture_license_record,
+        output_directory=output_directory,
+    )
+    _print_json(summary.model_dump(mode="json"))
+
+
+@data_app.command("build-stage-a-manifest")
+def build_stage_a_manifest_command(
+    candidates: Annotated[Path, typer.Argument(exists=True, dir_okay=False)],
+    overlay_index: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    overlay_review: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    split_plan: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    teacher_descriptor: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    calibration: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    quality_profile: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    license_registry: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    label_catalog: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    training_recipe: Annotated[Path, typer.Option(exists=True, dir_okay=False)],
+    capture_license_record: Annotated[str, typer.Option()],
+    data_revision: Annotated[str, typer.Option()],
+    output: Annotated[Path, typer.Option("--output", dir_okay=False)],
+) -> None:
+    """Freeze individually reviewed Canonical core-16 candidates into a v3 manifest."""
+
+    manifest = build_stage_a_manifest(
+        candidates,
+        overlay_index_path=overlay_index,
+        overlay_review_path=overlay_review,
+        split_plan_path=split_plan,
+        teacher_descriptor_path=teacher_descriptor,
+        calibration_path=calibration,
+        quality_profile_path=quality_profile,
+        license_registry_path=license_registry,
+        label_catalog_path=label_catalog,
+        training_recipe_path=training_recipe,
+        capture_license_record_id=capture_license_record,
+        data_revision=data_revision,
+        output_path=output,
+    )
+    _print_json(
+        {
+            "manifest": output,
+            "digest": manifest.digest,
+            "data_revision": manifest.data_revision,
+            "record_count": sum(item.record_count for item in manifest.record_files),
+        }
+    )
+
+
 @data_app.command("schema")
 def data_schema_command(
     kind: Annotated[
@@ -252,6 +337,13 @@ def data_schema_command(
             "arkit-mapping",
             "frozen-capture-dataset",
             "teacher-model",
+            "stage-a-capture-group",
+            "stage-a-calibration",
+            "stage-a-quality-profile",
+            "stage-a-materialized-group",
+            "stage-a-overlay-index",
+            "stage-a-overlay-review",
+            "stage-a-split-plan",
         ],
         typer.Argument(),
     ] = "manifest",
@@ -272,6 +364,13 @@ def data_schema_command(
         "arkit-mapping": ArkitMapping,
         "frozen-capture-dataset": FrozenCaptureDataset,
         "teacher-model": TeacherModelDescriptor,
+        "stage-a-capture-group": StageACaptureGroup,
+        "stage-a-calibration": CameraRigCalibrationBundle,
+        "stage-a-quality-profile": StageAQualityProfile,
+        "stage-a-materialized-group": MaterializedStageAGroup,
+        "stage-a-overlay-index": OverlayReviewIndex,
+        "stage-a-overlay-review": OverlayReviewDecision,
+        "stage-a-split-plan": StageASplitPlan,
     }
     _print_json(models[kind].model_json_schema())
 

@@ -2,7 +2,7 @@
   "schema_version": "ntp-dataset/2.0.0",
   "capture_schema_version": "ntp-capture/1.0.0",
   "data_revision": "synthetic-v1",
-  "digest": "6b4791a0304af9761cd9c3a6624e65e654ec6cfd210721078e4c362ff6966050",
+  "digest": "7fda8f0885505f8e3c24f91f230a852ef683576b810c20e434dbc27b34b8044a",
   "ntp_schema_revision": "ntp/1.0",
   "signal_registry_revision": "ntp-signals/1.0.0",
   "normalization_revision": "ntp-normalization/1.0.0",
@@ -15,7 +15,7 @@
   },
   "license_registry": {
     "path": "../../configs/data/license-registry.json",
-    "sha256": "4d7848483cb076b07b4b2edc91f96faf7933041c040611d9dc8f33d789bab657"
+    "sha256": "2d232fe9b637af78b6d272174f337b9bbf849daddd3f46191a7a4939a9dbc2a5"
   },
   "license_record_ids": ["nana-synthetic-smoke"],
   "record_files": [

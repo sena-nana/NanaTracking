@@ -4,7 +4,7 @@
 
 - License registry: `configs/data/license-registry.json`
 - MediaPipe teacher descriptor: `configs/data/mediapipe-face-landmarker-v1.json`
-- Commercial recipe: `configs/training/nana-training-recipe-1.0.0.json`
+- Legacy pilot recipe: `configs/training/nana-training-recipe-1.0.0.json`
 - Capture and manifest contracts: `src/nana_tracking/data/capture.py`, `manifest.py`, `schema.py`
 - Teacher contract: `src/nana_tracking/data/teachers.py`
 - Label materialization: `src/nana_tracking/data/labeling.py`
@@ -40,6 +40,8 @@ Use CPython 3.14 and uv. Synthetic commands prove control flow only.
 ## Artifact rule
 
 Every pseudo-label stores source ID, teacher/model version, mapping revision, timestamp,
-confidence, and evidence=`pseudo_label`. Every OpenCV-derived label stores calibration and
-derivation revisions plus residual-based quality evidence. ARKit comparison data is stored in an
+confidence, and evidence=`mediapipe_pseudo_label`. A genuinely reviewed record may use
+`human_corrected_pseudo_label`; aggregate approval alone cannot change this value. Every
+OpenCV-derived label uses evidence=`deterministic_geometry` and stores calibration and derivation
+revisions plus residual-based quality evidence. ARKit comparison data is stored in an
 evaluation-only manifest and cannot be loaded by a training configuration.

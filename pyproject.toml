@@ -28,7 +28,7 @@ cu130 = [
 tracking = ["tensorboard>=2.20,<3"]
 teacher-labeling = [
   "mediapipe==0.10.35",
-  "opencv-python-headless>=4.11,<5",
+  "opencv-contrib-python==5.0.0.93",
 ]
 
 [project.scripts]
