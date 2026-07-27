@@ -45,14 +45,17 @@ Apply fail-closed admission before collection, labeling, training, or evaluation
 4. Use OpenCV to undistort, triangulate, solve pose, and calculate reprojection residuals. Reject
    missing/unsynchronized/invalid groups rather than filling values with zero.
 5. Human-review sampled overlays and freeze the calibration, mapping, and quality threshold before
-   training.
+   materialization approval. Require independent per-record evidence before promoting a candidate;
+   aggregate approval cannot bulk-accept labels.
 6. Exclude rig/confidence heads from the Stage A optimizer and prove they remain bitwise unchanged.
 
 Use `data materialize-stage-a-labels` only with `mediapipe==0.10.35`, the digest-pinned bundle,
 the sole `opencv-contrib-python==5.0.0.93` provider, and reviewed calibration/quality inputs. Use
 `data build-stage-a-manifest` only after the approved overlay decision matches the candidate and
-aggregate PNG digests. The commercial manifest must own identity/session/device/camera splits and
-retain 5 FPS train versus continuous 15/30 FPS validation/test evidence.
+aggregate PNG digests and every admitted record has its own review evidence. Corrected proposals
+must be re-materialized. The commercial manifest must own identity/session/device/camera splits and
+retain 5 FPS train versus continuous 15/30 FPS validation/test evidence. Core-16 records are
+Canonical candidates and must not be wired directly into the legacy FaceBasic production path.
 
 ## Train, evaluate, and release
 

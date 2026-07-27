@@ -218,16 +218,16 @@ class DatasetManifest(ManifestModel):
                             f"{dimension[:-1]} {value!r} appears in both "
                             f"{previous!r} and {split_name!r}"
                         )
-        expected_identity_counts = {"train": 5, "validation": 1, "test": 2}
-        for split_name, expected_count in expected_identity_counts.items():
-            split = self.splits[split_name]
-            if len(split.identities) != expected_count:
+        for split_name, split in self.splits.items():
+            for field in ("identities", "sessions", "devices", "camera_ids"):
+                values = getattr(split, field)
+                if not values:
+                    raise ValueError(f"Stage A {split_name} split requires {field}")
+                if len(values) != len(set(values)):
+                    raise ValueError(f"Stage A {split_name} split contains duplicate {field}")
+            if len(split.devices) < 3 or len(split.camera_ids) < 3:
                 raise ValueError(
-                    f"Stage A {split_name} split requires exactly {expected_count} identities"
-                )
-            if len(split.devices) != 3 or len(split.camera_ids) != 3:
-                raise ValueError(
-                    f"Stage A {split_name} split requires exactly three devices and cameras"
+                    f"Stage A {split_name} split requires at least three devices and cameras"
                 )
 
     @classmethod

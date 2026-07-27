@@ -1,7 +1,7 @@
 {
   "schema_version": "nana-training-recipe/1.0.0",
-  "recipe_id": "face-basic-stage-a-commercial-first-party",
-  "promotion_status": "commercial-candidate",
+  "recipe_id": "face-basic-stage-a-pilot-control-flow",
+  "promotion_status": "pilot-only",
   "usage_tier": "commercial",
   "parent_checkpoint": null,
   "seed": 17,

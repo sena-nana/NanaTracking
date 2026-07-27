@@ -20,16 +20,9 @@ from pathlib import Path
 from typing import Annotated, Any, Literal, Protocol, Self, cast
 
 import numpy as np
-import torch
 from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict, Field, model_validator
-from torch import Tensor
-from torch.utils.data import DataLoader, Dataset
-from torchvision.io import ImageReadMode, decode_image
-from torchvision.transforms.v2.functional import crop, resize
 
-from nana_tracking.config import ExperimentConfig
-from nana_tracking.contracts import MultiViewTrackingBatch
 from nana_tracking.data.face_basic import resolve_image_uri
 from nana_tracking.data.manifest import (
     DatasetManifest,
@@ -43,13 +36,15 @@ from nana_tracking.data.manifest import (
 )
 from nana_tracking.data.schema import CaptureConditions, RgbFrame
 from nana_tracking.data.strategy import LicenseRecord, LicenseRegistry
-from nana_tracking.data.teachers import TeacherModelDescriptor
+from nana_tracking.data.teachers import SEMANTIC_ANCHORS, TeacherModelDescriptor
 
 FiniteFloat = Annotated[float, Field(allow_inf_nan=False)]
 Sha256 = Annotated[str, Field(pattern=r"^[0-9a-f]{64}$")]
 ViewRole = Literal["front", "left", "right"]
 LabelState = Literal["available", "unavailable"]
 ReviewStatus = Literal["pending", "approved", "rejected"]
+ReviewAction = Literal["accepted", "corrected", "rejected"]
+LandmarkEvidence = Literal["mediapipe_pseudo_label", "human_corrected_pseudo_label"]
 Point2 = tuple[FiniteFloat, FiniteFloat]
 Point3 = tuple[FiniteFloat, FiniteFloat, FiniteFloat]
 Matrix3 = tuple[
@@ -248,7 +243,7 @@ class Landmark2DLabel(StageAContract):
     state: LabelState
     point_pixels: Point2 | None
     confidence: FiniteFloat = Field(ge=0.0, le=0.5)
-    evidence: Literal["pseudo_label"] = "pseudo_label"
+    evidence: LandmarkEvidence = "mediapipe_pseudo_label"
     source_id: Literal["mediapipe-face-landmarker-v1"] = MEDIAPIPE_SOURCE_ID
     model_sha256: Sha256
     mapping_revision: str = Field(min_length=1)
@@ -269,7 +264,7 @@ class GeometryLabel(StageAContract):
     state: LabelState
     points_head_relative: list[Point3] | None
     confidence: FiniteFloat = Field(ge=0.0, le=0.5)
-    evidence: Literal["geometry"] = "geometry"
+    evidence: Literal["deterministic_geometry"] = "deterministic_geometry"
     source_id: Literal["opencv-calibrated-geometry-v1"] = OPENCV_SOURCE_ID
     calibration_revision: str
     derivation_revision: str
@@ -300,7 +295,7 @@ class PoseLabel(StageAContract):
     translation_head_relative: Point3 | None
     orientation_xyzw: tuple[FiniteFloat, FiniteFloat, FiniteFloat, FiniteFloat] | None
     confidence: FiniteFloat = Field(ge=0.0, le=0.5)
-    evidence: Literal["geometry"] = "geometry"
+    evidence: Literal["deterministic_geometry"] = "deterministic_geometry"
     source_id: Literal["opencv-calibrated-geometry-v1"] = OPENCV_SOURCE_ID
     calibration_revision: str
     derivation_revision: str
@@ -337,6 +332,31 @@ class ViewQuality(StageAContract):
     max_px: FiniteFloat | None = None
     pnp_inlier_count: int = Field(default=0, ge=0, le=16)
     failure_codes: list[str] = Field(default_factory=list)
+
+
+class StageARecordReview(StageAContract):
+    record_id: str = Field(min_length=1)
+    action: ReviewAction
+    reviewed_by: str = Field(min_length=1)
+    reviewed_at: datetime
+    evidence_sha256: Sha256
+    reviewed_anchor_names: list[str] = Field(default_factory=list)
+    correction_sha256: Sha256 | None = None
+    correction_magnitude_px: FiniteFloat | None = Field(default=None, ge=0.0)
+
+    @model_validator(mode="after")
+    def validate_action(self) -> Self:
+        if self.action in {"accepted", "corrected"}:
+            if tuple(self.reviewed_anchor_names) != SEMANTIC_ANCHORS:
+                raise ValueError("positive review requires the ordered 16-anchor mapping")
+        elif self.reviewed_anchor_names:
+            raise ValueError("rejected review cannot claim accepted anchors")
+        corrections = (self.correction_sha256, self.correction_magnitude_px)
+        if self.action == "corrected" and any(value is None for value in corrections):
+            raise ValueError("corrected review requires correction digest and magnitude")
+        if self.action != "corrected" and any(value is not None for value in corrections):
+            raise ValueError("only corrected review can carry correction evidence")
+        return self
 
 
 class MaterializedStageAView(StageAContract):
@@ -376,6 +396,11 @@ class MaterializedStageAGroup(StageAContract):
     conditions: CaptureConditions
     status: Literal["accepted", "rejected"]
     review_status: ReviewStatus = "pending"
+    observation_role: Literal["canonical-face-core16-candidate"] = "canonical-face-core16-candidate"
+    topology_revision: Literal["nana-canonical-face-core16/1.0.0"] = (
+        "nana-canonical-face-core16/1.0.0"
+    )
+    human_review: StageARecordReview | None = None
     failure_codes: list[str]
     views: list[MaterializedStageAView] = Field(min_length=3, max_length=3)
     canonical_geometry: GeometryLabel
@@ -394,6 +419,14 @@ class MaterializedStageAGroup(StageAContract):
             raise ValueError("rejected Stage A group requires unavailable output and failure codes")
         if self.review_status == "approved" and self.status != "accepted":
             raise ValueError("rejected Stage A groups cannot be approved for training")
+        if self.review_status == "approved":
+            if self.human_review is None or self.human_review.action not in {
+                "accepted",
+                "corrected",
+            }:
+                raise ValueError("approved Stage A groups require a positive record review")
+        elif self.human_review is not None:
+            raise ValueError("non-approved Stage A groups cannot carry a positive record review")
         return self
 
     @classmethod
@@ -445,8 +478,26 @@ class OverlayReviewDecision(StageAContract):
     )
     materialization_sha256: Sha256
     overlay_sha256: Sha256
-    reviewed_record_ids: list[str] = Field(min_length=1)
+    record_reviews: list[StageARecordReview] = Field(min_length=1)
     review: ReviewApproval
+
+    @model_validator(mode="after")
+    def validate_record_reviews(self) -> Self:
+        record_ids = [item.record_id for item in self.record_reviews]
+        if len(record_ids) != len(set(record_ids)):
+            raise ValueError("overlay review record IDs must be unique")
+        positive_digests = [
+            item.evidence_sha256
+            for item in self.record_reviews
+            if item.action in {"accepted", "corrected"}
+        ]
+        if len(positive_digests) != len(set(positive_digests)):
+            raise ValueError("each positive record review requires independent evidence")
+        return self
+
+    @property
+    def reviewed_record_ids(self) -> list[str]:
+        return [item.record_id for item in self.record_reviews]
 
     @classmethod
     def load(cls, path: Path, *, require_approved: bool = True) -> Self:
@@ -465,14 +516,17 @@ class StageASplitPlan(StageAContract):
     def validate_splits(self) -> Self:
         if set(self.splits) != {"train", "validation", "test"}:
             raise ValueError("Stage A split plan requires train, validation, and test")
-        counts = {name: len(split.identities) for name, split in self.splits.items()}
-        if counts != {"train": 5, "validation": 1, "test": 2}:
-            raise ValueError("commercial Stage A requires the reviewed 5/1/2 identity split")
         for name, split in self.splits.items():
-            if len(split.camera_ids) != 3:
-                raise ValueError(f"Stage A {name} split requires exactly three camera IDs")
-            if len(split.devices) != 3:
-                raise ValueError(f"Stage A {name} split requires exactly three device IDs")
+            for field in ("identities", "sessions", "devices", "camera_ids"):
+                values = getattr(split, field)
+                if not values:
+                    raise ValueError(f"Stage A {name} split requires {field}")
+                if len(values) != len(set(values)):
+                    raise ValueError(f"Stage A {name} split contains duplicate {field}")
+            if len(split.camera_ids) < 3:
+                raise ValueError(f"Stage A {name} split requires at least three camera IDs")
+            if len(split.devices) < 3:
+                raise ValueError(f"Stage A {name} split requires at least three device IDs")
         _reject_split_overlap(self.splits)
         return self
 
@@ -1458,12 +1512,43 @@ def _split_for_group(group: MaterializedStageAGroup, plan: StageASplitPlan) -> s
         for name, split in plan.splits.items()
         if group.identity_id in split.identities
         and group.session_id in split.sessions
-        and {view.device_id for view in group.views} == set(split.devices)
-        and {view.camera_id for view in group.views} == set(split.camera_ids)
+        and {view.device_id for view in group.views}.issubset(split.devices)
+        and {view.camera_id for view in group.views}.issubset(split.camera_ids)
     ]
     if len(matches) != 1:
         raise ValueError(f"Stage A group {group.record_id!r} does not match exactly one split")
     return matches[0]
+
+
+def _approve_reviewed_group(
+    group: MaterializedStageAGroup,
+    record_review: StageARecordReview,
+) -> MaterializedStageAGroup:
+    if record_review.action == "corrected":
+        raise ValueError(
+            f"corrected Stage A group {group.record_id!r} must be re-materialized "
+            "before manifest approval"
+        )
+    if record_review.action != "accepted":
+        raise ValueError(f"Stage A group {group.record_id!r} is not approved by its reviewer")
+    views = [
+        view.model_copy(
+            update={
+                "landmarks_2d": [
+                    label.model_copy(update={"evidence": "human_corrected_pseudo_label"})
+                    for label in view.landmarks_2d
+                ]
+            }
+        )
+        for view in group.views
+    ]
+    return group.model_copy(
+        update={
+            "review_status": "approved",
+            "human_review": record_review,
+            "views": views,
+        }
+    )
 
 
 def build_stage_a_manifest(
@@ -1495,6 +1580,27 @@ def build_stage_a_manifest(
         raise ValueError("overlay review does not bind the materialization and overlay digests")
     if not set(index.sampled_record_ids).issubset(review.reviewed_record_ids):
         raise ValueError("approved overlay review does not cover every sampled record")
+    groups_by_id = {group.record_id: group for group in groups}
+    if len(groups_by_id) != len(groups):
+        raise ValueError("duplicate Stage A materialization IDs")
+    reviews_by_id = {item.record_id: item for item in review.record_reviews}
+    unknown_reviews = sorted(set(reviews_by_id).difference(groups_by_id))
+    if unknown_reviews:
+        raise ValueError(f"overlay review references unknown records: {unknown_reviews}")
+    for record_id in index.sampled_record_ids:
+        group = groups_by_id[record_id]
+        action = reviews_by_id[record_id].action
+        expected_action = "rejected" if group.status == "rejected" else "accepted"
+        allowed_actions = (
+            {expected_action}
+            if expected_action == "rejected"
+            else {"accepted", "corrected", "rejected"}
+        )
+        if action not in allowed_actions:
+            raise ValueError(
+                f"overlay review action {action!r} conflicts with candidate "
+                f"{record_id!r} status {group.status!r}"
+            )
     descriptor = TeacherModelDescriptor.load(teacher_descriptor_path)
     CameraRigCalibrationBundle.load(calibration_path)
     profile = StageAQualityProfile.load(quality_profile_path)
@@ -1527,11 +1633,7 @@ def build_stage_a_manifest(
         _sha256_file(quality_profile_path),
     )
     accepted: list[MaterializedStageAGroup] = []
-    seen: set[str] = set()
     for group in groups:
-        if group.record_id in seen:
-            raise ValueError(f"duplicate Stage A materialization ID: {group.record_id}")
-        seen.add(group.record_id)
         if (
             group.teacher_descriptor_sha256,
             group.calibration_sha256,
@@ -1540,12 +1642,15 @@ def build_stage_a_manifest(
             raise ValueError(f"Stage A group provenance digest drift: {group.record_id}")
         if group.status != "accepted":
             continue
+        record_review = reviews_by_id.get(group.record_id)
+        if record_review is None or record_review.action == "rejected":
+            continue
         split_name = _split_for_group(group, plan)
         if split_name == "train" and not 4.5 <= group.effective_fps <= 5.5:
             raise ValueError("Stage A training groups must be sampled at approximately 5 FPS")
         if split_name != "train" and group.effective_fps not in {15.0, 30.0}:
             raise ValueError("Stage A validation/test groups must retain continuous 15 or 30 FPS")
-        accepted.append(group.model_copy(update={"review_status": "approved"}))
+        accepted.append(_approve_reviewed_group(group, record_review))
     if not accepted:
         raise ValueError("no approved Stage A groups remain for the training manifest")
     final_shard = output_path.with_name(f"{output_path.stem}-records.jsonl")
@@ -1643,219 +1748,18 @@ def validate_stage_a_manifest(manifest_path: Path) -> dict[str, object]:
         "data_revision": manifest.data_revision,
         "record_count": len(records),
         "split_record_counts": split_counts,
-        "training_ready": True,
+        "canonical_core16_candidate_ready": True,
+        "production_model_ready": False,
         "limitations": (
-            "Commercial development labels only; locked-test and release evidence remain required."
+            "Individually reviewed Canonical core-16 candidates only; the production "
+            "CanonicalFaceObservation topology, HR-Canonical loader/model, locked-test evidence, "
+            "and release evidence remain required."
         ),
     }
 
 
-@dataclass(frozen=True, slots=True)
-class _StageASample:
-    images: Tensor
-    targets: dict[str, Tensor]
-    confidence: dict[str, Tensor]
-    intrinsics: Tensor
-    camera_to_capture: Tensor
-    record: MaterializedStageAGroup
-
-
-def _crop_view(
-    view: MaterializedStageAView,
-    *,
-    output_height: int,
-    output_width: int,
-) -> tuple[Tensor, Tensor, Tensor, Tensor]:
-    if view.face_bbox_xyxy is None:
-        raise ValueError("approved Stage A view is missing its face bounding box")
-    image = decode_image(view.image_uri, mode=ImageReadMode.RGB).to(torch.float32) / 255.0
-    if image.shape[1:] != (view.height, view.width):
-        raise ValueError("Stage A image dimensions do not match the materialized view")
-    left, top, right, bottom = view.face_bbox_xyxy
-    side = max(right - left, bottom - top) * 1.25
-    center_x = (left + right) * 0.5
-    center_y = (top + bottom) * 0.5
-    crop_left = max(0, math.floor(center_x - side * 0.5))
-    crop_top = max(0, math.floor(center_y - side * 0.5))
-    crop_side = max(
-        1,
-        min(
-            math.ceil(side),
-            view.width - crop_left,
-            view.height - crop_top,
-        ),
-    )
-    resized = resize(
-        crop(image, crop_top, crop_left, crop_side, crop_side),
-        [output_height, output_width],
-        antialias=True,
-    )
-    scale_x = output_width / crop_side
-    scale_y = output_height / crop_side
-    intrinsics = torch.tensor(view.intrinsics, dtype=torch.float32)
-    intrinsics[0, 0] *= scale_x
-    intrinsics[1, 1] *= scale_y
-    intrinsics[0, 2] = (intrinsics[0, 2] - crop_left) * scale_x
-    intrinsics[1, 2] = (intrinsics[1, 2] - crop_top) * scale_y
-    points = torch.tensor([label.point_pixels for label in view.landmarks_2d], dtype=torch.float32)
-    points[:, 0] = ((points[:, 0] - crop_left) * scale_x) / output_width * 2.0 - 1.0
-    points[:, 1] = ((points[:, 1] - crop_top) * scale_y) / output_height * 2.0 - 1.0
-    confidence = torch.tensor(
-        [[label.confidence, label.confidence] for label in view.landmarks_2d],
-        dtype=torch.float32,
-    )
-    inside = (points.abs() <= 1.0).all(dim=-1, keepdim=True)
-    confidence = confidence * inside
-    return resized, points, confidence, intrinsics
-
-
-class FirstPartyStageADataset(Dataset[_StageASample]):
-    def __init__(self, config: ExperimentConfig, *, split: str) -> None:
-        if config.data.manifest is None:
-            raise ValueError("first-party Stage A requires data.manifest")
-        self._config = config
-        self._manifest_path = config.data.manifest.resolve()
-        manifest = DatasetManifest.load(self._manifest_path)
-        manifest.verify_files(self._manifest_path)
-        if manifest.capture_schema_version != "nana-stage-a-materialization/1.0.0":
-            raise ValueError("Stage A configuration requires a first-party multiview manifest")
-        if split not in manifest.splits:
-            raise ValueError(f"Stage A manifest has no {split!r} split")
-        selected = manifest.splits[split]
-        records = [
-            record
-            for reference in manifest.record_files
-            for record in MaterializedStageAGroup.load_jsonl(
-                manifest.resolve(self._manifest_path, reference)
-            )
-        ]
-        self._records = [
-            record
-            for record in records
-            if record.identity_id in selected.identities
-            and record.session_id in selected.sessions
-            and {view.device_id for view in record.views} == set(selected.devices)
-            and {view.camera_id for view in record.views} == set(selected.camera_ids)
-        ]
-        self._identity_indices = {
-            identity: index for index, identity in enumerate(sorted(selected.identities))
-        }
-        if not self._records:
-            raise ValueError(f"no approved Stage A groups remain in split {split!r}")
-
-    def __len__(self) -> int:
-        return len(self._records)
-
-    def __getitem__(self, index: int) -> _StageASample:
-        record = self._records[index]
-        geometry_points = record.canonical_geometry.points_head_relative
-        if geometry_points is None:
-            raise ValueError("approved Stage A group lacks canonical geometry")
-        images: list[Tensor] = []
-        landmarks: list[Tensor] = []
-        landmark_weights: list[Tensor] = []
-        intrinsics: list[Tensor] = []
-        poses: list[Tensor] = []
-        pose_weights: list[Tensor] = []
-        camera_to_capture: list[Tensor] = []
-        for view in record.views:
-            image, points, point_confidence, camera_intrinsics = _crop_view(
-                view,
-                output_height=self._config.model.input_height,
-                output_width=self._config.model.input_width,
-            )
-            if view.pose.translation_head_relative is None or view.pose.orientation_xyzw is None:
-                raise ValueError("approved Stage A view lacks pose")
-            images.append(image)
-            landmarks.append(points)
-            landmark_weights.append(point_confidence)
-            intrinsics.append(camera_intrinsics)
-            poses.append(
-                torch.tensor(
-                    [
-                        *view.pose.translation_head_relative,
-                        *view.pose.orientation_xyzw,
-                    ],
-                    dtype=torch.float32,
-                )
-            )
-            pose_weights.append(torch.full((7,), view.pose.confidence))
-            camera_to_capture.append(torch.tensor(view.camera_to_capture, dtype=torch.float32))
-        geometry = torch.tensor(geometry_points, dtype=torch.float32).repeat(3, 1, 1)
-        geometry_weight = torch.full_like(geometry, record.canonical_geometry.confidence)
-        identity = self._identity_indices[record.identity_id]
-        return _StageASample(
-            images=torch.stack(images),
-            targets={
-                "landmarks": torch.stack(landmarks),
-                "canonical_geometry": geometry,
-                "pose": torch.stack(poses),
-                "visibility": torch.tensor(
-                    [view.visibility for view in record.views], dtype=torch.long
-                ),
-                "identity": torch.full((3,), identity, dtype=torch.long),
-            },
-            confidence={
-                "landmarks": torch.stack(landmark_weights),
-                "canonical_geometry": geometry_weight,
-                "pose": torch.stack(pose_weights),
-                "visibility": torch.ones(3, 1),
-                "identity": torch.ones(3, 1),
-            },
-            intrinsics=torch.stack(intrinsics),
-            camera_to_capture=torch.stack(camera_to_capture),
-            record=record,
-        )
-
-
-def _collate_stage_a(samples: list[_StageASample]) -> MultiViewTrackingBatch:
-    return MultiViewTrackingBatch(
-        images=torch.stack([sample.images for sample in samples]),
-        targets={
-            name: torch.stack([sample.targets[name] for sample in samples])
-            for name in samples[0].targets
-        },
-        label_confidence={
-            name: torch.stack([sample.confidence[name] for sample in samples])
-            for name in samples[0].confidence
-        },
-        camera_intrinsics=torch.stack([sample.intrinsics for sample in samples]),
-        camera_to_capture=torch.stack([sample.camera_to_capture for sample in samples]),
-        sample_ids=tuple(sample.record.record_id for sample in samples),
-        identity_ids=tuple(sample.record.identity_id for sample in samples),
-        sequence_ids=tuple(sample.record.session_id for sample in samples),
-        expressions=tuple(sample.record.expression for sample in samples),
-        timestamps_ns=torch.tensor(
-            [sample.record.capture_timestamp_ns for sample in samples], dtype=torch.int64
-        ),
-    )
-
-
-def create_first_party_stage_a_loader(
-    config: ExperimentConfig,
-    *,
-    split: str,
-    shuffle: bool,
-    seed_offset: int,
-) -> DataLoader[MultiViewTrackingBatch]:
-    dataset = FirstPartyStageADataset(config, split=split)
-    generator = torch.Generator().manual_seed(config.training.seed + seed_offset)
-    return cast(
-        DataLoader[MultiViewTrackingBatch],
-        DataLoader(
-            dataset,
-            batch_size=config.data.batch_size,
-            shuffle=shuffle,
-            generator=generator,
-            collate_fn=_collate_stage_a,
-            num_workers=0,
-        ),
-    )
-
-
 __all__ = [
     "CameraRigCalibrationBundle",
-    "FirstPartyStageADataset",
     "LandmarkDetector",
     "MaterializedStageAGroup",
     "MediaPipeLandmarkDetector",
@@ -1865,9 +1769,9 @@ __all__ = [
     "StageACaptureGroup",
     "StageAMaterializationSummary",
     "StageAQualityProfile",
+    "StageARecordReview",
     "StageASplitPlan",
     "build_stage_a_manifest",
-    "create_first_party_stage_a_loader",
     "materialize_stage_a_labels",
     "validate_stage_a_manifest",
 ]

@@ -78,15 +78,12 @@ uv run --extra cpu --extra teacher-labeling nana-tracking data \
   materialize-stage-a-labels <capture-index.jsonl> <required-reviewed-options>
 uv run --extra cpu --extra teacher-labeling nana-tracking data \
   build-stage-a-manifest <stage-a-candidates.jsonl> <required-reviewed-options>
-uv run --extra cu130 nana-tracking train \
-  --config <first-party-stage-a-single-view.yaml>
-uv run --extra cu130 nana-tracking train \
-  --config <first-party-stage-a-multiview.yaml>
-uv run --extra cu130 nana-tracking evaluate-stage-a \
-  --config <first-party-stage-a-multiview.yaml> \
-  --single-view-checkpoint <single.pt> --multiview-checkpoint <multiview.pt> \
-  --output <commercial-development-report.json>
 ```
+
+These commands freeze individually reviewed Canonical core-16 candidates only. They do not connect
+the commercial manifest to the legacy `MultiViewTrackingBatch` loader. The checked-in FaceBasic
+Stage A configuration remains a synthetic smoke/control-flow fixture until the versioned
+CanonicalFaceObservation schema, HR-Canonical loader, and model are implemented.
 
 ## Calibration, export, and runtime verification
 

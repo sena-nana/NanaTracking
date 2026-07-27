@@ -32,11 +32,12 @@ training, or evaluation stages. Version 2 canonical digests exclude these new ab
 existing manifests remain verifiable. Research checkpoints cannot initialize commercial runs or
 enter ONNX export.
 
-Commercial Stage A uses `ntp-dataset/3.0.0` with
+Commercial core-16 candidate materialization uses `ntp-dataset/3.0.0` with
 `nana-stage-a-materialization/1.0.0`. The manifest pins the teacher descriptor and ordered mapping,
 reviewed calibration, reviewed quality profile, approved overlay review, training recipe, split
 plan, and final materialized shard. Identity, session, device, and camera ownership cannot overlap
-across train/validation/test. The reviewed split has 5/1/2 identities; train groups are sampled at
+across train/validation/test. Split sizes are recipe-level policy: the pilot recipe may use 5/1/2,
+while E1/E2 revisions may scale without changing the schema. Train groups are sampled at
 approximately 5 FPS while validation/test retain continuous 15 or 30 FPS.
 
 The multiview capture group contains first-party identity/session/take/consent/action provenance,
@@ -144,6 +145,8 @@ uv run --extra cpu nana-tracking data materialize-labels \
 The example is synthetic smoke-only evidence. It proves schema and control-flow behavior, not
 FaceBasic quality or production data readiness.
 
-The 16 semantic anchors, HeadRelative geometry, and per-view pose are internal training contracts.
-They do not allocate, reuse, or change any NTP Signal ID. Unavailable geometry/pose carries no
-value, zero confidence, and a deterministic reason; no neutral zero is emitted.
+The 16 semantic anchors, HeadRelative geometry, and per-view pose form a
+`canonical-face-core16-candidate`; they are not the production CanonicalFaceObservation topology
+and are not loaded directly into the legacy FaceBasic model. They do not allocate, reuse, or change
+any NTP Signal ID. Unavailable geometry/pose carries no value, zero confidence, and a deterministic
+reason; no neutral zero is emitted.

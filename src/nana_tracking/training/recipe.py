@@ -12,6 +12,7 @@ class TrainingRecipe(BaseModel):
     schema_version: Literal["nana-training-recipe/1.0.0"]
     recipe_id: str = Field(min_length=1)
     promotion_status: Literal[
+        "pilot-only",
         "commercial-candidate",
         "commercial-reproduced",
         "release-eligible",
@@ -27,8 +28,10 @@ class TrainingRecipe(BaseModel):
 
     @model_validator(mode="after")
     def validate_promotion(self) -> Self:
-        if self.promotion_status == "commercial-candidate" and self.parent_checkpoint is not None:
-            raise ValueError("the Stage A commercial candidate must start without parent weights")
+        if self.promotion_status in {"pilot-only", "commercial-candidate"} and (
+            self.parent_checkpoint is not None
+        ):
+            raise ValueError("a Stage A pilot or candidate must start without parent weights")
         required = {
             "existing_dataset_artifacts",
             "unapproved_teacher_outputs",

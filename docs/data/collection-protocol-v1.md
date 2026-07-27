@@ -56,9 +56,9 @@ An action completes only when required duration, repetitions, visibility, and ti
 are satisfied. A retry creates a new take and never overwrites the failed one. The failed take is
 tagged for the failure flow, while label materialization decides each signal independently.
 
-For commercial FaceBasic Stage A, front/left/right RGB cameras share the reviewed capture clock
-and must remain within the approved skew threshold, never above 5 ms. Each view retains its stable
-camera and device ID; the rig stores reviewed intrinsics, distortion, and `camera_to_capture`.
-Identity-level `head_width_m` is reviewed separately from camera calibration. Missing views,
-duplicate cameras, clock violations, or unreviewed/tampered calibration remain reviewable failed
-takes and cannot enter a training shard.
+For commercial Canonical core-16 candidate materialization, front/left/right RGB cameras share the
+reviewed capture clock and must remain within the approved skew threshold, never above 5 ms. Each
+view retains its stable camera and device ID; the rig stores reviewed intrinsics, distortion, and
+`camera_to_capture`. Identity-level `head_width_m` is reviewed separately from camera calibration.
+Missing views, duplicate cameras, clock violations, or unreviewed/tampered calibration remain
+reviewable failed takes and cannot enter a candidate shard.

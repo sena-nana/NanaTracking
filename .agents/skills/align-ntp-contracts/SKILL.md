@@ -14,4 +14,6 @@ description: Align NanaTracking training labels, model heads, normalization, met
 7. Add contract and fixed-vector tests for every mapping change.
 
 Treat Stage A's 16 anchors, HeadRelative geometry, pose, residuals, and review state as internal
-training metadata. Do not allocate or repurpose NTP Signal IDs for them.
+Canonical core-16 candidate metadata, not the production CanonicalFaceObservation topology. Do not
+allocate or repurpose NTP Signal IDs for them or load them directly into the legacy FaceBasic
+production path.

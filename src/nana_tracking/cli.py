@@ -293,7 +293,7 @@ def build_stage_a_manifest_command(
     data_revision: Annotated[str, typer.Option()],
     output: Annotated[Path, typer.Option("--output", dir_okay=False)],
 ) -> None:
-    """Freeze reviewed Stage A labels into a commercial v3 manifest."""
+    """Freeze individually reviewed Canonical core-16 candidates into a v3 manifest."""
 
     manifest = build_stage_a_manifest(
         candidates,

@@ -458,13 +458,12 @@ fn build_report(inputs: &ReportInputs<'_>) -> Result<Value, Box<dyn std::error::
     }))
 }
 
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn process_resources(
     benchmark_started: Instant,
     sampled_at: Instant,
 ) -> Result<ResourceSample, Box<dyn std::error::Error>> {
     let pid = std::process::id().to_string();
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    return Err("resource sampling is implemented for macOS and Linux; Windows is skipped".into());
     let output = Command::new("ps")
         .args(["-o", "rss=", "-o", "time=", "-p", &pid])
         .output()?;
@@ -488,13 +487,20 @@ fn process_resources(
     })
 }
 
+#[cfg(not(any(target_os = "macos", target_os = "linux")))]
+fn process_resources(
+    _benchmark_started: Instant,
+    _sampled_at: Instant,
+) -> Result<ResourceSample, Box<dyn std::error::Error>> {
+    Err("resource sampling is implemented for macOS and Linux; Windows is skipped".into())
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn thread_resources(pid: &str) -> Result<(u64, f64), Box<dyn std::error::Error>> {
     #[cfg(target_os = "macos")]
     let arguments = ["-M", "-p", pid, "-o", "%cpu"];
     #[cfg(target_os = "linux")]
     let arguments = ["-L", "-p", pid, "-o", "pcpu"];
-    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
-    return Err("per-thread CPU sampling is implemented for macOS and Linux".into());
     let output = Command::new("ps").args(arguments).output()?;
     if !output.status.success() {
         return Err("ps per-thread CPU sample failed".into());
@@ -517,6 +523,7 @@ fn thread_resources(pid: &str) -> Result<(u64, f64), Box<dyn std::error::Error>>
     Ok((thread_count, hottest))
 }
 
+#[cfg(any(target_os = "macos", target_os = "linux", test))]
 fn parse_cpu_time(value: &str) -> Result<f64, Box<dyn std::error::Error>> {
     let (days, clock) = value
         .split_once('-')

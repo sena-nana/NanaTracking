@@ -70,11 +70,14 @@ hardware benchmark, and failure-sample workflow. Its checked-in configuration is
 cannot serve as real tracking-quality or RTX 4060 acceptance evidence.
 
 The real-data policy uses only consented first-party captures. MediaPipe Face Landmarker supplies
-reviewed 16-point 2D pseudo-labels and OpenCV derives calibrated multiview geometry; ARKit/TrueDepth
-is isolated to validation/test comparison. Existing public face datasets are not used.
+16-point 2D proposals and OpenCV derives calibrated multiview geometry; ARKit/TrueDepth is isolated
+to validation/test comparison. Existing public face datasets are not used. The resulting core-16
+records are candidates for the future CanonicalFaceObservation pipeline, not direct production
+FaceBasic batches.
 The teacher environment pins `mediapipe==0.10.35` and the single `cv2` provider
 `opencv-contrib-python==5.0.0.93`. Candidate labels and overlays remain outside Git until their
-calibration, quality profile, file digests, and overlay review are approved.
+calibration, quality profile, file digests, aggregate overlay review, and per-record human review
+are approved. Aggregate approval never promotes unreviewed records.
 
 `face-basic-round1-smoke.yaml` is the first repeatable learning-method run. It verifies loss
 reduction, deterministic repeatability, exact checkpoint resume, gradient flow, and held-out

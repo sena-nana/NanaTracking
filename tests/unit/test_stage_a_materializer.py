@@ -5,7 +5,7 @@ from collections import deque
 from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, cast
 
 import cv2
 import numpy as np
@@ -28,6 +28,7 @@ from nana_tracking.data.stage_a import (
     StageACaptureGroup,
     StageAInputView,
     StageAQualityProfile,
+    StageARecordReview,
     StageASplitPlan,
     SubjectHeadScale,
     build_stage_a_manifest,
@@ -87,6 +88,21 @@ def _write_model(model: Any, path: Path) -> None:
     path.write_text(
         json.dumps(model.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
+    )
+
+
+def _record_review(
+    record_id: str,
+    *,
+    action: Literal["accepted", "rejected"] = "accepted",
+) -> StageARecordReview:
+    return StageARecordReview(
+        record_id=record_id,
+        action=action,
+        reviewed_by="test-reviewer",
+        reviewed_at=datetime.fromisoformat("2026-07-27T00:00:00+08:00"),
+        evidence_sha256=hashlib.sha256(f"review:{record_id}".encode()).hexdigest(),
+        reviewed_anchor_names=list(SEMANTIC_ANCHORS) if action != "rejected" else [],
     )
 
 
@@ -557,7 +573,9 @@ def test_split_plan_rejects_every_cross_split_leakage(dimension: str) -> None:
         StageASplitPlan.model_validate({"splits": plan})
 
 
-def test_reviewed_manifest_and_stage_a_loader_gate_digests_and_shapes(tmp_path: Path) -> None:
+def test_reviewed_manifest_gates_record_evidence_digests_and_canonical_boundary(
+    tmp_path: Path,
+) -> None:
     specs = [
         ("train-record", "identity-0", "train", 5.0),
         ("validation-record", "identity-5", "validation", 15.0),
@@ -570,7 +588,7 @@ def test_reviewed_manifest_and_stage_a_loader_gate_digests_and_shapes(tmp_path: 
     review = OverlayReviewDecision(
         materialization_sha256=index.materialization_sha256,
         overlay_sha256=index.overlay_sha256,
-        reviewed_record_ids=index.sampled_record_ids,
+        record_reviews=[_record_review(record_id) for record_id, *_ in specs],
         review=ReviewApproval(
             status="approved",
             reviewed_by="test-reviewer",
@@ -622,27 +640,34 @@ def test_reviewed_manifest_and_stage_a_loader_gate_digests_and_shapes(tmp_path: 
     )
     validation = validate_stage_a_manifest(manifest_path)
     assert validation["split_record_counts"] == {"train": 1, "validation": 1, "test": 1}
+    assert validation["canonical_core16_candidate_ready"] is True
+    assert validation["production_model_ready"] is False
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    shard_path = manifest_path.parent / manifest["record_files"][0]["path"]
+    approved = MaterializedStageAGroup.load_jsonl(shard_path)
+    assert all(group.human_review is not None for group in approved)
+    assert all(group.review_status == "approved" for group in approved)
+    assert all(
+        label.evidence == "human_corrected_pseudo_label"
+        for group in approved
+        for view in group.views
+        for label in view.landmarks_2d
+    )
+    assert all(group.canonical_geometry.evidence == "deterministic_geometry" for group in approved)
     base = load_config(Path("configs/face-basic-stage-a-smoke.yaml"))
-    config = base.model_copy(
+    legacy_config = base.model_copy(
         update={
             "data": base.data.model_copy(
                 update={
                     "dataset": "manifest",
                     "usage_tier": "commercial",
                     "manifest": manifest_path,
-                    "batch_size": 1,
                 }
-            ),
-            "export": base.export.model_copy(update={"smoke_only": False}),
+            )
         }
     )
-    batch = next(iter(create_loader(config, split="train", shuffle=False)))
-    assert batch.images.shape == (1, 3, 3, 64, 64)
-    assert batch.targets["landmarks"].shape == (1, 3, 16, 2)
-    assert batch.targets["canonical_geometry"].shape == (1, 3, 16, 3)
-    assert batch.targets["pose"].shape == (1, 3, 7)
-    assert torch.all(batch.label_confidence["landmarks"] == 0.5)
-    assert torch.all(batch.label_confidence["canonical_geometry"] == 0.5)
+    with pytest.raises(ValueError, match="future HR-Canonical loader"):
+        create_loader(legacy_config, split="train", shuffle=False)
 
     calibration_payload = calibration.read_bytes()
     calibration.write_bytes(calibration_payload + b" ")
@@ -654,3 +679,102 @@ def test_reviewed_manifest_and_stage_a_loader_gate_digests_and_shapes(tmp_path: 
     overlay.write_bytes(overlay.read_bytes() + b"tampered")
     with pytest.raises(ValueError, match="overlay artifact digest mismatch"):
         index.verify_files(overlay_index_path)
+
+
+def test_aggregate_review_cannot_bulk_approve_unsampled_records(tmp_path: Path) -> None:
+    specs = [
+        ("train-record", "identity-0", "train", 5.0),
+        ("validation-record", "identity-1", "validation", 15.0),
+        ("test-record", "identity-2", "test", 30.0),
+    ]
+    candidates, overlay_index_path, _, paths = _materialize(tmp_path, groups=specs)
+    descriptor, calibration, profile, _ = paths
+    index = OverlayReviewIndex.load(overlay_index_path)
+    review = OverlayReviewDecision(
+        materialization_sha256=index.materialization_sha256,
+        overlay_sha256=index.overlay_sha256,
+        record_reviews=[_record_review(record_id) for record_id in index.sampled_record_ids],
+        review=ReviewApproval(
+            status="approved",
+            reviewed_by="test-reviewer",
+            reviewed_at=datetime.fromisoformat("2026-07-27T00:00:00+08:00"),
+            evidence_sha256="3" * 64,
+        ),
+    )
+    review_path = tmp_path / "sampled-review.json"
+    _write_model(review, review_path)
+    plan = StageASplitPlan(
+        splits=cast(
+            Any,
+            {
+                split: SplitManifest(
+                    identities=[identity],
+                    sessions=[f"{split}-session"],
+                    devices=[f"{split}-{role}-device" for role in ("front", "left", "right")],
+                    camera_ids=[f"{split}-{role}-camera" for role in ("front", "left", "right")],
+                )
+                for _, identity, split, _ in specs
+            },
+        )
+    )
+    plan_path = tmp_path / "split-plan.json"
+    _write_model(plan, plan_path)
+    manifest_path = tmp_path / "sampled-only-manifest.json"
+    corrected_id = index.sampled_record_ids[0]
+    corrected = StageARecordReview(
+        record_id=corrected_id,
+        action="corrected",
+        reviewed_by="test-reviewer",
+        reviewed_at=datetime.fromisoformat("2026-07-27T00:00:00+08:00"),
+        evidence_sha256=hashlib.sha256(f"corrected:{corrected_id}".encode()).hexdigest(),
+        reviewed_anchor_names=list(SEMANTIC_ANCHORS),
+        correction_sha256="4" * 64,
+        correction_magnitude_px=0.25,
+    )
+    corrected_review = review.model_copy(
+        update={
+            "record_reviews": [
+                corrected if item.record_id == corrected_id else item
+                for item in review.record_reviews
+            ]
+        }
+    )
+    corrected_review_path = tmp_path / "corrected-review.json"
+    _write_model(corrected_review, corrected_review_path)
+    with pytest.raises(ValueError, match="must be re-materialized"):
+        build_stage_a_manifest(
+            candidates,
+            overlay_index_path=overlay_index_path,
+            overlay_review_path=corrected_review_path,
+            split_plan_path=plan_path,
+            teacher_descriptor_path=descriptor,
+            calibration_path=calibration,
+            quality_profile_path=profile,
+            license_registry_path=tmp_path / "license-registry.json",
+            label_catalog_path=Path("configs/data/ntp-v1-label-catalog.json").resolve(),
+            training_recipe_path=Path("configs/training/nana-training-recipe-1.0.0.json").resolve(),
+            capture_license_record_id="self-captured-consented",
+            data_revision="synthetic-corrected-review",
+            output_path=tmp_path / "corrected-manifest.json",
+        )
+    build_stage_a_manifest(
+        candidates,
+        overlay_index_path=overlay_index_path,
+        overlay_review_path=review_path,
+        split_plan_path=plan_path,
+        teacher_descriptor_path=descriptor,
+        calibration_path=calibration,
+        quality_profile_path=profile,
+        license_registry_path=tmp_path / "license-registry.json",
+        label_catalog_path=Path("configs/data/ntp-v1-label-catalog.json").resolve(),
+        training_recipe_path=Path("configs/training/nana-training-recipe-1.0.0.json").resolve(),
+        capture_license_record_id="self-captured-consented",
+        data_revision="synthetic-sampled-review-only",
+        output_path=manifest_path,
+    )
+    shard_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    shard_path = manifest_path.parent / shard_payload["record_files"][0]["path"]
+    approved_ids = {group.record_id for group in MaterializedStageAGroup.load_jsonl(shard_path)}
+    assert approved_ids == set(index.sampled_record_ids)
+    with pytest.raises(ValueError, match="every Stage A split requires"):
+        validate_stage_a_manifest(manifest_path)
