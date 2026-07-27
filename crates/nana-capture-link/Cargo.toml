@@ -9,8 +9,8 @@ repository = "https://github.com/sena-nana/NanaTracking"
 publish = false
 
 [dependencies]
-mutsuki-link-core = { git = "https://github.com/sena-nana/MutsukiLink.git", rev = "024311f78f48e41cb286855d87cfd8542808e87f", version = "0.1.0" }
-mutsuki-link-pairing = { git = "https://github.com/sena-nana/MutsukiLink.git", rev = "024311f78f48e41cb286855d87cfd8542808e87f", version = "0.1.0" }
+mutsuki-link-core = { git = "https://github.com/sena-nana/Mutsuki.git", rev = "387a42735ce13f105292ddc91e5f209979c529d9", version = "0.1.0" }
+mutsuki-link-pairing = { git = "https://github.com/sena-nana/Mutsuki.git", rev = "387a42735ce13f105292ddc91e5f209979c529d9", version = "0.1.0" }
 sha2 = "0.10.9"
 
 [lints]

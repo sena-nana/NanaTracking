@@ -177,7 +177,7 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 [[package]]
 name = "mutsuki-link-core"
 version = "0.1.0"
-source = "git+https://github.com/sena-nana/MutsukiLink.git?rev=024311f78f48e41cb286855d87cfd8542808e87f#024311f78f48e41cb286855d87cfd8542808e87f"
+source = "git+https://github.com/sena-nana/Mutsuki.git?rev=387a42735ce13f105292ddc91e5f209979c529d9#387a42735ce13f105292ddc91e5f209979c529d9"
 dependencies = [
  "sha2",
 ]
@@ -185,7 +185,7 @@ dependencies = [
 [[package]]
 name = "mutsuki-link-pairing"
 version = "0.1.0"
-source = "git+https://github.com/sena-nana/MutsukiLink.git?rev=024311f78f48e41cb286855d87cfd8542808e87f#024311f78f48e41cb286855d87cfd8542808e87f"
+source = "git+https://github.com/sena-nana/Mutsuki.git?rev=387a42735ce13f105292ddc91e5f209979c529d9#387a42735ce13f105292ddc91e5f209979c529d9"
 dependencies = [
  "mutsuki-link-core",
  "serde",
